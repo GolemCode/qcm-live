@@ -5,7 +5,7 @@ from __future__ import annotations
 from django import forms
 from django.db import transaction
 
-from bank.models import Choice, Question, Quiz, QuizItem
+from bank.models import CHOICE_MAX_LENGTH, Choice, Question, Quiz, QuizItem
 
 LETTERS = "ABCDEFGH"  # 2 à 8 propositions, désignées A…H comme au tableau
 MIN_CHOICES = 2
@@ -43,7 +43,7 @@ class QuestionForm(TeacherForm):
             self.fields[f"choice_{letter}"] = table_field(
                 forms.CharField(
                     label=f"Proposition {letter}",
-                    max_length=200,
+                    max_length=CHOICE_MAX_LENGTH,
                     required=False,
                     initial=choice.text if choice else "",
                 )
@@ -65,7 +65,7 @@ class QuestionForm(TeacherForm):
         data = self.cleaned_data
         choices: list[tuple[str, bool]] = []
         for letter in LETTERS:
-            text = (data.get(f"choice_{letter}") or "").strip()
+            text = data.get(f"choice_{letter}") or ""  # CharField retire déjà les espaces
             correct = bool(data.get(f"correct_{letter}"))
             if text:
                 choices.append((text, correct))
@@ -89,7 +89,9 @@ class QuestionForm(TeacherForm):
 
     @transaction.atomic
     def save(self, commit: bool = True) -> Question:
-        question = super().save()
+        question = super().save(commit=commit)
+        if not commit:
+            return question
         question.choices.all().delete()
         Choice.objects.bulk_create(
             Choice(question=question, text=text, correct=correct, position=position)
@@ -154,6 +156,8 @@ class QuizForm(TeacherForm):
     def clean(self):
         super().clean()
         data = self.cleaned_data
+        if any(self.order_field(q) in self.errors for q in self.bank):
+            return data  # un numéro d'ordre invalide : son erreur suffit, pas de contrôle croisé
         chosen = [
             (data[self.order_field(q)], q)
             for q in self.bank
@@ -173,7 +177,9 @@ class QuizForm(TeacherForm):
 
     @transaction.atomic
     def save(self, commit: bool = True) -> Quiz:
-        quiz = super().save()
+        quiz = super().save(commit=commit)
+        if not commit:
+            return quiz
         QuizItem.objects.filter(quiz=quiz).delete()
         QuizItem.objects.bulk_create(
             QuizItem(quiz=quiz, question=question, position=position)

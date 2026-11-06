@@ -12,6 +12,7 @@ from bank.scoring import Scale
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
 
+CHOICE_MAX_LENGTH = 200
 AMC_DEFAULTS = Scale()  # b=1, m=0, v=0, pas de plancher : source unique des valeurs par défaut
 
 
@@ -38,7 +39,7 @@ class Choice(models.Model):
     """Une proposition ; `position` donne l'ordre canonique (A, B, C… au tableau)."""
 
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="choices")
-    text = models.CharField("proposition", max_length=200)
+    text = models.CharField("proposition", max_length=CHOICE_MAX_LENGTH)
     correct = models.BooleanField("juste", default=False)
     position = models.PositiveSmallIntegerField()
 
