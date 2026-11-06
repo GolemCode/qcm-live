@@ -1,0 +1,27 @@
+# Environnement Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Secrets et configuration locale (jamais versionnés)
+.env
+.env.*
+!.env.example
+
+# Données locales : base et listes d'étudiants réelles (données personnelles)
+db.sqlite3
+db.sqlite3-*
+*.csv
+!tests/fixtures/*.csv
+
+# Artefacts
+staticfiles/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+test-results/
+
+# Réglages locaux de Claude Code (le partagé est dans .claude/settings.json)
+.claude/settings.local.json
