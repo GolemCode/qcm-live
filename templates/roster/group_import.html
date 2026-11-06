@@ -1,0 +1,24 @@
+{% extends "teacher/base.html" %}
+{% block title %}Importer un groupe — QCM Live{% endblock %}
+{% block content %}
+  <h1>Importer un groupe</h1>
+  <form method="post" enctype="multipart/form-data" class="form wide" novalidate>
+    {% csrf_token %}
+    {% include "form_errors.html" %}
+    {{ form.name.label_tag }}
+    {{ form.name }}
+    {{ form.file.label_tag }}
+    {{ form.file }}
+    <div class="muted">
+      <p>Une ligne par étudiant : numéro (chiffres uniquement), puis nom, séparés par un point-virgule ou une virgule. Exemple :</p>
+      <pre>numéro;nom
+00123;DURAND Élise
+42;MARTIN Léo</pre>
+      <p>L'en-tête est facultatif. Les exports « CSV » d'Excel conviennent. Si une seule ligne est fautive, rien n'est importé.</p>
+    </div>
+    <p class="actions">
+      <button type="submit">Importer</button>
+      <a href="{% url 'group-list' %}">Annuler</a>
+    </p>
+  </form>
+{% endblock %}

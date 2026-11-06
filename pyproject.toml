@@ -72,7 +72,7 @@ select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "SIM", "RUF"]
 ".claude/hooks/**" = ["S603", "S607"]
 
 [tool.pyright]
-include = ["config", "bank", "tests", ".claude/hooks", "scripts"]
+include = ["config", "bank", "roster", "tests", ".claude/hooks", "scripts"]
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
 venvPath = "."

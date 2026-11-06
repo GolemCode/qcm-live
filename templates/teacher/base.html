@@ -5,6 +5,7 @@
       <a href="{% url 'teacher-home' %}">Accueil</a>
       <a href="{% url 'question-list' %}">Banque de questions</a>
       <a href="{% url 'quiz-list' %}">QCM</a>
+      <a href="{% url 'group-list' %}">Groupes</a>
     </nav>
     <form method="post" action="{% url 'logout' %}">
       {% csrf_token %}
