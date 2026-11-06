@@ -6,7 +6,7 @@ from django import forms
 from django.db import transaction
 
 from config.forms import TeacherForm
-from roster.csv_import import RosterError, parse_roster
+from roster.csv_import import MAX_BYTES, RosterError, parse_roster
 from roster.models import Student, StudentGroup
 
 
@@ -19,12 +19,11 @@ class GroupImportForm(TeacherForm):
         labels = {"name": "Nom du groupe"}
 
     def clean_file(self):
-        upload = self.cleaned_data["file"]
+        """Le fichier validé devient la liste des étudiants (lecture bornée à MAX_BYTES + 1)."""
         try:
-            self.entries = parse_roster(upload.read())
+            return parse_roster(self.cleaned_data["file"].read(MAX_BYTES + 1))
         except RosterError as error:
             raise forms.ValidationError(error.messages) from None
-        return upload
 
     @transaction.atomic
     def save(self, commit: bool = True) -> StudentGroup:
@@ -32,6 +31,6 @@ class GroupImportForm(TeacherForm):
         if commit:
             Student.objects.bulk_create(
                 Student(group=group, number=entry.number, name=entry.name, position=position)
-                for position, entry in enumerate(self.entries)
+                for position, entry in enumerate(self.cleaned_data["file"])
             )
         return group

@@ -2,7 +2,9 @@
 {% block title %}Supprimer le groupe — QCM Live{% endblock %}
 {% block content %}
   <h1>Supprimer le groupe ?</h1>
-  <p>« {{ group.name }} » et ses {{ n_students }} étudiant{{ n_students|pluralize }}.</p>
+  {% with n_students=group.students.count %}
+    <p>« {{ group.name }} » et ses {{ n_students }} étudiant{{ n_students|pluralize }}.</p>
+  {% endwith %}
   <form method="post" class="actions">
     {% csrf_token %}
     <button type="submit" class="danger">Supprimer</button>

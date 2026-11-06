@@ -10,9 +10,10 @@ import re
 from dataclasses import dataclass
 
 MAX_BYTES = 1_000_000  # largement assez pour une promotion entière
+MAX_NUMBER_LENGTH = 20
 MAX_NAME_LENGTH = 200
 MAX_REPORTED_ERRORS = 20
-NUMBER_RE = re.compile(r"\d{1,20}")
+NUMBER_RE = re.compile(rf"\d{{1,{MAX_NUMBER_LENGTH}}}")
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,8 @@ def _line_errors(line: int, cells: list[str], seen: dict[str, int]) -> list[str]
         errors.append(f"Ligne {line} : numéro vide.")
     elif not NUMBER_RE.fullmatch(number):
         errors.append(
-            f"Ligne {line} : le numéro « {number} » ne doit contenir que des chiffres (20 au plus)."
+            f"Ligne {line} : le numéro « {number} » ne doit contenir que des chiffres"
+            f" ({MAX_NUMBER_LENGTH} au plus)."
         )
     elif number in seen:
         errors.append(f"Ligne {line} : numéro {number} en double (déjà ligne {seen[number]}).")
@@ -67,7 +69,10 @@ def _line_errors(line: int, cells: list[str], seen: dict[str, int]) -> list[str]
 
 
 def parse_roster(data: bytes) -> list[Entry]:
-    """Étudiants du fichier, dans l'ordre ; lève RosterError si une seule ligne est fautive."""
+    """Étudiants du fichier, dans l'ordre ; lève RosterError si une seule ligne est fautive.
+
+    Il suffit de lire MAX_BYTES + 1 octets du fichier pour savoir s'il est trop gros.
+    """
     if len(data) > MAX_BYTES:
         raise RosterError([f"Fichier trop volumineux ({MAX_BYTES // 1000} ko au plus)."])
     lines = _decode(data).splitlines()
@@ -75,7 +80,8 @@ def parse_roster(data: bytes) -> list[Entry]:
     reader = csv.reader(lines, delimiter=";" if ";" in first else ",")
 
     entries: list[Entry] = []
-    errors: list[str] = []
+    errors: list[str] = []  # les MAX_REPORTED_ERRORS premières seulement…
+    hidden = 0  # … les suivantes sont comptées
     seen: dict[str, int] = {}
     first_row = True
     for row in reader:
@@ -84,20 +90,21 @@ def parse_roster(data: bytes) -> list[Entry]:
             continue  # ligne vide
         while len(cells) > 2 and not cells[-1]:
             cells.pop()  # colonnes vides en fin de ligne (exports d'Excel)
-        if first_row and _is_header(cells):
+        if first_row:
             first_row = False
-            continue
-        first_row = False
+            if _is_header(cells):
+                continue
         line_errors = _line_errors(reader.line_num, cells, seen)
         if line_errors:
-            errors += line_errors
+            room = MAX_REPORTED_ERRORS - len(errors)
+            errors += line_errors[:room]
+            hidden += len(line_errors[room:])
             continue
         seen[cells[0]] = reader.line_num
         entries.append(Entry(*cells))
 
-    if len(errors) > MAX_REPORTED_ERRORS:
-        hidden = len(errors) - MAX_REPORTED_ERRORS
-        errors = [*errors[:MAX_REPORTED_ERRORS], f"… et {hidden} autres erreurs."]
+    if hidden:
+        errors.append(f"… et {hidden} autres erreurs.")
     if errors:
         raise RosterError(errors)
     if not entries:

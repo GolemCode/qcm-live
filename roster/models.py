@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from django.db import models
 
-from roster.csv_import import MAX_NAME_LENGTH
+from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
@@ -29,7 +29,7 @@ class Student(models.Model):
     """Un étudiant d'un groupe ; `position` garde l'ordre du fichier importé."""
 
     group = models.ForeignKey(StudentGroup, on_delete=models.CASCADE, related_name="students")
-    number = models.CharField("numéro", max_length=20)
+    number = models.CharField("numéro", max_length=MAX_NUMBER_LENGTH)
     name = models.CharField("nom", max_length=MAX_NAME_LENGTH)
     position = models.PositiveIntegerField()
 
