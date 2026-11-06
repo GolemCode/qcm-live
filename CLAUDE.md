@@ -42,9 +42,13 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - **Au lancement, une session fige une copie du QCM et de la liste du groupe** (SES-03, décision I3). Cette copie est faite par `live/snapshot.py` et décrite par des `TypedDict` (`FrozenQuiz`, `FrozenQuestion`, `FrozenStudent`). On la lit par `session.questions` et `session.students`. Le barème figé est sérialisé par `Scale.to_json` ; le lecteur correspondant viendra avec la notation.
   - Les réponses désignent cette copie, jamais les lignes `Choice` ou `QuizItem`. Modifier une question supprime et recrée ses propositions (BAN-05), et la supprimer la retire des QCM (BAN-07).
   - De même, un participant garde **son propre exemplaire** du numéro et du nom de l'étudiant. Supprimer un groupe (GRP-03) ne doit effacer aucun résultat de session.
-- Le temps réel passe par un polling JSON d'environ 1 s, sans WebSocket : voir `static/js/board.js`, qui insère toujours le texte avec `textContent`.
-  - Quand le téléphone aura besoin de la même boucle (I4), la factoriser.
-  - Le temps est calculé à partir des échéances en base, sans worker.
+- **Déroulement (I4).** `live/schedule.py` est un module pur : groupes de N, un créneau de t secondes par question, rotation (rang + étape) mod n, couleur = `Slot.color(rang)`, mélange stable des propositions.
+  - `Session.state(now)` donne la phase (`waiting`, `running`, `ended`) et la position (créneau, temps restant), calculées à partir de `started_at`, sans worker.
+  - Le rang de rotation d'un participant vaut le maximum + 1 (0 pour le premier). `Answer` garde, par participant et par question figée, les indices **canoniques** des propositions choisies ; pas de ligne signifie pas de réponse (v).
+  - **I5 (+10 s).** Ne pas décaler `started_at`, ce qui ferait reculer le créneau en cours. Ajouter à `Schedule` les secondes ajoutées par créneau et faire marcher `position()` sur les échéances cumulées. L'ajout doit être atomique.
+- **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` et `qcm.follow`.
+  - Une page qui suit le direct porte `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
+  - Le texte est toujours inséré avec `textContent`.
   - CSP stricte : aucun script ni style inline.
 - **Identité de l'étudiant.** Elle est stockée dans la session Django : `request.session["live_participants"] = {code: id du participant}`, une identité par appareil et par session. Un numéro déjà pris est refusé par la contrainte d'unicité en base, seul arbitre en cas de concurrence.
 - **Saisies numériques sur téléphone** (code, numéro) : utiliser `live.forms.DigitsField`, qui affiche le pavé numérique et ignore les espaces.
@@ -55,6 +59,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Préconditions des tests :
     - `tests/factories.py` crée les données en passant par les formulaires de l'application, pour qu'aucune donnée ne soit impossible à créer par l'interface ;
     - quand le test vérifie la création elle-même, il passe par l'interface (`tests/e2e/bank_ui.py`).
+  - Temps : `tests.factories.rewind(session, s)` avance le déroulement sans attendre, en reculant `started_at`. Au moins un test par exigence de temps tourne en temps réel (DER-02). Pour attendre qu'un téléphone affiche un créneau, attendre son jeton `data-page`, jamais un délai fixe.
 
 ## Pièges connus
 - Playwright en mode synchrone et pytest-django : il faut `DJANGO_ALLOW_ASYNC_UNSAFE=true`, déjà réglé dans `tests/e2e/conftest.py`.
