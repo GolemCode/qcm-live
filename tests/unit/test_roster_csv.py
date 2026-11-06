@@ -1,6 +1,7 @@
 """Lecture du CSV d'un groupe (SPEC.md §2 bis) : tous les cas, sur une fonction pure."""
 
 import pytest
+
 from roster.csv_import import MAX_BYTES, Entry, RosterError, parse_roster
 
 
@@ -37,7 +38,7 @@ def test_encodings(data):
 
 
 def test_spaces_and_trailing_empty_columns_are_ignored():
-    assert parse_roster(b" 7 ; Ng Anh ;;\n") == [Entry("7", "Ng Anh")]
+    assert parse_roster(b" 7 ; Ng Anh ;;\n;;\n") == [Entry("7", "Ng Anh")]
 
 
 def test_header_requires_two_filled_cells_without_digit_in_first():
@@ -75,7 +76,8 @@ def test_all_faulty_lines_are_reported_in_order():
 
 
 def test_error_list_is_capped():
-    messages = errors_of(b"".join(b"x;A\n" for _ in range(30)))
+    # « 1x » contient un chiffre : la première ligne n'est pas prise pour un en-tête.
+    messages = errors_of(b"".join(b"1x;A\n" for _ in range(30)))
     assert len(messages) == 21
     assert messages[-1] == "… et 10 autres erreurs."
 
