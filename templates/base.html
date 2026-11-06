@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
-  <main class="page">
+  <main class="page"{% block main_attrs %}{% endblock %}>
     {% block header %}{% endblock %}
     {% if messages %}
       <div class="messages" role="status">{% for message in messages %}<p>{{ message }}</p>{% endfor %}</div>

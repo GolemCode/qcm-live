@@ -126,6 +126,7 @@ class IdentifyForm(PlainForm):
                     session=self.session,
                     number=self.cleaned_data["number"],
                     name=self.student_name,
+                    rank=self.session.participants.count(),  # rotation : rangs successifs
                 )
         except IntegrityError:
             self.add_error(

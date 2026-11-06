@@ -1,15 +1,16 @@
-// Tableau de l'enseignant : liste des étudiants connectés, rafraîchie chaque seconde.
-// Script externe (CSP stricte) ; les noms sont insérés comme texte, jamais comme HTML.
+// Tableau de l'enseignant. En attente : liste des connectés. En déroulement : compte à
+// rebours, et rechargement quand on change de groupe ou de phase. Les noms sont insérés
+// comme texte, jamais comme HTML.
 (() => {
   const section = document.querySelector("[data-state-url]");
   if (!section) return;
-  const count = document.getElementById("connected-n");
-  const list = document.getElementById("connected");
+  const timer = section.querySelector("[role=timer]");
+  if (timer) window.qcm.countdown(timer, Number(timer.dataset.remainingMs));
 
-  function render(state) {
-    count.textContent = state.connected.length;
-    list.replaceChildren(
-      ...state.connected.map((name) => {
+  function renderConnected(names) {
+    document.getElementById("connected-n").textContent = names.length;
+    document.getElementById("connected").replaceChildren(
+      ...names.map((name) => {
         const item = document.createElement("li");
         item.textContent = name;
         return item;
@@ -17,16 +18,14 @@
     );
   }
 
-  async function refresh() {
-    try {
-      const response = await fetch(section.dataset.stateUrl, { cache: "no-store" });
-      if (response.ok) render(await response.json());
-    } catch {
-      // Réseau momentanément indisponible : on réessaie au prochain tour.
-    } finally {
-      setTimeout(refresh, 1000);
+  window.qcm.poll(section.dataset.stateUrl, (state) => {
+    const group = state.group === undefined ? "" : String(state.group);
+    if (state.phase !== section.dataset.phase || group !== section.dataset.group) {
+      window.location.reload();
+      return false;
     }
-  }
-
-  setTimeout(refresh, 1000);
+    if (state.phase === "waiting") renderConnected(state.connected);
+    if (timer && state.remaining_ms != null) window.qcm.countdown(timer, state.remaining_ms);
+    return true;
+  });
 })();

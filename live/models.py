@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import secrets
-from typing import TYPE_CHECKING
+from datetime import datetime
+from functools import cached_property
+from typing import TYPE_CHECKING, Literal
 
 from django.db import models
 
 from bank.models import TITLE_MAX_LENGTH
+from live.schedule import Position, Schedule, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
 
@@ -17,6 +20,8 @@ if TYPE_CHECKING:
     from live.snapshot import FrozenQuestion, FrozenStudent
 
 CODE_LENGTH = 6
+
+Phase = Literal["waiting", "running", "ended"]
 
 
 def random_code() -> str:
@@ -58,6 +63,21 @@ class Session(models.Model):
     def n_questions(self) -> int:
         return len(self.questions)
 
+    @cached_property
+    def schedule(self) -> Schedule:
+        return Schedule(self.n_questions, self.shown, self.seconds)
+
+    def position(self, now: datetime) -> Position | None:
+        """Créneau en cours (None avant le démarrage et après la fin)."""
+        if self.started_at is None:
+            return None
+        return self.schedule.position((now - self.started_at).total_seconds())
+
+    def phase(self, now: datetime) -> Phase:
+        if self.started_at is None:
+            return "waiting"
+        return "running" if self.position(now) is not None else "ended"
+
     def student_name(self, number: str) -> str | None:
         """Nom de l'étudiant de ce numéro dans la liste figée, ou None s'il n'en fait pas partie."""
         return next((s["name"] for s in self.students if s["number"] == number), None)
@@ -70,7 +90,11 @@ class Participant(models.Model):
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="participants")
     number = models.CharField(max_length=MAX_NUMBER_LENGTH)
     name = models.CharField(max_length=MAX_NAME_LENGTH)
+    rank = models.PositiveIntegerField(default=0)  # place dans la rotation (live.schedule)
     joined_at = models.DateTimeField(auto_now_add=True)
+
+    if TYPE_CHECKING:
+        answers: RelatedManager[Answer]
 
     class Meta:
         ordering = ["joined_at", "pk"]
@@ -80,3 +104,30 @@ class Participant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.session} {self.number}"
+
+    def choice_order(self, question: int) -> list[int]:
+        """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05)."""
+        n_choices = len(self.session.questions[question]["choices"])
+        return shuffled(n_choices, f"{self.session.code}:{self.pk}:{question}")
+
+
+class Answer(models.Model):
+    """Dernière réponse d'un participant à une question de la copie figée (ETU-07).
+
+    `question` est l'indice de la question dans `session.questions` ; `choices`, les indices
+    (ordre canonique, A = 0) des propositions choisies. Pas de ligne : pas de réponse (v).
+    """
+
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name="answers")
+    question = models.PositiveSmallIntegerField()
+    choices = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["question"]
+        constraints = [
+            models.UniqueConstraint(fields=["participant", "question"], name="unique_answer"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.participant} Q{self.question} {self.choices}"
