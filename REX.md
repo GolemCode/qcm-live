@@ -67,6 +67,20 @@ Seuls livrables fonctionnels : la page d'accueil et la connexion enseignant, jus
 - **pytest-base-url**, dépendance de pytest-playwright, émet un avertissement de dépréciation sous pytest 9. Il est filtré précisément, par son message.
 - **Le hook gitleaks de pre-commit n'analyse que les fichiers indexés.** Il ne voit rien avec `--all-files`. En CI, j'utilise donc le binaire gitleaks, à la version et à l'empreinte SHA-256 figées, sur tout l'historique.
 
+### Ce que les revues ont trouvé
+La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce qui justifie de les garder dans la procédure.
+- **Agent `spec-auditor`.** Le test de GEN-01 ne prouvait rien sur téléphone.
+  - Chromium mobile dézoome un contenu trop large, et `window.innerWidth` grandit alors avec lui. Le contrôle « pas de défilement horizontal » passait donc même avec un débordement de 4 fois la largeur de l'écran, ou sans balise viewport.
+  - Correction : comparer à `clientWidth`, vérifier que la largeur reste celle d'un téléphone, et ajouter un test qui prouve que le contrôle sait échouer.
+  - Contre-épreuve faite : la suppression de la balise viewport fait désormais échouer GEN-01.
+- **`/code-review`.** 10 constats, tous corrigés :
+  - En CI, le lockfile n'était pas vraiment strict : une commande `uv run` exécutée avant `uv sync --locked` re-verrouillait en silence. Correction : `UV_LOCKED=1` sur tout le workflow, et génération du `.env` avec `--no-project`.
+  - Le hook Stop ignorait les modifications des fichiers non suivis, donc un nouveau fichier cassé passait. Il échouait aussi dans un worktree, où `.git` est un fichier.
+  - Le garde Bash par expressions régulières était à la fois contournable (`git -C . commit -n`, `SKIP=`, refspec `+`, `git push origin HEAD` depuis main, commandes sur plusieurs lignes) et trop strict (texte d'un message de commit, `main-hotfix`). Il est réécrit par analyse des arguments (shlex), et chaque cas est devenu un test.
+  - La traçabilité identifiait les tests par leur seul nom : collision possible entre deux fichiers.
+  - Le test de déconnexion pouvait être instable : il n'attendait pas la fin de la navigation.
+  - Quatre réglages Django ne faisaient que répéter les valeurs par défaut.
+
 ### Ce qui a bien marché
 - **Tester que le contrôle sait échouer.** La traçabilité a été essayée sur un incrément futur (`make accept INC=1`, en échec) et avec un test désélectionné (en échec). Un filet qui n'a jamais attrapé de faute ne prouve rien.
 - **Vérifier gitleaks pour de vrai.** Un jeton factice, dans un dépôt jetable hors projet, a bien été bloqué.
@@ -77,6 +91,9 @@ Seuls livrables fonctionnels : la page d'accueil et la connexion enseignant, jus
 - Les plugins LSP de Claude Code supposent un binaire dans le PATH, ce qui s'accorde mal avec un environnement virtuel de projet.
 - Avec Playwright en API synchrone et pytest-django, il faut `DJANGO_ALLOW_ASYNC_UNSAFE`.
 - Le hook gitleaks de pre-commit ne remplace pas une analyse de l'historique.
+- **Mesurer la largeur en émulation mobile.** Ne jamais comparer à `window.innerWidth`, à cause du dézoom automatique ; utiliser `documentElement.clientWidth`.
+- **Garde-fous de commandes shell.** Un filtre par expressions régulières sur le texte brut est à la fois contournable et trop strict. Il faut raisonner sur les arguments, et traiter le retour à la ligne comme un séparateur de commandes.
+- **Une CI verte ne suffit pas.** Une relecture adversariale, faite par un agent avec un contexte neuf, trouve des tests creux que la CI ne peut pas voir.
 
 ### Choix techniques et leur raison
 - **Django 6.1** : la CSP native permet une politique stricte sans dépendance. Python 3.12 est le minimum requis.
