@@ -122,6 +122,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 ## 5. Points d'attention connus (non traités sauf décision contraire)
 
 - **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. La parade actuelle : l'enseignant voit au tableau la liste des noms connectés avant le départ (SES-02). En cas de doute, il passe aux copies papier.
+- **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants, qui n'ont alors aucun recours dans l'application (ETU-02). La parade actuelle est la liste des connectés au tableau. Une vraie protection demanderait un secret par étudiant : c'est une décision fonctionnelle.
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
 - **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel I8) devient nécessaire.
 
@@ -150,3 +151,4 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Liste des connectés au tableau (I3) | Noms seulement, avec le décompte |
 | Moment où le contenu est figé (I3) | Au lancement de la session |
 | Confirmation sur le téléphone (I3) | Le nom de l'étudiant |
+| Délai du « direct » au tableau (I3) | *Proposé, à confirmer :* 2 secondes au plus (SES-02) |
