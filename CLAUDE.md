@@ -59,7 +59,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Préconditions des tests :
     - `tests/factories.py` crée les données en passant par les formulaires de l'application, pour qu'aucune donnée ne soit impossible à créer par l'interface ;
     - quand le test vérifie la création elle-même, il passe par l'interface (`tests/e2e/bank_ui.py`).
-  - Temps : `tests.factories.rewind(session, s)` avance le déroulement sans attendre, en reculant `started_at`. Au moins un test par exigence de temps tourne en temps réel (DER-02). Pour attendre qu'un téléphone affiche un créneau, attendre son jeton `data-page`, jamais un délai fixe.
+  - Temps : `tests.factories.rewind(session, s)` avance le déroulement sans attendre, en reculant `started_at` ; `jump_to(session, s)` le place à s secondes du démarrage, pour tester une échéance à la demi-seconde près. Au moins un test par exigence de temps tourne en temps réel (DER-02). Pour attendre qu'un téléphone affiche un créneau, attendre son jeton `data-page`, jamais un délai fixe.
 
 ## Pièges connus
 - Playwright en mode synchrone et pytest-django : il faut `DJANGO_ALLOW_ASYNC_UNSAFE=true`, déjà réglé dans `tests/e2e/conftest.py`.
