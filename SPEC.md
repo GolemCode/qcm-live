@@ -30,6 +30,10 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[BAN-02]** (I1) L'enseignant crée une question **multiple** : un énoncé et 2 à 8 propositions, dont au moins une juste.
 - **[BAN-03]** (I1) L'enseignant crée un QCM : un titre et une sélection **ordonnée** de questions de la banque.
 - **[BAN-04]** (I1) Une même question de la banque peut servir dans plusieurs QCM.
+- **[BAN-05]** (I1) L'enseignant modifie une question : énoncé, type, propositions, bonnes réponses. Les règles de validité sont les mêmes qu'à la création.
+- **[BAN-06]** (I1) L'enseignant modifie un QCM : titre, questions, ordre, barème.
+- **[BAN-07]** (I1) L'enseignant supprime une question après confirmation. La page de confirmation nomme les QCM qui l'utilisent. La question est retirée de ces QCM.
+- **[BAN-08]** (I1) L'enseignant supprime un QCM après confirmation. Ses questions restent dans la banque.
 - **[BAR-01]** (I1) Chaque QCM porte son barème, sur le modèle d'Auto Multiple Choice (AMC). Il a deux échelles :
   - questions simples : `b` (juste), `m` (faux), `v` (pas de réponse) ;
   - questions multiples : `b` (par case bien traitée), `m` (par case mal traitée), `v` (aucune case cochée), `p` (plancher de la note de la question ; vide = pas de plancher).
@@ -77,7 +81,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **Question multiple.**
   - Aucune case cochée : `v`.
   - Sinon, la note est la somme sur toutes les propositions : `b` pour chaque case bien traitée (juste et cochée, ou fausse et non cochée), `m` pour chaque case mal traitée.
-  - Si `p` est renseigné, la note de la question ne descend pas en dessous de `p`.
+  - Si `p` est renseigné, cette somme ne descend pas en dessous de `p`. Le plancher ne s'applique pas à `v` : rien coché donne exactement `v`.
 - **Note maximale.** `b` pour une question simple, `b ×` le nombre de propositions pour une question multiple.
 - **Note totale.** La somme des notes des questions. Elle n'est pas bornée et peut être négative.
 - La réponse incohérente d'AMC (`e`) ne peut pas se produire : l'interface empêche de cocher plusieurs cases sur une question simple.
@@ -113,3 +117,5 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Repère en plus de la couleur | Oui : numéro de couleur |
 | Ordre des propositions | Mélangé sur chaque téléphone |
 | Hypothèses H1–H9 du plan | Validées avec le plan |
+| Que peut faire l'enseignant après la création (I1) | Créer, modifier et supprimer, questions comme QCM |
+| Le plancher `p` s'applique-t-il à `v` (I1) | Non : `p` ne borne que la somme des cases |
