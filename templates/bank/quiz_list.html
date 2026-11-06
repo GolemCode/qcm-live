@@ -1,0 +1,23 @@
+{% extends "teacher/base.html" %}
+{% block title %}QCM — QCM Live{% endblock %}
+{% block content %}
+  <div class="bar">
+    <h1>QCM</h1>
+    <a class="button" href="{% url 'quiz-create' %}">Nouveau QCM</a>
+  </div>
+  {% if quizzes %}
+    <table class="grid">
+      <thead><tr><th scope="col">Titre</th><th scope="col">Questions</th></tr></thead>
+      <tbody>
+        {% for quiz in quizzes %}
+          <tr>
+            <td><a href="{% url 'quiz-detail' quiz.pk %}">{{ quiz.title }}</a></td>
+            <td>{{ quiz.n_questions }} question{{ quiz.n_questions|pluralize }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Aucun QCM pour l'instant.</p>
+  {% endif %}
+{% endblock %}

@@ -1,7 +1,7 @@
 """Routes de l'application."""
 
 from django.contrib.auth import views as auth_views
-from django.urls import path
+from django.urls import include, path
 
 from config import views
 
@@ -10,4 +10,5 @@ urlpatterns = [
     path("prof/", views.teacher_home, name="teacher-home"),
     path("prof/connexion/", auth_views.LoginView.as_view(), name="login"),
     path("prof/deconnexion/", auth_views.LogoutView.as_view(), name="logout"),
+    path("prof/", include("bank.urls")),
 ]

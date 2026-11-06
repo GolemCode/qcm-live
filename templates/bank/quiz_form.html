@@ -1,0 +1,44 @@
+{% extends "teacher/base.html" %}
+{% block title %}{% if quiz.pk %}Modifier le QCM{% else %}Nouveau QCM{% endif %} — QCM Live{% endblock %}
+{% block content %}
+  <h1>{% if quiz.pk %}Modifier le QCM{% else %}Nouveau QCM{% endif %}</h1>
+  <form method="post" class="form wide" novalidate>
+    {% csrf_token %}
+    {% include "form_errors.html" %}
+    {{ form.title.label_tag }}
+    {{ form.title }}
+    <fieldset>
+      <legend>Questions</legend>
+      {% with rows=form.question_rows %}
+        {% if rows %}
+          <p class="muted">Numérotez les questions à inclure dans l'ordre voulu (1, 2, 3…). Laissez vide pour exclure.</p>
+          <table class="grid">
+            <thead><tr><th scope="col">Ordre</th><th scope="col">Question</th><th scope="col">Type</th></tr></thead>
+            <tbody>
+              {% for question, field in rows %}
+                <tr><td class="order">{{ field }}</td><td>{{ question.text }}</td><td>{{ question.get_kind_display }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p>La banque est vide : <a href="{% url 'question-create' %}">créez d'abord des questions</a>.</p>
+        {% endif %}
+      {% endwith %}
+    </fieldset>
+    <fieldset>
+      <legend>Barème (logique d'Auto Multiple Choice)</legend>
+      <div class="scales">
+        {% for legend, fields in form.scale_fieldsets %}
+          <fieldset>
+            <legend>{{ legend }}</legend>
+            {% for field in fields %}<div class="scale-field">{{ field.label_tag }}{{ field }}</div>{% endfor %}
+          </fieldset>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <p class="actions">
+      <button type="submit">Enregistrer</button>
+      <a href="{% if quiz.pk %}{% url 'quiz-detail' quiz.pk %}{% else %}{% url 'quiz-list' %}{% endif %}">Annuler</a>
+    </p>
+  </form>
+{% endblock %}

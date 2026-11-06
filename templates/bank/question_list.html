@@ -1,0 +1,30 @@
+{% extends "teacher/base.html" %}
+{% block title %}Banque de questions — QCM Live{% endblock %}
+{% block content %}
+  <div class="bar">
+    <h1>Banque de questions</h1>
+    <a class="button" href="{% url 'question-create' %}">Nouvelle question</a>
+  </div>
+  {% for question in questions %}
+    <article class="card">
+      <h2>{{ question.text }}</h2>
+      <p class="muted">{{ question.get_kind_display }}</p>
+      <ol class="choices" type="A">
+        {% for choice in question.choices.all %}
+          <li>{{ choice.text }}{% if choice.correct %} <strong>(juste)</strong>{% endif %}</li>
+        {% endfor %}
+      </ol>
+      <p class="muted">
+        {% with quizzes=question.quizzes.all %}
+          {% if quizzes %}Utilisée dans : {{ quizzes|join:", " }}{% else %}Utilisée dans aucun QCM{% endif %}
+        {% endwith %}
+      </p>
+      <p class="actions">
+        <a href="{% url 'question-update' question.pk %}">Modifier</a>
+        <a href="{% url 'question-delete' question.pk %}">Supprimer</a>
+      </p>
+    </article>
+  {% empty %}
+    <p>La banque est vide : créez votre première question.</p>
+  {% endfor %}
+{% endblock %}

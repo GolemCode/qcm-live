@@ -8,6 +8,10 @@
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <main class="page">
+    {% block header %}{% endblock %}
+    {% if messages %}
+      <div class="messages" role="status">{% for message in messages %}<p>{{ message }}</p>{% endfor %}</div>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 </body>

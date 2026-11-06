@@ -1,0 +1,30 @@
+{% extends "teacher/base.html" %}
+{% block title %}{% if question %}Modifier la question{% else %}Nouvelle question{% endif %} — QCM Live{% endblock %}
+{% block content %}
+  <h1>{% if question %}Modifier la question{% else %}Nouvelle question{% endif %}</h1>
+  <form method="post" class="form wide" novalidate>
+    {% csrf_token %}
+    {% include "form_errors.html" %}
+    {{ form.text.label_tag }}
+    {{ form.text }}
+    <fieldset>
+      <legend>Type</legend>
+      {% for radio in form.kind %}<label class="inline">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+    </fieldset>
+    <fieldset>
+      <legend>Propositions : de 2 à 8, laissez vides celles qui ne servent pas</legend>
+      <table class="grid">
+        <thead><tr><th scope="col">Lettre</th><th scope="col">Proposition</th><th scope="col">Juste</th></tr></thead>
+        <tbody>
+          {% for letter, text, correct in form.choice_rows %}
+            <tr><th scope="row">{{ letter }}</th><td>{{ text }}</td><td class="center">{{ correct }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </fieldset>
+    <p class="actions">
+      <button type="submit">Enregistrer</button>
+      <a href="{% url 'question-list' %}">Annuler</a>
+    </p>
+  </form>
+{% endblock %}

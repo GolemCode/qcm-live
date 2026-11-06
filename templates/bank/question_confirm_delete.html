@@ -1,0 +1,16 @@
+{% extends "teacher/base.html" %}
+{% block title %}Supprimer la question — QCM Live{% endblock %}
+{% block content %}
+  <h1>Supprimer la question ?</h1>
+  <p>« {{ question.text }} »</p>
+  {% if quizzes %}
+    <p>Elle sera retirée des QCM : {{ quizzes|join:", " }}.</p>
+  {% else %}
+    <p>Elle n'est utilisée dans aucun QCM.</p>
+  {% endif %}
+  <form method="post" class="actions">
+    {% csrf_token %}
+    <button type="submit" class="danger">Supprimer</button>
+    <a href="{% url 'question-list' %}">Annuler</a>
+  </form>
+{% endblock %}
