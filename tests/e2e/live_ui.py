@@ -58,3 +58,57 @@ def join(phone: Page, base_url: str, code: str, number: str) -> None:
     enter_code(phone, base_url, code)
     phone.get_by_label("Numéro d'étudiant").fill(number)
     phone.get_by_role("button", name="Valider").click()
+
+
+LIVE_MS = 2_000  # « en direct » : 2 s au plus (SPEC SES-02, DER-02)
+
+
+def start(page: Page) -> None:
+    page.get_by_role("button", name="Démarrer").click()
+    expect(page.get_by_role("button", name="Démarrer")).to_have_count(0)
+
+
+def card(page: Page, color: int) -> Locator:
+    """Question affichée au tableau sous la couleur `color`."""
+    return page.get_by_role("article", name=f"Couleur {color}", exact=True)
+
+
+def timer(page: Page) -> Locator:
+    return page.get_by_role("timer", name="Temps restant")
+
+
+def seconds_left(page: Page) -> int:
+    text = timer(page).inner_text()
+    match = re.fullmatch(r"(\d+) s", text.strip())
+    assert match, text
+    return int(match.group(1))
+
+
+def background(locator: Locator) -> str:
+    return locator.evaluate("element => getComputedStyle(element).backgroundColor")
+
+
+def phone_color(phone: Page) -> int:
+    badge = phone.get_by_text(re.compile(r"^Couleur \d$"))
+    expect(badge).to_be_visible()
+    return int(badge.inner_text().split()[-1])
+
+
+def phone_choices(phone: Page) -> list[str]:
+    """Propositions affichées sur le téléphone, dans l'ordre de l'écran."""
+    group = phone.get_by_role("group", name="Propositions")
+    expect(group).to_be_visible()
+    return [label.inner_text().strip() for label in group.locator("label").all()]
+
+
+def choose(phone: Page, text: str) -> None:
+    phone.get_by_role("group", name="Propositions").get_by_text(text, exact=True).click()
+
+
+def save_status(phone: Page) -> Locator:
+    return phone.get_by_role("status")
+
+
+def manage_participants(page: Page) -> None:
+    page.get_by_role("link", name="Gérer les connectés").click()
+    expect(page.get_by_role("heading", name="Connectés", level=1)).to_be_visible()

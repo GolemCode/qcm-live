@@ -61,16 +61,25 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   L'enseignant clique sur « Démarrer ». *(dérivé)*
 - **[SES-03]** (I3) Le QCM et la liste du groupe sont **figés au lancement**. Modifier ou supprimer ensuite le QCM, ses questions ou le groupe ne change pas la session.
 - **[ETU-01]** (I3) L'étudiant ouvre l'application sur son téléphone, à l'adresse projetée. Il saisit l'identifiant de session, puis son numéro d'étudiant, sur le pavé numérique. Son téléphone affiche alors son nom, pour confirmer son identité.
-- **[ETU-02]** (I3) Un identifiant de session inconnu est refusé. Un numéro absent du groupe de la session est refusé. Un numéro déjà utilisé dans la session, depuis un autre appareil, est refusé : il reste lié à ce premier appareil jusqu'à la fin de la session, sans recours dans l'application.
+- **[ETU-02]** (I3) Un identifiant de session inconnu est refusé. Un numéro absent du groupe de la session est refusé. Un numéro déjà utilisé dans la session, depuis un autre appareil, est refusé : il reste lié à ce premier appareil, sauf si l'enseignant le libère avant le démarrage (SES-04).
+- **[SES-04]** (I4) Avant le démarrage, l'enseignant peut **libérer un numéro**. Il le fait depuis une page de gestion des connectés, ouverte depuis le tableau mais non projetée, qui montre les numéros et les noms. L'appareil qui occupait le numéro perd son identité, et le vrai étudiant peut alors le saisir. Après le démarrage, aucune libération n'est possible.
 - **[ETU-03]** (I3) Un téléphone rechargé ou sorti de veille retrouve l'identité de l'étudiant, sans nouvelle saisie. Ressaisir l'identifiant de la session mène aussi directement à son écran.
 
 ### Session : déroulement
-- **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche son énoncé et ses propositions (A, B, C…) sur sa **couleur de fond** avec son **numéro de couleur**.
-- **[DER-02]** (I4) Un groupe de n questions se déroule en n **créneaux** synchronisés de t secondes, identiques pour tous. À la fin du temps, on passe automatiquement au créneau suivant. Il n'y a ni pause ni saut. Le temps restant s'affiche au tableau et sur les téléphones.
-- **[ETU-04]** (I4) Pendant un créneau, le fond du téléphone prend la couleur de la question à laquelle l'étudiant doit répondre, avec son numéro de couleur. Seules les propositions s'affichent, **jamais l'énoncé**.
+- **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche, sur sa **couleur de fond** et avec son **numéro de couleur** (1 à N) :
+  - son énoncé ;
+  - ses propositions (A, B, C…), dans l'ordre de la banque.
+
+  Le contenu affiché est celui qui a été figé au lancement (SES-03). À la fin du dernier créneau, le tableau indique que la session est terminée.
+- **[DER-02]** (I4) Un groupe de n questions se déroule en n **créneaux** synchronisés de t secondes, identiques pour tous. À la fin du temps, on passe automatiquement au créneau suivant, sans recharger à la main : le tableau et les téléphones suivent en 2 secondes au plus. Il n'y a ni pause ni saut. Le temps restant s'affiche au tableau et sur les téléphones. Après le dernier créneau, les téléphones indiquent que la session est terminée.
+- **[ETU-04]** (I4) Pendant un créneau, le fond du téléphone prend la couleur de la question à laquelle l'étudiant doit répondre, avec son numéro de couleur. Seules les propositions s'affichent, sans lettre et **jamais l'énoncé** :
+  - question simple : on en choisit une ;
+  - question multiple : on coche une ou plusieurs cases.
+
+  Chaque choix est enregistré aussitôt, sans bouton à valider, et le téléphone confirme l'enregistrement. *(enregistrement immédiat : dérivé)*
 - **[ETU-05]** (I4) Sur chaque téléphone, les propositions sont mélangées. L'ordre est propre à l'étudiant et reste stable pour une question donnée.
 - **[ETU-06]** (I4) Tous les étudiants répondent à toutes les questions, mais pas dans le même ordre : à chaque créneau d'un groupe, chacun a une autre question du groupe (rotation). Si N=1, l'ordre est forcément le même pour tous.
-- **[ETU-07]** (I4) L'étudiant peut changer sa réponse jusqu'à la fin du créneau ; c'est la dernière qui compte. Après la fin du créneau, toute réponse est refusée.
+- **[ETU-07]** (I4) L'étudiant peut changer sa réponse jusqu'à la fin du créneau ; c'est la dernière qui compte. Un téléphone rechargé réaffiche la réponse enregistrée. Après la fin du créneau, toute réponse est refusée par le serveur, et le téléphone le signale.
 - **[ETU-08]** (I4) Un étudiant peut rejoindre une session déjà commencée. Les créneaux qu'il a manqués comptent comme non-réponse.
 - **[DER-03]** (I4) Le tableau n'affiche ni la correction ni de statistiques pendant la session.
 
@@ -117,12 +126,12 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **Couleurs.** Six couleurs contrastées, numérotées de 1 à 6.
 - **Comptes enseignants.** Un espace commun à tous les comptes, créés en ligne de commande (`createsuperuser`). Pas de gestion multi-enseignants.
 - **Identité de l'étudiant.** Elle est gardée par un cookie de session. Un autre appareil qui se présente avec le même numéro est refusé (ETU-02).
-- **Incident d'appareil.** Il n'y a pas de recours dans l'application : par exemple, un téléphone tombé en panne ne peut pas être remplacé en cours de session. L'enseignant garde à portée de main des copies papier d'Auto Multiple Choice.
+- **Incident d'appareil.** Après le démarrage, il n'y a pas de recours dans l'application : par exemple, un téléphone tombé en panne ne peut pas être remplacé. L'enseignant garde à portée de main des copies papier d'Auto Multiple Choice. Avant le démarrage, il peut libérer un numéro (SES-04).
 
 ## 5. Points d'attention connus (non traités sauf décision contraire)
 
 - **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. La parade actuelle : l'enseignant voit au tableau la liste des noms connectés avant le départ (SES-02). En cas de doute, il passe aux copies papier.
-- **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants, qui n'ont alors aucun recours dans l'application (ETU-02). La parade actuelle est la liste des connectés au tableau. Une vraie protection demanderait un secret par étudiant : c'est une décision fonctionnelle.
+- **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants. Le recours retenu (SES-04) : l'enseignant voit la liste des connectés au tableau et libère les numéros usurpés avant le démarrage.
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
 - **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel I8) devient nécessaire.
 
@@ -151,4 +160,5 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Liste des connectés au tableau (I3) | Noms seulement, avec le décompte |
 | Moment où le contenu est figé (I3) | Au lancement de la session |
 | Confirmation sur le téléphone (I3) | Le nom de l'étudiant |
-| Délai du « direct » au tableau (I3) | *Proposé, à confirmer :* 2 secondes au plus (SES-02) |
+| Délai du « direct » au tableau (I3) | 2 secondes au plus (SES-02), confirmé |
+| Recours contre la réservation de numéros (avant I4) | L'enseignant libère un numéro avant le démarrage (SES-04) |
