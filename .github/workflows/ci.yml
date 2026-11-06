@@ -60,8 +60,18 @@ jobs:
         run: uv run --no-project --no-env-file python scripts/gen_env.py
       - name: Dépendances (lockfile strict)
         run: uv sync --locked
-      - name: Navigateur Chromium pour Playwright
-        run: uv run --no-env-file playwright install --with-deps chromium
+      # Seul le navigateur sans interface sert aux tests. Ses bibliothèques système sont déjà
+      # présentes sur ubuntu-24.04 (Chrome y est préinstallé) : pas de « --with-deps », dont
+      # l'apt a pris jusqu'à 11 min sur un miroir lent pour 7 s de tests.
+      - name: Version de Playwright (clé de cache)
+        id: pw
+        run: echo "version=$(uv run --no-env-file python -c 'import importlib.metadata as m; print(m.version("playwright"))')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Navigateur Chromium (sans interface) pour Playwright
+        run: uv run --no-env-file playwright install --only-shell chromium
       - name: Tous les tests + couverture de la spec + couverture du code
         run: make verify-tests PYTEST_ARGS="--tracing=retain-on-failure --output=test-results"
       - name: Traces Playwright des tests en échec
