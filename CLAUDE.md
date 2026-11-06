@@ -60,6 +60,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 - Playwright en mode synchrone et pytest-django : il faut `DJANGO_ALLOW_ASYNC_UNSAFE=true`, déjà réglé dans `tests/e2e/conftest.py`.
 - **Enchaîner les commits avec `&&`, jamais avec `;`.** Un commit refusé par pre-commit laisse ses fichiers indexés, et le commit suivant les emporte sous un message faux.
 - **Imports et ruff.** ruff ne classe un import parmi ceux du projet que si le module existe. D'où la liste `known-first-party` dans `pyproject.toml` : y ajouter toute nouvelle application **avant** d'écrire ses tests rouges.
+- **`gh pr edit` échoue** avec le `gh` 2.45 de la machine (requête GraphQL sur les « Projects classic » obsolètes). Modifier une PR par l'API REST : `gh api -X PATCH repos/GolemCode/qcm-live/pulls/<n> -F body=@fichier.md`. Pour sortir une PR du brouillon : `gh pr ready <n>`, qui fonctionne. Vérifier le numéro de la PR avant toute modification.
 - **CI.** Pas de `playwright install --with-deps` : un miroir apt lent l'a fait durer 11 min. Le runner a déjà les bibliothèques, et le navigateur sans interface est mis en cache.
 - pre-commit met de côté les fichiers non indexés : une modification de configuration (`pyproject.toml`) doit entrer dans le même commit que le code qui en dépend, ou avant lui.
 - **Typage.**
