@@ -4,9 +4,7 @@
   <h1>Connexion enseignant</h1>
   <form method="post" action="{% url 'login' %}" class="form">
     {% csrf_token %}
-    {% if form.non_field_errors %}
-      <div class="error" role="alert">{{ form.non_field_errors|join:" " }}</div>
-    {% endif %}
+    {% include "form_errors.html" %}
     <label for="{{ form.username.id_for_label }}">Identifiant</label>
     {{ form.username }}
     <label for="{{ form.password.id_for_label }}">Mot de passe</label>

@@ -5,49 +5,55 @@ from __future__ import annotations
 from django import forms
 from django.db import transaction
 
-from bank.models import SCALE_LABELS, Choice, Question, Quiz, QuizItem
+from bank.models import Choice, Question, Quiz, QuizItem
 
 LETTERS = "ABCDEFGH"  # 2 à 8 propositions, désignées A…H comme au tableau
 MIN_CHOICES = 2
 
 
-class QuestionForm(forms.Form):
-    text = forms.CharField(
-        label="Énoncé", max_length=1000, widget=forms.Textarea(attrs={"rows": 3})
-    )
-    kind = forms.ChoiceField(
-        label="Type",
-        choices=[
-            (Question.Kind.SIMPLE, "Choix simple (une seule bonne réponse)"),
-            (Question.Kind.MULTIPLE, "Choix multiple (une ou plusieurs bonnes réponses)"),
-        ],
-        widget=forms.RadioSelect,
-        initial=Question.Kind.SIMPLE,
-    )
+def table_field[F: forms.Field](field: F) -> F:
+    """Champ rendu dans un tableau, sans <label> visible : son libellé devient son nom
+    accessible (aria-label)."""
+    field.widget.attrs["aria-label"] = field.label
+    return field
 
-    def __init__(self, *args, instance: Question | None = None, **kwargs) -> None:
-        self.instance = instance
-        if instance is not None:
-            initial = {"text": instance.text, "kind": instance.kind}
-            for letter, choice in zip(LETTERS, instance.choices.all(), strict=False):
-                initial[f"choice_{letter}"] = choice.text
-                initial[f"correct_{letter}"] = choice.correct
-            kwargs.setdefault("initial", initial)
+
+class TeacherForm(forms.ModelForm):
+    """Base des formulaires enseignant : libellés sans « : » (le français en ajouterait un)."""
+
+    def __init__(self, *args, **kwargs) -> None:
         kwargs.setdefault("label_suffix", "")
         super().__init__(*args, **kwargs)
-        for letter in LETTERS:
-            # Pas de <label> visible dans le tableau : aria-label donne le nom accessible.
-            text_label, correct_label = f"Proposition {letter}", f"Proposition {letter} juste"
-            self.fields[f"choice_{letter}"] = forms.CharField(
-                label=text_label,
-                max_length=200,
-                required=False,
-                widget=forms.TextInput(attrs={"aria-label": text_label}),
+
+
+class QuestionForm(TeacherForm):
+    """Énoncé, type, et 8 emplacements de proposition (les vides sont ignorés)."""
+
+    class Meta:
+        model = Question
+        fields = ["text", "kind"]
+        labels = {"text": "Énoncé"}
+        widgets = {"text": forms.Textarea(attrs={"rows": 3}), "kind": forms.RadioSelect}
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        existing = list(self.instance.choices.all()) if self.instance.pk else []
+        for index, letter in enumerate(LETTERS):
+            choice = existing[index] if index < len(existing) else None
+            self.fields[f"choice_{letter}"] = table_field(
+                forms.CharField(
+                    label=f"Proposition {letter}",
+                    max_length=200,
+                    required=False,
+                    initial=choice.text if choice else "",
+                )
             )
-            self.fields[f"correct_{letter}"] = forms.BooleanField(
-                label=correct_label,
-                required=False,
-                widget=forms.CheckboxInput(attrs={"aria-label": correct_label}),
+            self.fields[f"correct_{letter}"] = table_field(
+                forms.BooleanField(
+                    label=f"Proposition {letter} juste",
+                    required=False,
+                    initial=choice.correct if choice else False,
+                )
             )
 
     def choice_rows(self):
@@ -82,11 +88,8 @@ class QuestionForm(forms.Form):
         return data
 
     @transaction.atomic
-    def save(self) -> Question:
-        question = self.instance or Question()
-        question.text = self.cleaned_data["text"]
-        question.kind = self.cleaned_data["kind"]
-        question.save()
+    def save(self, commit: bool = True) -> Question:
+        question = super().save()
         question.choices.all().delete()
         Choice.objects.bulk_create(
             Choice(question=question, text=text, correct=correct, position=position)
@@ -99,17 +102,24 @@ SIMPLE_SCALE_FIELDS = ["simple_b", "simple_m", "simple_v"]
 MULTIPLE_SCALE_FIELDS = ["multiple_b", "multiple_m", "multiple_v", "multiple_p"]
 
 
-class QuizForm(forms.ModelForm):
+class QuizForm(TeacherForm):
     """Titre, barème, et un champ « ordre » par question de la banque (vide = non incluse)."""
 
     class Meta:
         model = Quiz
         fields = ["title", *SIMPLE_SCALE_FIELDS, *MULTIPLE_SCALE_FIELDS]
-        # Libellés donnés tels quels : les directives AMC restent en minuscules (« b — … »).
-        labels = {"title": "Titre", **SCALE_LABELS}
+        # Directives AMC en minuscules, comme dans AMC (« b — … »).
+        labels = {
+            "simple_b": "b — réponse juste",
+            "simple_m": "m — réponse fausse",
+            "simple_v": "v — pas de réponse",
+            "multiple_b": "b — case bien traitée",
+            "multiple_m": "m — case mal traitée",
+            "multiple_v": "v — aucune case cochée",
+            "multiple_p": "p — plancher (facultatif)",
+        }
 
     def __init__(self, *args, **kwargs) -> None:
-        kwargs.setdefault("label_suffix", "")
         super().__init__(*args, **kwargs)
         positions = {}
         if self.instance.pk:
@@ -118,13 +128,13 @@ class QuizForm(forms.ModelForm):
             )
         self.bank = list(Question.objects.all())
         for question in self.bank:
-            label = f"Ordre de la question : {question.text}"
-            self.fields[self.order_field(question)] = forms.IntegerField(
-                label=label,
-                min_value=1,
-                required=False,
-                initial=positions.get(question.pk),
-                widget=forms.NumberInput(attrs={"aria-label": label}),
+            self.fields[self.order_field(question)] = table_field(
+                forms.IntegerField(
+                    label=f"Ordre de la question : {question.text}",
+                    min_value=1,
+                    required=False,
+                    initial=positions.get(question.pk),
+                )
             )
 
     @staticmethod

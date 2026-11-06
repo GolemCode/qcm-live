@@ -51,7 +51,6 @@ button {
 
 button.link { background: none; color: var(--accent); padding: 0; text-decoration: underline; }
 
-.error { color: var(--error); font-weight: 600; }
 
 h2 { font-size: 1.25rem; margin: 1.25rem 0 0.5rem; }
 
@@ -61,7 +60,7 @@ h2 { font-size: 1.25rem; margin: 1.25rem 0 0.5rem; }
 .teacher-bar nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
 
 .messages { background: #ecfdf3; border: 1px solid #abefc6; border-radius: 0.375rem; padding: 0.25rem 1rem; }
-.error { background: #fef3f2; border: 1px solid #fecdca; border-radius: 0.375rem; padding: 0.25rem 1rem; }
+.error { color: var(--error); font-weight: 600; background: #fef3f2; border: 1px solid #fecdca; border-radius: 0.375rem; padding: 0.25rem 1rem; }
 
 a.button { display: inline-block; padding: 0.6rem 1.25rem; border-radius: 0.375rem; background: var(--accent); color: #fff; text-decoration: none; }
 button.danger { background: var(--error); }

@@ -1,7 +1,7 @@
 {% extends "teacher/base.html" %}
-{% block title %}{% if question %}Modifier la question{% else %}Nouvelle question{% endif %} — QCM Live{% endblock %}
+{% block title %}{% if question.pk %}Modifier la question{% else %}Nouvelle question{% endif %} — QCM Live{% endblock %}
 {% block content %}
-  <h1>{% if question %}Modifier la question{% else %}Nouvelle question{% endif %}</h1>
+  <h1>{% if question.pk %}Modifier la question{% else %}Nouvelle question{% endif %}</h1>
   <form method="post" class="form wide" novalidate>
     {% csrf_token %}
     {% include "form_errors.html" %}
@@ -9,6 +9,7 @@
     {{ form.text }}
     <fieldset>
       <legend>Type</legend>
+      <p class="muted">Simple : une seule bonne réponse. Multiple : une ou plusieurs.</p>
       {% for radio in form.kind %}<label class="inline">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
     </fieldset>
     <fieldset>

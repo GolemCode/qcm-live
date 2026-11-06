@@ -12,16 +12,7 @@ from bank.scoring import Scale
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
 
-# Libellés des directives AMC, en minuscules comme dans AMC (aussi utilisés par le formulaire).
-SCALE_LABELS = {
-    "simple_b": "b — réponse juste",
-    "simple_m": "m — réponse fausse",
-    "simple_v": "v — pas de réponse",
-    "multiple_b": "b — case bien traitée",
-    "multiple_m": "m — case mal traitée",
-    "multiple_v": "v — aucune case cochée",
-    "multiple_p": "p — plancher (facultatif)",
-}
+AMC_DEFAULTS = Scale()  # b=1, m=0, v=0, pas de plancher : source unique des valeurs par défaut
 
 
 class Question(models.Model):
@@ -61,14 +52,10 @@ class Choice(models.Model):
         return self.text
 
 
-def scale_field(name: str, default: int | None = None) -> models.DecimalField:
+def scale_field(default: Decimal | None) -> models.DecimalField:
+    """Une directive du barème ; sans défaut, elle est facultative (plancher p)."""
     return models.DecimalField(
-        SCALE_LABELS[name],
-        max_digits=6,
-        decimal_places=2,
-        default=None if default is None else Decimal(default),
-        null=default is None,
-        blank=default is None,
+        max_digits=6, decimal_places=2, default=default, null=default is None, blank=default is None
     )
 
 
@@ -76,25 +63,19 @@ class Quiz(models.Model):
     title = models.CharField("titre", max_length=200)
     questions = models.ManyToManyField(Question, through="QuizItem", related_name="quizzes")
     # Barème AMC : une échelle pour les questions simples, une pour les multiples.
-    simple_b = scale_field("simple_b", 1)
-    simple_m = scale_field("simple_m", 0)
-    simple_v = scale_field("simple_v", 0)
-    multiple_b = scale_field("multiple_b", 1)
-    multiple_m = scale_field("multiple_m", 0)
-    multiple_v = scale_field("multiple_v", 0)
-    multiple_p = scale_field("multiple_p")  # pas de défaut : pas de plancher
+    simple_b = scale_field(AMC_DEFAULTS.b)
+    simple_m = scale_field(AMC_DEFAULTS.m)
+    simple_v = scale_field(AMC_DEFAULTS.v)
+    multiple_b = scale_field(AMC_DEFAULTS.b)
+    multiple_m = scale_field(AMC_DEFAULTS.m)
+    multiple_v = scale_field(AMC_DEFAULTS.v)
+    multiple_p = scale_field(AMC_DEFAULTS.p)
 
     class Meta:
         ordering = ["title", "pk"]
 
     def __str__(self) -> str:
         return self.title
-
-    def simple_scale(self) -> Scale:
-        return Scale(b=self.simple_b, m=self.simple_m, v=self.simple_v)
-
-    def multiple_scale(self) -> Scale:
-        return Scale(b=self.multiple_b, m=self.multiple_m, v=self.multiple_v, p=self.multiple_p)
 
     def ordered_questions(self) -> models.QuerySet[Question]:
         return self.questions.order_by("quizitem__position")

@@ -18,7 +18,7 @@ def question_list(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def question_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
-    question = get_object_or_404(Question, pk=pk) if pk is not None else None
+    question = get_object_or_404(Question, pk=pk) if pk is not None else Question()
     form = QuestionForm(request.POST or None, instance=question)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -34,11 +34,7 @@ def question_delete(request: HttpRequest, pk: int) -> HttpResponse:
         question.delete()
         messages.success(request, "Question supprimée.")
         return redirect("question-list")
-    return render(
-        request,
-        "bank/question_confirm_delete.html",
-        {"question": question, "quizzes": question.quizzes.all()},
-    )
+    return render(request, "bank/question_confirm_delete.html", {"question": question})
 
 
 @login_required

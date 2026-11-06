@@ -63,13 +63,10 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "SIM", "RUF"]
-# RUF012 signale à tort les attributs des classes Meta de Django (idiome standard).
-ignore = ["RUF012"]
-
-[tool.ruff.lint.isort]
-known-first-party = ["bank", "config", "live", "roster", "tests"]
-
 [tool.ruff.lint.per-file-ignores]
+# RUF012 signale à tort les attributs des classes Meta de Django (idiome standard).
+"*/models.py" = ["RUF012"]
+"*/forms.py" = ["RUF012"]
 "tests/**" = ["S101", "S105", "S106", "S603", "S607"]
 ".claude/hooks/**" = ["S603", "S607"]
 

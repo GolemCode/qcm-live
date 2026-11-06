@@ -3,11 +3,13 @@
 {% block content %}
   <h1>Supprimer la question ?</h1>
   <p>« {{ question.text }} »</p>
-  {% if quizzes %}
-    <p>Elle sera retirée des QCM : {{ quizzes|join:", " }}.</p>
-  {% else %}
-    <p>Elle n'est utilisée dans aucun QCM.</p>
-  {% endif %}
+  {% with quizzes=question.quizzes.all %}
+    {% if quizzes %}
+      <p>Elle sera retirée des QCM : {{ quizzes|join:", " }}.</p>
+    {% else %}
+      <p>Elle n'est utilisée dans aucun QCM.</p>
+    {% endif %}
+  {% endwith %}
   <form method="post" class="actions">
     {% csrf_token %}
     <button type="submit" class="danger">Supprimer</button>
