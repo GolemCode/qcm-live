@@ -41,8 +41,9 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   Valeurs par défaut : `b=1`, `m=0`, `v=0`, `p` vide. Les valeurs peuvent être négatives.
 
 ### Enseignant : groupes d'étudiants
-- **[GRP-01]** (I2) L'enseignant importe un groupe d'étudiants à partir d'un fichier CSV (numéro, nom). Le groupe et ses étudiants s'affichent.
-- **[GRP-02]** (I2) Un CSV invalide est refusé en entier, avec un message qui désigne la ligne fautive : format incorrect, numéro en double, numéro ou nom vide.
+- **[GRP-01]** (I2) L'enseignant importe un groupe d'étudiants : il donne au groupe un nom unique et fournit un fichier CSV (numéro, nom). Le groupe et ses étudiants s'affichent. Les numéros gardent leurs éventuels zéros de tête.
+- **[GRP-02]** (I2) Un CSV invalide est refusé en entier, sans rien créer. Le message désigne chaque ligne fautive : format incorrect, numéro en double, numéro ou nom vide, numéro qui ne contient pas que des chiffres. Un fichier sans étudiant est refusé, de même qu'un nom de groupe vide ou déjà pris.
+- **[GRP-03]** (I2) L'enseignant supprime un groupe après confirmation. Pour corriger une liste, il supprime le groupe puis le réimporte.
 
 ### Session : lancement et accueil
 - **[SES-01]** (I3) L'enseignant lance une session en choisissant un QCM, un groupe, le nombre N de questions affichées en même temps (1 à 6) et le temps t par question, en secondes. Un identifiant de session court et facile à saisir est généré.
@@ -71,6 +72,16 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
 ### Mode classe
 - **[CLA-01]** (I7) L'application se lance en mode classe sur le PC de l'enseignant : serveur de production local, sans mode debug. Elle fonctionne de bout en bout depuis les téléphones du réseau local, et l'adresse à ouvrir s'affiche.
+
+## 2 bis. Format du CSV d'un groupe (*dérivé*)
+
+- Une ligne par étudiant : numéro, puis nom (par exemple « DUPONT Jeanne »).
+- **Séparateur.** Point-virgule, comme dans les exports d'Excel en français, ou virgule. On retient le point-virgule s'il apparaît dans la première ligne non vide.
+- **Numéro.** De 1 à 20 chiffres.
+- **En-tête facultatif.** La première ligne non vide est un en-tête si elle a deux colonnes remplies et si sa première ne contient aucun chiffre (par exemple « numéro;nom »).
+- **Tolérances.** Les lignes vides et les colonnes vides en fin de ligne sont ignorées.
+- **Encodage.** UTF-8, avec ou sans BOM, ou Windows-1252 pour les anciens exports d'Excel.
+- **Numéros de ligne.** Ceux des messages d'erreur sont ceux du fichier, en commençant à 1.
 
 ## 3. Barème (logique AMC, sous-ensemble b, m, v, p)
 
@@ -119,3 +130,5 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Hypothèses H1–H9 du plan | Validées avec le plan |
 | Que peut faire l'enseignant après la création (I1) | Créer, modifier et supprimer, questions comme QCM |
 | Le plancher `p` s'applique-t-il à `v` (I1) | Non : `p` ne borne que la somme des cases |
+| Que peut faire l'enseignant sur un groupe (I2) | Importer, consulter, supprimer ; pour corriger, supprimer puis réimporter |
+| Format du numéro d'étudiant (I2) | Chiffres uniquement (pavé numérique sur le téléphone) |
