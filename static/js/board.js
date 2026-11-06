@@ -3,11 +3,11 @@
 (() => {
   const section = document.querySelector("[data-state-url]");
   if (!section) return;
-  const count = document.getElementById("connected-count");
+  const count = document.getElementById("connected-n");
   const list = document.getElementById("connected");
 
   function render(state) {
-    count.textContent = `Connectés : ${state.connected.length} / ${state.total}`;
+    count.textContent = state.connected.length;
     list.replaceChildren(
       ...state.connected.map((name) => {
         const item = document.createElement("li");

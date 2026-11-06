@@ -7,14 +7,16 @@ from typing import TYPE_CHECKING
 
 from django.db import models
 
+from bank.models import TITLE_MAX_LENGTH
 from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
+from roster.models import GROUP_NAME_MAX_LENGTH
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
 
+    from live.snapshot import FrozenQuestion, FrozenStudent
+
 CODE_LENGTH = 6
-MAX_SHOWN = 6  # SES-01 : de 1 à 6 questions affichées en même temps
-MIN_SECONDS, MAX_SECONDS = 5, 600
 
 
 def random_code() -> str:
@@ -26,10 +28,10 @@ class Session(models.Model):
     """Une session lancée. Le QCM et le groupe y sont copiés au lancement (SES-03)."""
 
     code = models.CharField(max_length=CODE_LENGTH, unique=True)
-    quiz_title = models.CharField(max_length=200)
-    group_name = models.CharField(max_length=100)
-    content = models.JSONField()  # live.snapshot.freeze_quiz
-    roster = models.JSONField()  # live.snapshot.freeze_group
+    quiz_title = models.CharField(max_length=TITLE_MAX_LENGTH)
+    group_name = models.CharField(max_length=GROUP_NAME_MAX_LENGTH)
+    content = models.JSONField()  # live.snapshot.FrozenQuiz
+    roster = models.JSONField()  # list[live.snapshot.FrozenStudent]
     shown = models.PositiveSmallIntegerField()
     seconds = models.PositiveSmallIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -45,12 +47,20 @@ class Session(models.Model):
         return self.code
 
     @property
+    def questions(self) -> list[FrozenQuestion]:
+        return self.content["questions"]
+
+    @property
+    def students(self) -> list[FrozenStudent]:
+        return self.roster
+
+    @property
     def n_questions(self) -> int:
-        return len(self.content["questions"])
+        return len(self.questions)
 
     def student_name(self, number: str) -> str | None:
         """Nom de l'étudiant de ce numéro dans la liste figée, ou None s'il n'en fait pas partie."""
-        return next((s["name"] for s in self.roster if s["number"] == number), None)
+        return next((s["name"] for s in self.students if s["number"] == number), None)
 
 
 class Participant(models.Model):

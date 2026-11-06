@@ -91,3 +91,15 @@ def test_multiple_question_floor_zero():
 def test_max_score():
     assert max_score(multiple=False, n_choices=5, scale=SIMPLE_SCALE) == D(2)
     assert max_score(multiple=True, n_choices=4, scale=MULTI_SCALE) == D(8)
+
+
+def test_scale_json_round_trip_keeps_decimals_exactly():
+    scale = Scale(b=D("0.5"), m=D("-0.25"), v=D("-1"), p=D("-2.00"))
+    assert scale.to_json() == {"b": "0.5", "m": "-0.25", "v": "-1", "p": "-2.00"}
+    assert Scale.from_json(scale.to_json()) == scale
+    assert Scale.from_json(Scale().to_json()) == Scale()
+
+
+def test_scale_from_json_requires_b_m_v():
+    with pytest.raises(ValueError, match="b"):
+        Scale.from_json({"b": None, "m": "0", "v": "0", "p": None})

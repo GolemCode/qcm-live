@@ -5,7 +5,7 @@ Fonctions pures, sans Django : les propositions sont désignées par leur indice
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from decimal import Decimal
 
 
@@ -17,6 +17,23 @@ class Scale:
     m: Decimal = Decimal(0)  # réponse fausse (simple) / case mal traitée (multiple)
     v: Decimal = Decimal(0)  # aucune réponse
     p: Decimal | None = None  # plancher de la somme (questions multiples)
+
+    def to_json(self) -> dict[str, str | None]:
+        """Forme sérialisable (décimaux en texte, sans perte), pour les copies figées."""
+        return {key: None if value is None else str(value) for key, value in asdict(self).items()}
+
+    @classmethod
+    def from_json(cls, data: dict[str, str | None]) -> Scale:
+        def decimal(key: str) -> Decimal:
+            value = data[key]
+            if value is None:
+                raise ValueError(f"directive {key} absente")
+            return Decimal(value)
+
+        p = data.get("p")
+        return cls(
+            b=decimal("b"), m=decimal("m"), v=decimal("v"), p=None if p is None else Decimal(p)
+        )
 
 
 def score(

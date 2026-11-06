@@ -54,7 +54,7 @@ def test_board_state_lists_names_in_join_order(admin_client, session):
     Participant.objects.create(session=session, number="2", name="B")
     Participant.objects.create(session=session, number="1", name="A")
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
-    assert state == {"connected": ["B", "A"], "total": 2}
+    assert state == {"connected": ["B", "A"]}
 
 
 def test_snapshot_keeps_quiz_order_choices_and_scales(session):

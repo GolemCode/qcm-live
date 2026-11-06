@@ -22,7 +22,8 @@ IDENTITIES = "live_participants"
 
 @login_required
 def session_list(request: HttpRequest) -> HttpResponse:
-    return render(request, "live/session_list.html", {"sessions": Session.objects.all()})
+    sessions = Session.objects.defer("content", "roster")  # inutiles à la liste
+    return render(request, "live/session_list.html", {"sessions": sessions})
 
 
 @login_required
@@ -54,9 +55,9 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
 
 @login_required
 def board_state(request: HttpRequest, code: str) -> JsonResponse:
-    """État du tableau, interrogé chaque seconde par static/js/board.js."""
-    session = get_object_or_404(Session, code=code)
-    return JsonResponse({"connected": _connected(session), "total": len(session.roster)})
+    """Noms des connectés, interrogés chaque seconde par static/js/board.js."""
+    session = get_object_or_404(Session.objects.only("pk"), code=code)
+    return JsonResponse({"connected": _connected(session)})
 
 
 @login_required
@@ -77,7 +78,7 @@ def home(request: HttpRequest) -> HttpResponse:
     """Page d'accueil : l'étudiant saisit le code de session projeté au tableau."""
     form = JoinForm(request.GET or None)
     if form.is_valid():
-        return redirect("student-session", code=form.cleaned_data["code"].code)
+        return redirect("student-session", code=form.cleaned_data["code"])
     return render(request, "home.html", {"form": form})
 
 

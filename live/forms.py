@@ -8,11 +8,13 @@ from django.db.models import Count
 
 from bank.models import Quiz
 from config.forms import PlainForm
-from live.models import MAX_SECONDS, MAX_SHOWN, MIN_SECONDS, Participant, Session, random_code
+from live.models import CODE_LENGTH, Participant, Session, random_code
 from live.snapshot import freeze_group, freeze_quiz
+from roster.csv_import import MAX_NUMBER_LENGTH
 from roster.models import StudentGroup
 
-NUMERIC_KEYPAD = {"inputmode": "numeric", "autocomplete": "off"}
+MAX_SHOWN = 6  # SES-01 : de 1 à 6 questions affichées en même temps
+MIN_SECONDS, MAX_SECONDS = 5, 600
 
 
 class LaunchSessionForm(PlainForm):
@@ -52,49 +54,60 @@ class LaunchSessionForm(PlainForm):
                 continue
 
 
+class DigitsField(forms.CharField):
+    """Suite de chiffres tapée sur le pavé numérique du téléphone ; les espaces sont ignorés."""
+
+    def __init__(self, *, label: str, max_length: int) -> None:
+        super().__init__(
+            label=label,
+            max_length=max_length,
+            widget=forms.TextInput(attrs={"inputmode": "numeric", "autocomplete": "off"}),
+        )
+
+    def to_python(self, value) -> str:
+        return (super().to_python(value) or "").replace(" ", "")
+
+
 class JoinForm(PlainForm):
-    code = forms.CharField(
-        label="Code de session", max_length=20, widget=forms.TextInput(attrs=NUMERIC_KEYPAD)
-    )
+    code = DigitsField(label="Code de session", max_length=CODE_LENGTH)
 
-    def clean_code(self) -> Session:
-        code = self.cleaned_data["code"].replace(" ", "")
-        session = Session.objects.filter(code=code).first()
-        if session is None:
+    def clean_code(self) -> str:
+        code = self.cleaned_data["code"]
+        if not Session.objects.filter(code=code).exists():
             raise forms.ValidationError("Aucune session ne porte ce code.")
-        return session
-
-
-ALREADY_TAKEN = "Ce numéro est déjà utilisé dans cette session, depuis un autre appareil."
+        return code
 
 
 class IdentifyForm(PlainForm):
-    number = forms.CharField(
-        label="Numéro d'étudiant", max_length=40, widget=forms.TextInput(attrs=NUMERIC_KEYPAD)
-    )
+    number = DigitsField(label="Numéro d'étudiant", max_length=MAX_NUMBER_LENGTH)
 
     def __init__(self, *args, session: Session, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.session = session
 
     def clean_number(self) -> str:
-        number = self.cleaned_data["number"].replace(" ", "")
-        if self.session.student_name(number) is None:
+        number = self.cleaned_data["number"]
+        name = self.session.student_name(number)
+        if name is None:
             raise forms.ValidationError("Ce numéro ne fait pas partie du groupe de cette session.")
-        if self.session.participants.filter(number=number).exists():
-            raise forms.ValidationError(ALREADY_TAKEN)
+        self.student_name = name
         return number
 
     def save(self) -> Participant | None:
-        """Le participant, ou None si le numéro a été pris entre-temps (erreur ajoutée)."""
-        number = self.cleaned_data["number"]
+        """Le participant, ou None si le numéro est déjà pris dans la session (erreur ajoutée).
+
+        La contrainte d'unicité en base est le seul arbitre : deux téléphones qui valident le
+        même numéro au même instant ne peuvent pas passer tous les deux.
+        """
         try:
             with transaction.atomic():
                 return Participant.objects.create(
                     session=self.session,
-                    number=number,
-                    name=self.session.student_name(number) or "",
+                    number=self.cleaned_data["number"],
+                    name=self.student_name,
                 )
         except IntegrityError:
-            self.add_error("number", ALREADY_TAKEN)
+            self.add_error(
+                "number", "Ce numéro est déjà utilisé dans cette session, depuis un autre appareil."
+            )
             return None
