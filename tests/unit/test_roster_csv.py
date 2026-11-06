@@ -128,3 +128,12 @@ def test_control_characters_in_name_are_refused():
         "Fichier illisible (encodage non reconnu) : enregistrez-le en « CSV UTF-8 »."
     ]
     assert errors_of(b"1;a\x07b\n") == ["Ligne 1 : le nom contient un caractère invalide."]
+
+
+def test_blank_lines_count_in_line_numbers():
+    assert errors_of(b"1;A\n\n\n;B\n") == ["Ligne 4 : numéro vide."]
+
+
+def test_limits_are_inclusive():
+    number, name = "1" * 20, "A" * 200
+    assert parse_roster(f"{number};{name}\n".encode()).entries == [Entry(number, name)]

@@ -44,6 +44,7 @@ INVALID_FILES = [
     (b"1;A\n2;\n", ["Ligne 2", "nom vide"]),
     (b"1;A\n12a;B\n", ["Ligne 2", "chiffres"]),
     (b"1;A\n2\n3;\n", ["Ligne 2", "Ligne 3"]),  # toutes les lignes fautives sont désignées
+    (b"1;A\n\n;B\n", ["Ligne 3", "numéro vide"]),  # les lignes vides comptent
     (b"numero;nom\n\n", ["aucun étudiant"]),
 ]
 
@@ -59,6 +60,11 @@ def test_invalid_csv_is_refused_entirely(teacher_page: Page):
         submit_group(page, "TD3", content)
         for fragment in fragments:
             expect(page.get_by_role("alert")).to_contain_text(fragment)
+    # Au-delà de 20 lignes fautives : les 20 premières, puis le nombre des autres.
+    submit_group(page, "TD3", b"".join(b"1x;A\n" for _ in range(25)))
+    expect(page.get_by_role("alert")).to_contain_text("Ligne 20 :")
+    expect(page.get_by_role("alert")).not_to_contain_text("Ligne 21 :")
+    expect(page.get_by_role("alert")).to_contain_text("… et 5 autres erreurs.")
     # Nom de groupe vide, puis déjà pris.
     submit_group(page, "", b"1;A\n2;B\n")
     expect(page.get_by_role("alert")).to_contain_text("Nom du groupe")
@@ -90,3 +96,8 @@ def test_delete_group_after_confirmation(teacher_page: Page):
     expect(page.get_by_role("status")).to_contain_text("Groupe supprimé")
     expect(page.get_by_role("link", name="TD jetable")).to_have_count(0)
     expect(page.get_by_role("link", name="TD gardé")).to_be_visible()
+
+    # Correction d'une liste : le groupe supprimé se réimporte sous le même nom.
+    import_group(page, "TD jetable", b"1;A\n2;B corrige\n3;C\n")
+    expect(student_rows(page)).to_have_count(3)
+    expect(student_rows(page).nth(1).get_by_role("cell")).to_have_text(["2", "B corrige"])
