@@ -6,7 +6,6 @@ from playwright.sync_api import Page, expect
 from tests.e2e.bank_ui import (
     MULTIPLE,
     SIMPLE,
-    create_question,
     create_quiz,
     fill_question,
     fill_quiz,
@@ -18,6 +17,7 @@ from tests.e2e.bank_ui import (
     scale_input,
     scale_row,
 )
+from tests.factories import make_question, make_quiz
 
 CAPITAL = "Quelle est la capitale de la France ?"
 PRIMES = "Lesquels de ces nombres sont premiers ?"
@@ -89,7 +89,7 @@ def test_create_multiple_question_with_eight_choices(teacher_page: Page):
 def test_create_quiz_with_ordered_questions(teacher_page: Page):
     page = teacher_page
     for text in ("Q-alpha", "Q-beta", "Q-gamma"):
-        create_question(page, text, choices=[("oui", True), ("non", False)])
+        make_question(text)
     open_quizzes(page)
     page.get_by_role("link", name="Nouveau QCM").click()
 
@@ -118,8 +118,8 @@ def test_create_quiz_with_ordered_questions(teacher_page: Page):
 @pytest.mark.spec("BAN-04")
 def test_question_reused_in_two_quizzes(teacher_page: Page):
     page = teacher_page
-    create_question(page, "Q-commune", choices=[("oui", True), ("non", False)])
-    create_question(page, "Q-propre", choices=[("oui", True), ("non", False)])
+    make_question("Q-commune")
+    make_question("Q-propre")
     create_quiz(page, "QCM A", ["Q-commune", "Q-propre"])
     create_quiz(page, "QCM B", ["Q-commune"])
 
@@ -136,7 +136,7 @@ def test_question_reused_in_two_quizzes(teacher_page: Page):
 @pytest.mark.spec("BAR-01")
 def test_quiz_scale_defaults_and_custom_values(teacher_page: Page):
     page = teacher_page
-    create_question(page, "Q-barème", choices=[("oui", True), ("non", False)])
+    make_question("Q-barème")
     open_quizzes(page)
     page.get_by_role("link", name="Nouveau QCM").click()
 
@@ -165,7 +165,8 @@ def test_quiz_scale_defaults_and_custom_values(teacher_page: Page):
 @pytest.mark.spec("BAN-05")
 def test_edit_question(teacher_page: Page):
     page = teacher_page
-    create_question(page, "Couleur du ciel ?", choices=[("Bleu", True), ("Vert", False)])
+    make_question("Couleur du ciel ?", [("Bleu", True), ("Vert", False)])
+    open_bank(page)
     question_card(page, "Couleur du ciel ?").get_by_role("link", name="Modifier").click()
     expect(page.get_by_label("Énoncé")).to_have_value("Couleur du ciel ?")
     expect(page.get_by_label("Proposition A", exact=True)).to_have_value("Bleu")
@@ -194,9 +195,9 @@ def test_edit_question(teacher_page: Page):
 @pytest.mark.spec("BAN-06")
 def test_edit_quiz(teacher_page: Page):
     page = teacher_page
-    for text in ("Q1", "Q2", "Q3"):
-        create_question(page, text, choices=[("oui", True), ("non", False)])
-    create_quiz(page, "Partiel", ["Q1", "Q2"])
+    q1, q2, _ = (make_question(text) for text in ("Q1", "Q2", "Q3"))
+    make_quiz("Partiel", [q1, q2])
+    open_quiz(page, "Partiel")
 
     page.get_by_role("link", name="Modifier").click()
     expect(page.get_by_label("Titre")).to_have_value("Partiel")
@@ -215,10 +216,9 @@ def test_edit_quiz(teacher_page: Page):
 @pytest.mark.spec("BAN-07")
 def test_delete_question_after_confirmation(teacher_page: Page):
     page = teacher_page
-    create_question(page, "Q-supprimée", choices=[("oui", True), ("non", False)])
-    create_question(page, "Q-gardée", choices=[("oui", True), ("non", False)])
-    create_quiz(page, "QCM A", ["Q-supprimée", "Q-gardée"])
-    create_quiz(page, "QCM B", ["Q-supprimée"])
+    removed, kept = make_question("Q-supprimée"), make_question("Q-gardée")
+    make_quiz("QCM A", [removed, kept])
+    make_quiz("QCM B", [removed])
 
     # Annuler : rien ne change.
     open_bank(page)
@@ -246,9 +246,9 @@ def test_delete_question_after_confirmation(teacher_page: Page):
 @pytest.mark.spec("BAN-08")
 def test_delete_quiz_after_confirmation(teacher_page: Page):
     page = teacher_page
-    create_question(page, "Q-survivante", choices=[("oui", True), ("non", False)])
-    create_quiz(page, "QCM jetable", ["Q-survivante"])
-    create_quiz(page, "QCM gardé", ["Q-survivante"])
+    survivor = make_question("Q-survivante")
+    make_quiz("QCM jetable", [survivor])
+    make_quiz("QCM gardé", [survivor])
 
     open_quiz(page, "QCM jetable")
     page.get_by_role("link", name="Supprimer").click()

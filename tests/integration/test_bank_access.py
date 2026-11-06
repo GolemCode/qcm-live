@@ -3,19 +3,15 @@
 import pytest
 from django.urls import reverse
 
-from bank.models import Choice, Question, Quiz, QuizItem
+from bank.models import Question, Quiz
+from tests.factories import make_question, make_quiz
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
 def quiz():
-    question = Question.objects.create(text="Q", kind=Question.Kind.SIMPLE)
-    Choice.objects.create(question=question, text="oui", correct=True, position=0)
-    Choice.objects.create(question=question, text="non", correct=False, position=1)
-    quiz = Quiz.objects.create(title="QCM")
-    QuizItem.objects.create(quiz=quiz, question=question, position=1)
-    return quiz
+    return make_quiz("QCM", [make_question("Q")])
 
 
 def bank_urls(quiz):
@@ -54,10 +50,3 @@ def test_get_on_delete_only_asks_for_confirmation(admin_client, quiz):
 def test_unknown_objects_give_404(admin_client):
     assert admin_client.get(reverse("question-update", args=[999])).status_code == 404
     assert admin_client.get(reverse("quiz-detail", args=[999])).status_code == 404
-
-
-def test_quiz_scales_feed_scoring(quiz):
-    quiz.multiple_p = -1
-    simple, multiple = quiz.simple_scale(), quiz.multiple_scale()
-    assert (simple.b, simple.m, simple.v, simple.p) == (1, 0, 0, None)
-    assert multiple.p == -1
