@@ -12,7 +12,7 @@
     · {{ session.shown }} question{{ session.shown|pluralize }} à la fois
     · {{ session.seconds }} s par question
   </p>
-  <section class="waiting" data-state-url="{% url 'board-state' session.code %}">
+  <section class="waiting"{% if not session.started_at %} data-state-url="{% url 'board-state' session.code %}"{% endif %}>
     <p class="count">Connectés : <span id="connected-n">{{ connected|length }}</span> / {{ session.students|length }}</p>
     <ul id="connected" class="connected" aria-label="Étudiants connectés">
       {% for name in connected %}<li>{{ name }}</li>{% endfor %}

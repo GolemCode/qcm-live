@@ -22,19 +22,6 @@ class Scale:
         """Forme sérialisable (décimaux en texte, sans perte), pour les copies figées."""
         return {key: None if value is None else str(value) for key, value in asdict(self).items()}
 
-    @classmethod
-    def from_json(cls, data: dict[str, str | None]) -> Scale:
-        def decimal(key: str) -> Decimal:
-            value = data[key]
-            if value is None:
-                raise ValueError(f"directive {key} absente")
-            return Decimal(value)
-
-        p = data.get("p")
-        return cls(
-            b=decimal("b"), m=decimal("m"), v=decimal("v"), p=None if p is None else Decimal(p)
-        )
-
 
 def score(
     *,

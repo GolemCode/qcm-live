@@ -63,10 +63,9 @@ def board_state(request: HttpRequest, code: str) -> JsonResponse:
 @login_required
 @require_POST
 def session_start(request: HttpRequest, code: str) -> HttpResponse:
-    session = get_object_or_404(Session, code=code)
-    if session.started_at is None:
-        session.started_at = timezone.now()
-        session.save(update_fields=["started_at"])
+    get_object_or_404(Session.objects.only("pk"), code=code)
+    # Mise à jour conditionnelle et atomique : un double clic ne déplace pas l'heure de départ.
+    if Session.objects.filter(code=code, started_at__isnull=True).update(started_at=timezone.now()):
         messages.success(request, "Session démarrée.")
     return redirect("board", code=code)
 
@@ -76,7 +75,7 @@ def session_start(request: HttpRequest, code: str) -> HttpResponse:
 
 def home(request: HttpRequest) -> HttpResponse:
     """Page d'accueil : l'étudiant saisit le code de session projeté au tableau."""
-    form = JoinForm(request.GET or None)
+    form = JoinForm(request.GET if "code" in request.GET else None)
     if form.is_valid():
         return redirect("student-session", code=form.cleaned_data["code"])
     return render(request, "home.html", {"form": form})

@@ -15,6 +15,7 @@ from roster.models import StudentGroup
 
 MAX_SHOWN = 6  # SES-01 : de 1 à 6 questions affichées en même temps
 MIN_SECONDS, MAX_SECONDS = 5, 600
+CODE_ATTEMPTS = 20  # un million de codes : une collision est rare, vingt d'affilée impossible
 
 
 class LaunchSessionForm(PlainForm):
@@ -36,22 +37,35 @@ class LaunchSessionForm(PlainForm):
         initial=30,
     )
 
+    def clean(self):
+        """Fige le QCM et le groupe tels qu'ils sont, en une lecture cohérente (SES-03)."""
+        super().clean()
+        quiz, group = self.cleaned_data.get("quiz"), self.cleaned_data.get("group")
+        if quiz is not None and group is not None:
+            with transaction.atomic():
+                self.frozen = {
+                    "quiz_title": quiz.title,
+                    "group_name": group.name,
+                    "content": freeze_quiz(quiz),
+                    "roster": freeze_group(group),
+                }
+            if not self.frozen["content"]["questions"]:
+                raise forms.ValidationError("Ce QCM ne contient plus aucune question.")
+        return self.cleaned_data
+
     def save(self) -> Session:
-        quiz, group = self.cleaned_data["quiz"], self.cleaned_data["group"]
         fields = {
-            "quiz_title": quiz.title,
-            "group_name": group.name,
-            "content": freeze_quiz(quiz),
-            "roster": freeze_group(group),
+            **self.frozen,
             "shown": self.cleaned_data["shown"],
             "seconds": self.cleaned_data["seconds"],
         }
-        while True:  # un million de codes : une collision est rare, on retire alors un code
+        for _ in range(CODE_ATTEMPTS):
             try:
                 with transaction.atomic():
                     return Session.objects.create(code=random_code(), **fields)
             except IntegrityError:
-                continue
+                continue  # code déjà attribué : on en tire un autre
+        raise RuntimeError("Aucun code de session libre trouvé.")
 
 
 class DigitsField(forms.CharField):
@@ -63,6 +77,13 @@ class DigitsField(forms.CharField):
             max_length=max_length,
             widget=forms.TextInput(attrs={"inputmode": "numeric", "autocomplete": "off"}),
         )
+
+    def widget_attrs(self, widget):
+        # Pas d'attribut maxlength : il couperait la saisie d'un code tapé avec des espaces
+        # (« 123 456 »). La longueur est vérifiée côté serveur, une fois les espaces retirés.
+        attrs = super().widget_attrs(widget)
+        attrs.pop("maxlength", None)
+        return attrs
 
     def to_python(self, value) -> str:
         return (super().to_python(value) or "").replace(" ", "")
