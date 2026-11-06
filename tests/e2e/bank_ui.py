@@ -26,7 +26,9 @@ def open_quizzes(page: Page) -> None:
 
 def question_card(page: Page, text: str) -> Locator:
     """La fiche d'une question dans la banque (repérée par son énoncé)."""
-    return page.get_by_role("article").filter(has=page.get_by_role("heading", name=text))
+    return page.get_by_role("article").filter(
+        has=page.get_by_role("heading", name=text, exact=True)
+    )
 
 
 def fill_question(
