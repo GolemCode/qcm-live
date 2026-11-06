@@ -67,6 +67,12 @@ Seuls livrables fonctionnels : la page d'accueil et la connexion enseignant, jus
 - **pytest-base-url**, dépendance de pytest-playwright, émet un avertissement de dépréciation sous pytest 9. Il est filtré précisément, par son message.
 - **Le hook gitleaks de pre-commit n'analyse que les fichiers indexés.** Il ne voit rien avec `--all-files`. En CI, j'utilise donc le binaire gitleaks, à la version et à l'empreinte SHA-256 figées, sur tout l'historique.
 
+- **Un commit au message faux, rattrapé avant le push.**
+  - Trois commits de correction enchaînés avec `;` ont été refusés par pre-commit : la règle ruff qu'ils nécessitaient était dans `pyproject.toml`, que pre-commit avait mis de côté parce qu'il n'était pas indexé.
+  - Leurs fichiers sont restés indexés, et le commit suivant les a emportés sous un message qui ne décrivait qu'une partie du contenu.
+  - Comme rien n'était poussé, les commits ont été refaits dans le bon ordre, configuration d'abord.
+  - Règle ajoutée à CLAUDE.md : enchaîner les commits avec `&&`, et vérifier le contenu de chaque commit (`git log --stat`) avant de pousser.
+
 ### Ce que les revues ont trouvé
 La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce qui justifie de les garder dans la procédure.
 - **Agent `spec-auditor`.** Le test de GEN-01 ne prouvait rien sur téléphone.

@@ -47,4 +47,6 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 
 ## Pièges connus
 - Playwright en mode synchrone et pytest-django : il faut `DJANGO_ALLOW_ASYNC_UNSAFE=true`, déjà réglé dans `tests/e2e/conftest.py`.
+- **Enchaîner les commits avec `&&`, jamais avec `;`.** Un commit refusé par pre-commit laisse ses fichiers indexés, et le commit suivant les emporte sous un message faux.
+- pre-commit met de côté les fichiers non indexés : une modification de configuration (`pyproject.toml`) doit entrer dans le même commit que le code qui en dépend, ou avant lui.
 - `django-types` ne suit pas Django 6 (par exemple `django.utils.csp`) : ces stubs sont retirés, et pyright infère depuis le code source de Django.
