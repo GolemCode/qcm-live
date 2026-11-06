@@ -20,6 +20,7 @@ def test_import_group_from_csv(teacher_page: Page):
 
     import_group(page, "TD1", TD1_CSV)
     expect(page.get_by_role("status")).to_contain_text("Groupe importé : 3 étudiants")
+    expect(page.get_by_role("status")).to_contain_text("Ligne 1 ignorée comme en-tête")
     expect(student_rows(page)).to_have_count(3)
     expect(student_rows(page).nth(0).get_by_role("cell")).to_have_text(["00123", "DURAND Élise"])
     expect(student_rows(page).nth(1).get_by_role("cell")).to_have_text(["42", "MARTIN Léo"])

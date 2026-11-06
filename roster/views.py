@@ -2,6 +2,7 @@
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError
 from django.db.models import Count
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,10 +22,19 @@ def group_list(request: HttpRequest) -> HttpResponse:
 def group_import(request: HttpRequest) -> HttpResponse:
     form = GroupImportForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
-        group = form.save()
-        n = len(form.cleaned_data["file"])
-        messages.success(request, f"Groupe importé : {n} étudiant{pluralize(n)}.")
-        return redirect("group-detail", pk=group.pk)
+        try:
+            group = form.save()
+        except IntegrityError:  # même nom enregistré entre la validation et l'écriture
+            form.add_error("name", "Un groupe porte déjà ce nom.")
+        else:
+            roster = form.cleaned_data["file"]
+            n = len(roster.entries)
+            message = f"Groupe importé : {n} étudiant{pluralize(n)}."
+            if roster.header:
+                line, text = roster.header
+                message += f" Ligne {line} ignorée comme en-tête : « {text} »."
+            messages.success(request, message)
+            return redirect("group-detail", pk=group.pk)
     return render(request, "roster/group_import.html", {"form": form})
 
 

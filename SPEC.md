@@ -77,8 +77,9 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
 - Une ligne par étudiant : numéro, puis nom (par exemple « DUPONT Jeanne »).
 - **Séparateur.** Point-virgule, comme dans les exports d'Excel en français, ou virgule. On retient le point-virgule s'il apparaît dans la première ligne non vide.
-- **Numéro.** De 1 à 20 chiffres.
-- **En-tête facultatif.** La première ligne non vide est un en-tête si elle a deux colonnes remplies et si sa première ne contient aucun chiffre (par exemple « numéro;nom »).
+- **Numéro.** De 1 à 20 chiffres de 0 à 9.
+- **Nom.** De 1 à 200 caractères, sans caractère de contrôle.
+- **En-tête facultatif.** La première ligne non vide est un en-tête si elle a deux colonnes remplies et si sa première ne contient aucun chiffre (par exemple « numéro;nom »). Le message de confirmation de l'import cite la ligne ainsi ignorée.
 - **Tolérances.** Les lignes vides et les colonnes vides en fin de ligne sont ignorées.
 - **Encodage.** UTF-8, avec ou sans BOM, ou Windows-1252 pour les anciens exports d'Excel.
 - **Numéros de ligne.** Ceux des messages d'erreur sont ceux du fichier, en commençant à 1.

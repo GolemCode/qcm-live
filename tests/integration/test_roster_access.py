@@ -1,6 +1,7 @@
 """Groupes : réservés à l'enseignant connecté ; suppression uniquement en POST."""
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from roster.models import StudentGroup
@@ -38,3 +39,15 @@ def test_import_without_file_is_refused(admin_client):
     response = admin_client.post(reverse("group-import"), {"name": "TD2"})
     assert "file" in response.context["form"].errors
     assert not StudentGroup.objects.filter(name="TD2").exists()
+
+
+def test_concurrent_duplicate_name_is_a_form_error_not_a_crash(admin_client, group, monkeypatch):
+    """Double clic : le même nom peut passer la validation deux fois avant l'écriture."""
+    from roster.forms import GroupImportForm
+
+    monkeypatch.setattr(GroupImportForm, "validate_unique", lambda self: None)
+    upload = SimpleUploadedFile("g.csv", b"1;A\n", content_type="text/csv")
+    response = admin_client.post(reverse("group-import"), {"name": "TD", "file": upload})
+    assert response.status_code == 200
+    assert response.context["form"].errors["name"] == ["Un groupe porte déjà ce nom."]
+    assert StudentGroup.objects.count() == 1
