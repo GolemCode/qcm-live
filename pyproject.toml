@@ -64,7 +64,7 @@ extend-exclude = ["*/migrations/*"]
 select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "S603"]
+"tests/**" = ["S101", "S105", "S106", "S603", "S607"]
 ".claude/hooks/**" = ["S603", "S607"]
 
 [tool.pyright]

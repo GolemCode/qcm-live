@@ -28,9 +28,11 @@ def main() -> int:
     ruff = ruff_binary(project)
     if ruff is None:
         return 0
-    subprocess.run([ruff, "format", "--quiet", file_path], check=False, cwd=project)
+    subprocess.run(
+        [ruff, "format", "--quiet", "--force-exclude", file_path], check=False, cwd=project
+    )
     result = subprocess.run(
-        [ruff, "check", "--fix", "--quiet", file_path],
+        [ruff, "check", "--fix", "--quiet", "--force-exclude", file_path],
         capture_output=True,
         text=True,
         check=False,
