@@ -1,0 +1,17 @@
+{% extends "teacher/base.html" %}
+{% block title %}Lancer une session — QCM Live{% endblock %}
+{% block content %}
+  <h1>Lancer une session</h1>
+  {% if not form.fields.quiz.queryset.exists or not form.fields.group.queryset.exists %}
+    <p>Il faut au moins un <a href="{% url 'quiz-list' %}">QCM</a> contenant une question et un
+      <a href="{% url 'group-list' %}">groupe</a>.</p>
+  {% else %}
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% include "form_errors.html" %}
+      {% for field in form %}{{ field.label_tag }}{{ field }}{% endfor %}
+      <p class="muted">Le QCM et la liste du groupe sont copiés au lancement : les modifier ensuite ne change pas la session.</p>
+      <button type="submit">Lancer</button>
+    </form>
+  {% endif %}
+{% endblock %}

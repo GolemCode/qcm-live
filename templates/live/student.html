@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Session {{ session.code }} — QCM Live{% endblock %}
+{% block content %}
+  <h1>Session {{ session.code }}</h1>
+  {% if participant %}
+    <p class="identity">Vous êtes {{ participant.name }}</p>
+    <p>En attente du démarrage.</p>
+  {% else %}
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% include "form_errors.html" %}
+      {{ form.number.label_tag }}
+      {{ form.number }}
+      <button type="submit">Valider</button>
+    </form>
+  {% endif %}
+{% endblock %}

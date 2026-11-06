@@ -6,6 +6,7 @@
       <a href="{% url 'question-list' %}">Banque de questions</a>
       <a href="{% url 'quiz-list' %}">QCM</a>
       <a href="{% url 'group-list' %}">Groupes</a>
+      <a href="{% url 'session-list' %}">Sessions</a>
     </nav>
     <form method="post" action="{% url 'logout' %}">
       {% csrf_token %}

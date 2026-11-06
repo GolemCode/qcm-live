@@ -1,0 +1,30 @@
+{% extends "teacher/base.html" %}
+{% load static %}
+{% block title %}Session {{ session.code }} — QCM Live{% endblock %}
+{% block body_class %}board{% endblock %}
+{% block content %}
+  <h1>Session {{ session.code }}</h1>
+  <p class="join-hint">Sur votre téléphone, ouvrez <strong>{{ join_url }}</strong>
+    puis saisissez le code <strong class="code">{{ session.code }}</strong></p>
+  <p class="muted">
+    {{ session.quiz_title }} ({{ session.n_questions }} question{{ session.n_questions|pluralize }})
+    · Groupe {{ session.group_name }}
+    · {{ session.shown }} question{{ session.shown|pluralize }} à la fois
+    · {{ session.seconds }} s par question
+  </p>
+  <section class="waiting" data-state-url="{% url 'board-state' session.code %}">
+    <p id="connected-count" class="count">Connectés : {{ connected|length }} / {{ session.roster|length }}</p>
+    <ul id="connected" class="connected" aria-label="Étudiants connectés">
+      {% for name in connected %}<li>{{ name }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% if session.started_at %}
+    <p class="started">Session démarrée.</p>
+  {% else %}
+    <form method="post" action="{% url 'session-start' session.code %}">
+      {% csrf_token %}
+      <button type="submit" class="big">Démarrer</button>
+    </form>
+  {% endif %}
+  <script src="{% static 'js/board.js' %}" defer></script>
+{% endblock %}
