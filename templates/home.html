@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
   <h1>QCM Live</h1>
-  <p>QCM d'évaluation en direct.</p>
-  <p><a href="{% url 'teacher-home' %}">Espace enseignant</a></p>
+  <form method="get" action="{% url 'home' %}" class="form" novalidate>
+    {% include "form_errors.html" %}
+    {{ form.code.label_tag }}
+    {{ form.code }}
+    <button type="submit">Rejoindre</button>
+  </form>
+  <p class="muted footer-link"><a href="{% url 'teacher-home' %}">Espace enseignant</a></p>
 {% endblock %}

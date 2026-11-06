@@ -46,11 +46,23 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[GRP-03]** (I2) L'enseignant supprime un groupe après confirmation. Pour corriger une liste, il supprime le groupe puis le réimporte.
 
 ### Session : lancement et accueil
-- **[SES-01]** (I3) L'enseignant lance une session en choisissant un QCM, un groupe, le nombre N de questions affichées en même temps (1 à 6) et le temps t par question, en secondes. Un identifiant de session court et facile à saisir est généré.
-- **[SES-02]** (I3) Avant le départ, le tableau affiche l'adresse à ouvrir, l'identifiant de session et la liste des étudiants connectés, mise à jour en direct. L'enseignant clique sur « Démarrer ». *(dérivé)*
-- **[ETU-01]** (I3) L'étudiant ouvre l'application sur son téléphone, saisit l'identifiant de session, puis son numéro d'étudiant.
-- **[ETU-02]** (I3) Un numéro absent du groupe de la session est refusé. Un numéro déjà utilisé dans la session est refusé.
-- **[ETU-03]** (I3) Un téléphone rechargé ou sorti de veille retrouve l'identité de l'étudiant, sans nouvelle saisie.
+- **[SES-01]** (I3) L'enseignant lance une session. Il choisit :
+  - un QCM, parmi ceux qui ont au moins une question ;
+  - un groupe ;
+  - le nombre N de questions affichées en même temps, de 1 à 6 (1 par défaut) ;
+  - le temps t par question, de 5 à 600 secondes (30 par défaut).
+
+  Un identifiant de session de 6 chiffres est généré, distinct de ceux des autres sessions. Les sessions lancées sont listées dans l'espace enseignant. *(liste : dérivé)*
+- **[SES-02]** (I3) Avant le départ, le tableau affiche :
+  - l'adresse à ouvrir et l'identifiant de session ;
+  - le QCM et le groupe ;
+  - les **noms** des étudiants connectés, sans leur numéro, avec le décompte « k / n connectés ». La liste se met à jour en direct, en 2 secondes au plus, sans recharger la page.
+
+  L'enseignant clique sur « Démarrer ». *(dérivé)*
+- **[SES-03]** (I3) Le QCM et la liste du groupe sont **figés au lancement**. Modifier ou supprimer ensuite le QCM, ses questions ou le groupe ne change pas la session.
+- **[ETU-01]** (I3) L'étudiant ouvre l'application sur son téléphone, à l'adresse projetée. Il saisit l'identifiant de session, puis son numéro d'étudiant, sur le pavé numérique. Son téléphone affiche alors son nom, pour confirmer son identité.
+- **[ETU-02]** (I3) Un identifiant de session inconnu est refusé. Un numéro absent du groupe de la session est refusé. Un numéro déjà utilisé dans la session, depuis un autre appareil, est refusé : il reste lié à ce premier appareil jusqu'à la fin de la session, sans recours dans l'application.
+- **[ETU-03]** (I3) Un téléphone rechargé ou sorti de veille retrouve l'identité de l'étudiant, sans nouvelle saisie. Ressaisir l'identifiant de la session mène aussi directement à son écran.
 
 ### Session : déroulement
 - **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche son énoncé et ses propositions (A, B, C…) sur sa **couleur de fond** avec son **numéro de couleur**.
@@ -100,15 +112,17 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
 ## 4. Règles et hypothèses validées
 
-- **Contenu figé.** Le contenu du QCM et son barème sont figés au démarrage de la session. Modifier la banque ensuite ne change ni la session en cours ni les résultats passés.
+- **Contenu figé.** Le contenu du QCM, son barème et la liste du groupe sont figés au **lancement** de la session (SES-03, décision I3 ; H8 disait « au démarrage »). Modifier la banque ou les groupes ensuite ne change ni la session ni ses résultats.
 - **Questions.** Texte brut, sans image ni formule.
 - **Couleurs.** Six couleurs contrastées, numérotées de 1 à 6.
 - **Comptes enseignants.** Un espace commun à tous les comptes, créés en ligne de commande (`createsuperuser`). Pas de gestion multi-enseignants.
 - **Identité de l'étudiant.** Elle est gardée par un cookie de session. Un autre appareil qui se présente avec le même numéro est refusé (ETU-02).
+- **Incident d'appareil.** Il n'y a pas de recours dans l'application : par exemple, un téléphone tombé en panne ne peut pas être remplacé en cours de session. L'enseignant garde à portée de main des copies papier d'Auto Multiple Choice.
 
 ## 5. Points d'attention connus (non traités sauf décision contraire)
 
-- **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. La parade actuelle : l'enseignant voit au tableau la liste des connectés avant le départ (SES-02).
+- **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. La parade actuelle : l'enseignant voit au tableau la liste des noms connectés avant le départ (SES-02). En cas de doute, il passe aux copies papier.
+- **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants, qui n'ont alors aucun recours dans l'application (ETU-02). La parade actuelle est la liste des connectés au tableau. Une vraie protection demanderait un secret par étudiant : c'est une décision fonctionnelle.
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
 - **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel I8) devient nécessaire.
 
@@ -133,3 +147,8 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Le plancher `p` s'applique-t-il à `v` (I1) | Non : `p` ne borne que la somme des cases |
 | Que peut faire l'enseignant sur un groupe (I2) | Importer, consulter, supprimer ; pour corriger, supprimer puis réimporter |
 | Format du numéro d'étudiant (I2) | Chiffres uniquement (pavé numérique sur le téléphone) |
+| Recours si le numéro est déjà pris (I3) | Aucun dans l'application : copies papier d'AMC en cas d'incident |
+| Liste des connectés au tableau (I3) | Noms seulement, avec le décompte |
+| Moment où le contenu est figé (I3) | Au lancement de la session |
+| Confirmation sur le téléphone (I3) | Le nom de l'étudiant |
+| Délai du « direct » au tableau (I3) | *Proposé, à confirmer :* 2 secondes au plus (SES-02) |

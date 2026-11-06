@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
 
 CHOICE_MAX_LENGTH = 200
+TITLE_MAX_LENGTH = 200
 AMC_DEFAULTS = Scale()  # b=1, m=0, v=0, pas de plancher : source unique des valeurs par défaut
 
 
@@ -61,7 +62,7 @@ def scale_field(default: Decimal | None) -> models.DecimalField:
 
 
 class Quiz(models.Model):
-    title = models.CharField("titre", max_length=200)
+    title = models.CharField("titre", max_length=TITLE_MAX_LENGTH)
     questions = models.ManyToManyField(Question, through="QuizItem", related_name="quizzes")
     # Barème AMC : une échelle pour les questions simples, une pour les multiples.
     simple_b = scale_field(AMC_DEFAULTS.b)
@@ -77,6 +78,15 @@ class Quiz(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+    def scales(self) -> dict[str, Scale]:
+        """Le barème du QCM : une échelle par type de question."""
+        return {
+            "simple": Scale(b=self.simple_b, m=self.simple_m, v=self.simple_v),
+            "multiple": Scale(
+                b=self.multiple_b, m=self.multiple_m, v=self.multiple_v, p=self.multiple_p
+            ),
+        }
 
     def ordered_questions(self) -> models.QuerySet[Question]:
         return self.questions.order_by("quizitem__position")

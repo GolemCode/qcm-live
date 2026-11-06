@@ -237,3 +237,63 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Contraintes pour la suite, inscrites dans CLAUDE.md :**
   - un participant de session garde son propre exemplaire du numéro et du nom, pour que supprimer un groupe n'efface aucun résultat ;
   - l'export CSV des résultats (I6) devra neutraliser les cellules qui commencent par `=`, `+`, `-` ou `@`, contre l'injection de formules.
+
+---
+
+## I3 — Lancement de session et accueil des étudiants
+
+### Objectif
+- L'enseignant lance une session (QCM, groupe, N, t) et obtient un code à 6 chiffres.
+- Le tableau projeté affiche l'adresse, le code et les noms des étudiants connectés, en direct. L'enseignant démarre la session.
+- Sur son téléphone, l'étudiant saisit le code puis son numéro et voit son nom. Son identité survit à un rechargement.
+
+### Questions posées à la commanditaire
+- **Recours quand un numéro est déjà pris** (téléphone en panne).
+  - Ma première question, trop abstraite, a reçu une réponse à côté : « le numéro est fixe toute l'année ».
+  - Reformulée sur un scénario concret (Alice, batterie vide, emprunte le téléphone d'un voisin), elle a reçu une réponse claire : aucun recours dans l'application, l'enseignant a des copies papier d'AMC.
+  - Leçon : une question fonctionnelle se pose sur un scénario, pas sur une règle.
+- **Ce que projette la liste des connectés.** Les noms seulement, pas les numéros.
+- **Quand le contenu est figé.** Au lancement et non au démarrage. Cela modifie l'hypothèse H8, que la commanditaire avait validée : c'est dit explicitement dans SPEC.md.
+- **Confirmation sur le téléphone.** Le nom de l'étudiant.
+
+### Problèmes rencontrés
+- **La CI, lente une deuxième fois** (11 min pour 7 s de tests).
+  - Le journal l'a montré : le téléchargement des paquets système de Chromium depuis un miroir apt allait à 32 ko/s.
+  - Correctif : installer seulement le navigateur sans interface, sans dépendances système (le runner ubuntu-24.04 les a déjà), avec un cache. Le job `tests` passe à 47 s.
+  - Vérifié tôt, grâce à une PR ouverte en brouillon dès le début de l'incrément.
+- **ruff et les tests rouges.**
+  - En I2, j'avais retiré la liste `known-first-party` de la configuration de ruff, qu'une revue jugeait inutile. Or les versions récentes de ruff classent un import parmi ceux du projet seulement si le module existe. Les tests rouges, qui importent `live.forms` avant qu'il soit écrit, étaient donc mal triés.
+  - La liste est rétablie, avec un commentaire qui explique pourquoi. Leçon : une recommandation de revue se vérifie dans le cas qui avait motivé la configuration.
+- **Ce que la revue de code a trouvé.**
+  - Une boucle de tirage du code qui pouvait ne jamais finir.
+  - Une copie figée faite hors transaction : un QCM vidé au dernier moment donnait une session sans question.
+  - L'attribut HTML `maxlength` coupait un code tapé avec des espaces.
+  - Un paramètre étranger dans l'adresse d'accueil affichait une erreur.
+  - Un double clic sur « Démarrer » déplaçait l'heure de départ.
+
+  Tout est corrigé et testé.
+- **Ce que l'auditeur de spec a trouvé.** 31 contre-épreuves, 4 survivantes :
+  - une identité d'appareil qui aurait débordé d'une session à l'autre ;
+  - un code sans ses zéros de tête, détecté seulement une fois sur dix ;
+  - un rafraîchissement ralenti à 4 s, que les tests acceptaient ;
+  - des noms insérés comme du HTML.
+
+  J'ai ajouté les tests (le « direct » est chiffré à 2 s dans SPEC) et rejoué les quatre contre-épreuves : toutes détectées.
+
+### Ce qui a bien marché
+- **Un appareil = un contexte de navigateur** (`new_phone()`). Tester à plusieurs téléphones est naturel : cookies séparés, comme dans une vraie classe.
+- **La copie figée en JSON typé (`TypedDict`)** : aucune clé étrangère vers la banque ni vers les groupes. Le test de SES-03 supprime tout après le lancement, et la session continue.
+- **La contrainte d'unicité en base comme seul arbitre du « numéro déjà pris »** : la course entre deux téléphones est réglée sans verrou applicatif.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Un aléa se teste en le forçant** (monkeypatch du générateur), sinon le test passe neuf fois sur dix. Même chose pour une collision de codes.
+- **Une valeur « en direct » doit être chiffrée.** Sinon, le délai d'attente des tests (5 s) devient la spécification par défaut.
+- **`maxlength` et le nettoyage côté serveur ne font pas bon ménage** : le navigateur coupe avant que le serveur ne normalise.
+- **Une recommandation de revue sur la configuration se revérifie dans le cas qui l'avait motivée.**
+
+### Choix techniques et leur raison
+- **Code de session à 6 chiffres**, tiré avec `secrets` : il se tape sur le pavé numérique, comme le numéro d'étudiant. 20 tentatives au plus en cas de collision.
+- **Identité dans la session Django** (base de données côté serveur, simple clé dans le cookie). Le client ne peut pas la forger.
+- **Polling JSON chaque seconde** par un script externe (CSP stricte), qui insère du texte et jamais du HTML. Il s'arrête une fois la session démarrée.
+- **Aucune nouvelle dépendance.**
+- **Point d'attention transmis à la commanditaire.** Quelqu'un qui connaît le code peut, par un script, essayer tous les numéros du groupe et les réserver avant les vrais étudiants. Ceux-ci n'ont alors aucun recours dans l'application. La parade actuelle, déjà prévue par la spec, est que le tableau affiche les connectés avant le départ. Une vraie protection demanderait un secret par étudiant, ce qui est une décision fonctionnelle.

@@ -14,6 +14,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from bank.forms import LETTERS, QuestionForm, QuizForm
 from bank.models import AMC_DEFAULTS, Question, Quiz
+from live.forms import LaunchSessionForm
+from live.models import Session
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 
@@ -51,3 +53,9 @@ def make_group(name: str, students: Sequence[tuple[str, str]]) -> StudentGroup:
     content = "".join(f"{number};{student}\n" for number, student in students).encode()
     upload = SimpleUploadedFile("groupe.csv", content, content_type="text/csv")
     return _saved(GroupImportForm({"name": name}, {"file": upload}))
+
+
+def make_session(quiz: Quiz, group: StudentGroup, *, shown: int = 1, seconds: int = 30) -> Session:
+    """Session lancée par le formulaire de lancement."""
+    data = {"quiz": quiz.pk, "group": group.pk, "shown": shown, "seconds": seconds}
+    return _saved(LaunchSessionForm(data))

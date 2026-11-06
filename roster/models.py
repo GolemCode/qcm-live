@@ -12,8 +12,11 @@ if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
 
 
+GROUP_NAME_MAX_LENGTH = 100
+
+
 class StudentGroup(models.Model):
-    name = models.CharField("nom du groupe", max_length=100, unique=True)
+    name = models.CharField("nom du groupe", max_length=GROUP_NAME_MAX_LENGTH, unique=True)
 
     if TYPE_CHECKING:
         students: RelatedManager[Student]

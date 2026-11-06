@@ -25,7 +25,7 @@ package = false
 # Incrément en cours : toutes les exigences de SPEC.md marquées (I0)..(I<n>)
 # doivent avoir au moins un test E2E passé (voir tests/spec_trace.py).
 [tool.qcm]
-increment = 2
+increment = 3
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
@@ -64,6 +64,11 @@ extend-exclude = ["*/migrations/*"]
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "SIM", "RUF"]
 
+[tool.ruff.lint.isort]
+# ruff ne reconnaît un import du projet que si le module existe (live/forms.py…) : sans cette
+# liste, les tests rouges d'un incrément, écrits avant le code, classent mal leurs imports.
+known-first-party = ["bank", "config", "live", "roster", "tests"]
+
 [tool.ruff.lint.per-file-ignores]
 # RUF012 signale à tort les attributs des classes Meta de Django (idiome standard).
 "*/models.py" = ["RUF012"]
@@ -72,7 +77,7 @@ select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "SIM", "RUF"]
 ".claude/hooks/**" = ["S603", "S607"]
 
 [tool.pyright]
-include = ["config", "bank", "roster", "tests", ".claude/hooks", "scripts"]
+include = ["config", "bank", "roster", "live", "tests", ".claude/hooks", "scripts"]
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
 venvPath = "."

@@ -1,0 +1,26 @@
+{% extends "teacher/base.html" %}
+{% block title %}Sessions — QCM Live{% endblock %}
+{% block content %}
+  <div class="bar">
+    <h1>Sessions</h1>
+    <a class="button" href="{% url 'session-launch' %}">Lancer une session</a>
+  </div>
+  {% if sessions %}
+    <table class="grid">
+      <thead><tr><th scope="col">Code</th><th scope="col">QCM</th><th scope="col">Groupe</th><th scope="col">Lancée le</th><th scope="col">État</th></tr></thead>
+      <tbody>
+        {% for session in sessions %}
+          <tr>
+            <td><a href="{% url 'board' session.code %}">{{ session.code }}</a></td>
+            <td>{{ session.quiz_title }}</td>
+            <td>{{ session.group_name }}</td>
+            <td>{{ session.created_at|date:"j F Y, H:i" }}</td>
+            <td>{% if session.started_at %}Démarrée{% else %}En attente{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Aucune session pour l'instant.</p>
+  {% endif %}
+{% endblock %}

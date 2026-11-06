@@ -4,12 +4,15 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 from config import views
+from live import views as live_views
 
 urlpatterns = [
-    path("", views.home, name="home"),
+    path("", live_views.home, name="home"),
+    path("s/<str:code>/", live_views.student_session, name="student-session"),
     path("prof/", views.teacher_home, name="teacher-home"),
     path("prof/connexion/", auth_views.LoginView.as_view(), name="login"),
     path("prof/deconnexion/", auth_views.LogoutView.as_view(), name="logout"),
     path("prof/", include("bank.urls")),
     path("prof/", include("roster.urls")),
+    path("prof/", include("live.urls")),
 ]
