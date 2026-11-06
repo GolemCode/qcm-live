@@ -56,7 +56,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[SES-02]** (I3) Avant le départ, le tableau affiche :
   - l'adresse à ouvrir et l'identifiant de session ;
   - le QCM et le groupe ;
-  - les **noms** des étudiants connectés, sans leur numéro, avec le décompte « k / n connectés ». La liste se met à jour en direct.
+  - les **noms** des étudiants connectés, sans leur numéro, avec le décompte « k / n connectés ». La liste se met à jour en direct, en 2 secondes au plus, sans recharger la page.
 
   L'enseignant clique sur « Démarrer ». *(dérivé)*
 - **[SES-03]** (I3) Le QCM et la liste du groupe sont **figés au lancement**. Modifier ou supprimer ensuite le QCM, ses questions ou le groupe ne change pas la session.

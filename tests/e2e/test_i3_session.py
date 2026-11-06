@@ -20,6 +20,7 @@ from tests.e2e.live_ui import (
 from tests.factories import make_group, make_question, make_quiz
 
 TD1 = [("00123", "DURAND Élise"), ("42", "MARTIN Léo"), ("7", "Ng Anh")]
+LIVE_MS = 2_000  # « en direct » : 2 s au plus (SPEC SES-02)
 
 
 @pytest.fixture
@@ -86,18 +87,28 @@ def test_board_waiting_room(teacher_page: Page, live_server, new_phone, quiz_and
     expect(connected_count(page)).to_have_text("Connectés : 0 / 3")
     expect(connected_names(page)).to_have_count(0)
 
-    # Mise à jour en direct, sans recharger le tableau.
+    # Mise à jour en direct (2 s au plus), sans recharger le tableau.
     join(new_phone(), live_server.url, code, "00123")
-    expect(connected_names(page)).to_have_text(["DURAND Élise"])
-    expect(connected_count(page)).to_have_text("Connectés : 1 / 3")
+    expect(connected_names(page)).to_have_text(["DURAND Élise"], timeout=LIVE_MS)
+    expect(connected_count(page)).to_have_text("Connectés : 1 / 3", timeout=LIVE_MS)
     join(new_phone(), live_server.url, code, "42")
-    expect(connected_names(page)).to_have_text(["DURAND Élise", "MARTIN Léo"])
-    expect(connected_count(page)).to_have_text("Connectés : 2 / 3")
+    expect(connected_names(page)).to_have_text(["DURAND Élise", "MARTIN Léo"], timeout=LIVE_MS)
+    expect(connected_count(page)).to_have_text("Connectés : 2 / 3", timeout=LIVE_MS)
     expect(board).not_to_contain_text("00123")  # noms seulement, pas les numéros
 
     page.get_by_role("button", name="Démarrer").click()
     expect(board).to_contain_text("Session démarrée")
     expect(page.get_by_role("button", name="Démarrer")).to_have_count(0)
+
+
+@pytest.mark.spec("SES-02")
+def test_board_shows_names_as_text(teacher_page: Page, live_server, new_phone, quiz_and_group):
+    """Un nom venu du fichier importé s'affiche tel quel, jamais interprété comme du HTML."""
+    make_group("TD balises", [("1", "<b>Gras</b> <img src=x>")])
+    code = launch_session(teacher_page, "Contrôle 1", "TD balises")
+    join(new_phone(), live_server.url, code, "1")
+    expect(connected_names(teacher_page)).to_have_text(["<b>Gras</b> <img src=x>"])
+    expect(teacher_page.locator("#connected b, #connected img")).to_have_count(0)
 
 
 @pytest.mark.spec("SES-03")
@@ -175,6 +186,15 @@ def test_identity_survives_reload(teacher_page: Page, live_server, new_phone, qu
     expect(identity(phone)).to_have_text("Vous êtes MARTIN Léo")
     expect(phone.get_by_label("Numéro d'étudiant")).to_have_count(0)
     enter_code(phone, live_server.url, code)  # ressaisir le code mène à son écran
+    expect(identity(phone)).to_have_text("Vous êtes MARTIN Léo")
+
+    # L'identité vaut pour cette session seulement : le même téléphone, dans une autre
+    # session (autre groupe), doit s'identifier à nouveau.
+    second = launch_session(teacher_page, "Contrôle 1", "TD2")
+    enter_code(phone, live_server.url, second)
+    expect(phone.get_by_label("Numéro d'étudiant")).to_be_visible()
+    expect(identity(phone)).to_have_count(0)
+    enter_code(phone, live_server.url, code)  # la première identité est intacte
     expect(identity(phone)).to_have_text("Vous êtes MARTIN Léo")
 
     other = new_phone()  # un autre appareil n'hérite de rien
