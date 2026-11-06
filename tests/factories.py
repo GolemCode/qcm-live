@@ -13,6 +13,7 @@ from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import F
+from django.utils import timezone
 
 from bank.forms import LETTERS, QuestionForm, QuizForm
 from bank.models import AMC_DEFAULTS, Question, Quiz
@@ -68,4 +69,12 @@ def rewind(session: Session, seconds: float) -> None:
     sans attendre (les tests à temps réel restent ceux de DER-02)."""
     Session.objects.filter(pk=session.pk).update(
         started_at=F("started_at") - timedelta(seconds=seconds)
+    )
+
+
+def jump_to(session: Session, elapsed: float) -> None:
+    """Place le déroulement `elapsed` secondes après le démarrage, à partir de maintenant :
+    pour tester une échéance à la demi-seconde près, quel que soit le temps déjà écoulé."""
+    Session.objects.filter(pk=session.pk).update(
+        started_at=timezone.now() - timedelta(seconds=elapsed)
     )

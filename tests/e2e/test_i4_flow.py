@@ -24,7 +24,7 @@ from tests.e2e.live_ui import (
     start,
     timer,
 )
-from tests.factories import make_group, make_question, make_quiz, make_session, rewind
+from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
 
 # Des propositions distinctes d'une question à l'autre : le téléphone, qui n'affiche jamais
 # l'énoncé, se reconnaît à ses propositions.
@@ -44,6 +44,13 @@ def question_of(choices: list[str]) -> str:
         if sorted(choices) == sorted(label for label, _ in expected):
             return text
     raise AssertionError(f"propositions inconnues : {choices}")
+
+
+@pytest.fixture
+def reversed_choices(monkeypatch):
+    """Propositions affichées en ordre inverse : l'indice canonique (A = 0) envoyé par le
+    téléphone diffère toujours de la position à l'écran."""
+    monkeypatch.setattr("live.models.shuffled", lambda n, seed: list(reversed(range(n))))
 
 
 def expect_slot(phone: Page, slot: int) -> None:
@@ -120,6 +127,11 @@ def test_slots_advance_by_themselves_in_real_time(teacher_page: Page, live_serve
         )
     expect(card(page, 1)).to_be_visible()  # même groupe : le tableau garde ses 2 questions
     expect(card(page, 2)).to_be_visible()
+    # Le compte à rebours repart pour ce créneau, au tableau comme sur les téléphones.
+    second = seconds_left(page)
+    assert 2 <= second <= 5
+    for phone in (phone_a, phone_b):
+        assert abs(seconds_left(phone) - second) <= 1
 
     rewind(session, 5)  # la transition automatique est prouvée : on avance jusqu'à la fin
     for screen in (page, phone_a, phone_b):
@@ -198,11 +210,14 @@ def test_rotation_everyone_answers_everything_in_different_orders(
 
 
 @pytest.mark.spec("ETU-07")
-def test_answer_can_change_until_deadline_then_refused(teacher_page: Page, live_server, new_phone):
+def test_answer_can_change_until_deadline_then_refused(
+    teacher_page: Page, live_server, new_phone, reversed_choices
+):
     page = teacher_page
     session = make_live(1, shown=1)
     (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
     expect(phone.get_by_role("group", name="Propositions")).to_be_visible(timeout=LIVE_MS)
+    assert phone_choices(phone) == ["Nice", "Lyon", "Paris"]  # ordre d'affichage ≠ canonique
 
     choose(phone, "Lyon")
     expect(save_status(phone)).to_have_text("Réponse enregistrée")
@@ -212,17 +227,24 @@ def test_answer_can_change_until_deadline_then_refused(teacher_page: Page, live_
     expect(phone.get_by_label("Paris", exact=True)).to_be_checked()
     expect(phone.get_by_label("Lyon", exact=True)).not_to_be_checked()
 
+    # Juste avant l'échéance (2,5 s restantes) : encore accepté.
+    jump_to(session, 27.5)
+    choose(phone, "Nice")
+    expect(save_status(phone)).to_have_text("Réponse enregistrée")
+
     # Le téléphone perd le réseau (il ne voit plus la fin du créneau) et répond trop tard.
     phone.route(re.compile(r".*/etat/$"), lambda route: route.abort())
-    rewind(session, 30)
-    choose(phone, "Nice")
+    jump_to(session, 30.5)
+    choose(phone, "Lyon")
     expect(save_status(phone)).to_have_text("Temps écoulé : réponse non enregistrée")
     answer = Answer.objects.get(participant__session=session)
-    assert answer.choices == [0]  # Paris, la dernière réponse donnée à temps
+    assert answer.choices == [2]  # Nice (C au tableau), la dernière réponse donnée à temps
 
 
 @pytest.mark.spec("ETU-07")
-def test_multiple_answer_changes_are_saved(teacher_page: Page, live_server, new_phone):
+def test_multiple_answer_changes_are_saved(
+    teacher_page: Page, live_server, new_phone, reversed_choices
+):
     page = teacher_page
     quiz = make_quiz(
         "M",
@@ -277,12 +299,38 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
     with page.expect_response(re.compile(r"/etat/$")):  # le tableau a vu ces réponses
         pass
 
-    board = page.get_by_role("main").inner_text()
-    for forbidden in ("juste", "correct", "réponse", "%", "1 / 2", "2 / 2"):
-        assert forbidden not in board.lower()
-    expect(card(page, 1).get_by_role("listitem")).to_have_text(["Paris", "Lyon", "Nice"])
-    styles = {background(item) for item in card(page, 1).get_by_role("listitem").all()}
-    assert len(styles) == 1  # aucune proposition mise en valeur
+    # Liste blanche (hors barre de navigation) : le titre, le temps restant, les questions.
+    allowed = {f"Session {session.code}", "Gérer les connectés", "Session démarrée.", "1", "2"}
+    for text in list(QUESTIONS)[:2]:
+        allowed |= {text, *(label for label, _ in QUESTIONS[text])}
+    shown = page.locator("main").evaluate(
+        """main => {
+            const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+            const texts = [];
+            while (walker.nextNode()) {
+                const text = walker.currentNode.textContent.trim();
+                const inMenu = walker.currentNode.parentElement.closest("header");
+                if (text && !inMenu) texts.push(text);
+            }
+            return texts;
+        }"""
+    )
+    extra = [t for t in shown if t not in allowed and not re.fullmatch(r"\d+ s", t)]
+    assert extra == []
+    # Aucune proposition mise en valeur : pas de balise, même apparence pour toutes.
+    for color in (1, 2):
+        items = card(page, color).get_by_role("listitem")
+        looks = set()
+        for item in items.all():
+            assert item.evaluate("li => li.innerHTML.trim() === li.textContent.trim()")
+            looks.add(
+                item.evaluate(
+                    "li => { const s = getComputedStyle(li);"
+                    " return [s.fontWeight, s.color, s.backgroundColor, s.textDecorationLine]"
+                    ".join(); }"
+                )
+            )
+        assert len(looks) == 1
 
 
 @pytest.mark.spec("SES-04")

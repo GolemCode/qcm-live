@@ -11,7 +11,7 @@ from django.urls import reverse
 from live import forms as live_forms
 from live.forms import IdentifyForm
 from live.models import Answer, Participant, Session
-from tests.factories import make_group, make_question, make_quiz, make_session, rewind
+from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
 
 pytestmark = pytest.mark.django_db
 
@@ -259,3 +259,11 @@ def test_simultaneous_first_answers_keep_the_last(client, running, monkeypatch):
     monkeypatch.setattr(Answer.objects, "update_or_create", created_meanwhile)
     assert answer(client, running, 1, 2).status_code == 200
     assert Answer.objects.get().choices == [1, 2]
+
+
+def test_answer_accepted_until_the_very_end_of_the_slot(client, running):
+    jump_to(running, running.seconds - 0.5)
+    assert answer(client, running, 0, slot="0").status_code == 200
+    jump_to(running, running.seconds + 0.01)
+    assert answer(client, running, 1, slot="0").status_code == 409
+    assert Answer.objects.get().choices == [0]
