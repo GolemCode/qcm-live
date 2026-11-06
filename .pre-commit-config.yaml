@@ -1,0 +1,34 @@
+# Contrôles avant chaque commit. Installés par `make setup` (pre-commit install).
+# Les révisions sont figées par SHA (`pre-commit autoupdate --freeze` pour les mettre à jour).
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: no-commit-to-branch
+        args: [--branch, main]
+      - id: detect-private-key
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # ruff vient de uv.lock : une seule version, la même qu'en CI et dans le hook Claude.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --no-env-file ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --no-env-file ruff format
+        language: system
+        types: [python]
