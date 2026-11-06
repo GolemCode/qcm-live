@@ -12,10 +12,6 @@ TD1_CSV = "numéro;nom\r\n00123;DURAND Élise\r\n\r\n42;MARTIN Léo;;\r\n7;Ng An
 TD2_CSV = '﻿9001,"DUPONT, Jeanne"\n9002,ROUX Paul\n'.encode()
 
 
-def alert(page: Page):
-    return page.get_by_role("alert")
-
-
 @pytest.mark.spec("GRP-01")
 def test_import_group_from_csv(teacher_page: Page):
     page = teacher_page
@@ -61,12 +57,12 @@ def test_invalid_csv_is_refused_entirely(teacher_page: Page):
     for content, fragments in INVALID_FILES:
         submit_group(page, "TD3", content)
         for fragment in fragments:
-            expect(alert(page)).to_contain_text(fragment)
+            expect(page.get_by_role("alert")).to_contain_text(fragment)
     # Nom de groupe vide, puis déjà pris.
     submit_group(page, "", b"1;A\n2;B\n")
-    expect(alert(page)).to_contain_text("Nom du groupe")
+    expect(page.get_by_role("alert")).to_contain_text("Nom du groupe")
     submit_group(page, "Existant", b"1;A\n2;B\n")
-    expect(alert(page)).to_contain_text("existe déjà")
+    expect(page.get_by_role("alert")).to_contain_text("existe déjà")
 
     # Rien n'a été créé : seul le groupe préexistant reste.
     open_groups(page)

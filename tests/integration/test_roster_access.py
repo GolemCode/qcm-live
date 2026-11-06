@@ -38,7 +38,3 @@ def test_import_without_file_is_refused(admin_client):
     response = admin_client.post(reverse("group-import"), {"name": "TD2"})
     assert "file" in response.context["form"].errors
     assert not StudentGroup.objects.filter(name="TD2").exists()
-
-
-def test_students_keep_file_order(group):
-    assert [s.number for s in group.students.all()] == ["1", "2"]

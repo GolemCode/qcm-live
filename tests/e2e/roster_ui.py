@@ -10,11 +10,11 @@ def open_groups(page: Page) -> None:
     expect(page.get_by_role("heading", name="Groupes", exact=True, level=1)).to_be_visible()
 
 
-def submit_group(page: Page, name: str, content: bytes, filename: str = "groupe.csv") -> None:
+def submit_group(page: Page, name: str, content: bytes) -> None:
     """Remplit le formulaire d'import (déjà ouvert) et l'envoie."""
     page.get_by_label("Nom du groupe").fill(name)
     page.get_by_label("Fichier CSV").set_input_files(
-        files=[{"name": filename, "mimeType": "text/csv", "buffer": content}]
+        files=[{"name": "groupe.csv", "mimeType": "text/csv", "buffer": content}]
     )
     page.get_by_role("button", name="Importer").click()
 
