@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import functools
+
 import pytest
 
 from tests import spec_trace
 
+# Exigence → résultats, les tests étant identifiés par leur nodeid complet (pas de collision
+# entre deux tests de même nom dans des fichiers différents).
 _coverage: dict[str, spec_trace.Coverage] = {}
 _spec_ids_by_nodeid: dict[str, list[str]] = {}
 
@@ -25,8 +29,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+@functools.cache
 def _requirements() -> dict[str, spec_trace.Requirement]:
     return spec_trace.parse_spec(spec_trace.SPEC_FILE.read_text(encoding="utf-8"))
+
+
+@functools.cache
+def _current_increment() -> int:
+    return spec_trace.current_increment(spec_trace.PYPROJECT.read_text(encoding="utf-8"))
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -34,9 +44,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     unknown = []
     for item in items:
         ids = [arg for mark in item.iter_markers("spec") for arg in mark.args]
-        for req_id in ids:
-            if req_id not in known:
-                unknown.append(f"{item.nodeid} → {req_id}")
+        unknown += [f"{item.nodeid} → {req_id}" for req_id in ids if req_id not in known]
         if ids:
             _spec_ids_by_nodeid[item.nodeid] = ids
     if unknown:
@@ -50,46 +58,44 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     if not ids:
         return
     passed = report.when == "call" and report.passed
-    failed_or_skipped = report.failed or report.skipped
-    if not passed and not failed_or_skipped:
+    if not passed and not (report.failed or report.skipped):
         return
     for req_id in ids:
         cov = _coverage.setdefault(req_id, spec_trace.Coverage())
         if passed:
             target = cov.passed_e2e if spec_trace.is_e2e(report.nodeid) else cov.passed_other
-            target.append(report.nodeid.split("::")[-1])
+            target.append(report.nodeid)
         else:
             cov.not_passed.append(report.nodeid)
-            # Un échec ou un saut annule tout succès antérieur du même test (paramétrage).
-            short = report.nodeid.split("::")[-1]
-            if short in cov.passed_e2e:
-                cov.passed_e2e.remove(short)
+            # Un échec au démontage annule le succès de ce même test.
+            if report.nodeid in cov.passed_e2e:
+                cov.passed_e2e.remove(report.nodeid)
 
 
-def _spec_options(config: pytest.Config) -> tuple[bool, int | None, int]:
-    up_to = spec_trace.current_increment(spec_trace.PYPROJECT.read_text(encoding="utf-8"))
-    return bool(config.getoption("--spec-check")), config.getoption("--spec-inc"), up_to
+def _missing(config: pytest.Config) -> list[spec_trace.Requirement]:
+    return spec_trace.missing_requirements(
+        _requirements(),
+        _coverage,
+        up_to=_current_increment(),
+        only=config.getoption("--spec-inc"),
+    )
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
-    check, only, up_to = _spec_options(session.config)
-    if not check:
-        return
-    missing = spec_trace.missing_requirements(_requirements(), _coverage, up_to=up_to, only=only)
-    if missing:
+    if session.config.getoption("--spec-check") and _missing(session.config):
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus: int, config: pytest.Config) -> None:
-    check, only, up_to = _spec_options(config)
-    if not check:
+    if not config.getoption("--spec-check"):
         return
-    requirements = _requirements()
+    only = config.getoption("--spec-inc")
+    up_to = _current_increment()
     scope = f"incrément I{only}" if only is not None else f"incréments I0..I{up_to}"
     terminalreporter.section(f"Couverture de SPEC.md ({scope})")
-    for line in spec_trace.report_lines(requirements, _coverage, up_to=up_to, only=only):
+    for line in spec_trace.report_lines(_requirements(), _coverage, up_to=up_to, only=only):
         terminalreporter.write_line(line)
-    missing = spec_trace.missing_requirements(requirements, _coverage, up_to=up_to, only=only)
+    missing = _missing(config)
     if missing:
         terminalreporter.write_line(
             f"ÉCHEC : {len(missing)} exigence(s) sans test E2E passé : "

@@ -57,6 +57,18 @@ def is_e2e(nodeid: str) -> bool:
     return nodeid.startswith(E2E_DIR)
 
 
+def due_requirements(
+    requirements: dict[str, Requirement], *, up_to: int, only: int | None = None
+) -> list[Requirement]:
+    """Exigences exigibles : celles de l'incrément `only`, sinon toutes celles ≤ `up_to`."""
+    due = [
+        req
+        for req in requirements.values()
+        if (req.increment == only if only is not None else req.increment <= up_to)
+    ]
+    return sorted(due, key=lambda r: (r.increment, r.id))
+
+
 def missing_requirements(
     requirements: dict[str, Requirement],
     coverage: dict[str, Coverage],
@@ -65,12 +77,11 @@ def missing_requirements(
     only: int | None = None,
 ) -> list[Requirement]:
     """Exigences exigibles sans aucun test E2E passé."""
-    due = [
+    return [
         req
-        for req in requirements.values()
-        if (req.increment == only if only is not None else req.increment <= up_to)
+        for req in due_requirements(requirements, up_to=up_to, only=only)
+        if not coverage.get(req.id, Coverage()).passed_e2e
     ]
-    return [req for req in due if not coverage.get(req.id, Coverage()).passed_e2e]
 
 
 def report_lines(
@@ -81,11 +92,7 @@ def report_lines(
     only: int | None = None,
 ) -> list[str]:
     lines = []
-    for req in sorted(requirements.values(), key=lambda r: (r.increment, r.id)):
-        if only is not None and req.increment != only:
-            continue
-        if only is None and req.increment > up_to:
-            continue
+    for req in due_requirements(requirements, up_to=up_to, only=only):
         cov = coverage.get(req.id, Coverage())
         status = "OK " if cov.passed_e2e else "MANQUE"
         tests = ", ".join(cov.passed_e2e) or "aucun test E2E passé"
