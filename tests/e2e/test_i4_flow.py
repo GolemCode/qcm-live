@@ -18,6 +18,7 @@ from tests.e2e.live_ui import (
     manage_participants,
     phone_choices,
     phone_color,
+    phones_joined,
     save_status,
     seconds_left,
     start,
@@ -45,9 +46,9 @@ def question_of(choices: list[str]) -> str:
     raise AssertionError(f"propositions inconnues : {choices}")
 
 
-def on_slot(phone: Page):
-    """Écran du téléphone, qui porte le rang du créneau affiché (data-slot)."""
-    return phone.locator("main[data-slot]")
+def expect_slot(phone: Page, slot: int) -> None:
+    """Le téléphone affiche le créneau `slot` (jeton de page « running:<slot> »)."""
+    expect(phone.locator("main")).to_have_attribute("data-page", f"running:{slot}", timeout=LIVE_MS)
 
 
 def make_live(n_questions: int, shown: int, seconds: int = 30) -> Session:
@@ -63,13 +64,11 @@ def open_board(page: Page, base_url: str, session: Session) -> None:
     page.goto(f"{base_url}/prof/sessions/{session.code}/")
 
 
-def phones_joined(new_phone, base_url: str, session: Session, numbers):
-    phones = []
-    for number in numbers:
-        phone = new_phone()
-        join(phone, base_url, session.code, number)
-        expect(phone.get_by_text(re.compile(r"^Vous êtes "))).to_be_visible()
-        phones.append(phone)
+def started(page: Page, base_url: str, new_phone, session: Session, numbers=()) -> list[Page]:
+    """Les téléphones `numbers` rejoignent la session, puis l'enseignant la démarre."""
+    phones = phones_joined(new_phone, base_url, session.code, numbers)
+    open_board(page, base_url, session)
+    start(page)
     return phones
 
 
@@ -103,9 +102,7 @@ def test_slots_advance_by_themselves_in_real_time(teacher_page: Page, live_serve
     """Temps réel, sans avance artificielle : 2 questions, N=2, t=5 s."""
     page = teacher_page
     session = make_live(2, shown=2, seconds=5)
-    phone_a, phone_b = phones_joined(new_phone, live_server.url, session, ["00123", "42"])
-    open_board(page, live_server.url, session)
-    start(page)
+    phone_a, phone_b = started(page, live_server.url, new_phone, session, ["00123", "42"])
 
     for screen in (page, phone_a, phone_b):
         expect(timer(screen)).to_be_visible(timeout=LIVE_MS)
@@ -124,19 +121,16 @@ def test_slots_advance_by_themselves_in_real_time(teacher_page: Page, live_serve
     expect(card(page, 1)).to_be_visible()  # même groupe : le tableau garde ses 2 questions
     expect(card(page, 2)).to_be_visible()
 
+    rewind(session, 5)  # la transition automatique est prouvée : on avance jusqu'à la fin
     for screen in (page, phone_a, phone_b):
-        expect(screen.get_by_role("main")).to_contain_text(
-            "Session terminée", timeout=5_000 + LIVE_MS
-        )
+        expect(screen.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
 
 
 @pytest.mark.spec("ETU-04")
 def test_phone_shows_colour_and_choices_only(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_live(4, shown=2)
-    (phone,) = phones_joined(new_phone, live_server.url, session, ["00123"])
-    open_board(page, live_server.url, session)
-    start(page)
+    (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
 
     color = phone_color(phone)
     expect(phone.get_by_role("timer", name="Temps restant")).to_be_visible(timeout=LIVE_MS)
@@ -152,7 +146,7 @@ def test_phone_shows_colour_and_choices_only(teacher_page: Page, live_server, ne
 
     # Seul étudiant (rang 0) : au 4e créneau, la question multiple du groupe 2.
     rewind(session, 90)
-    expect(on_slot(phone)).to_have_attribute("data-slot", "3", timeout=LIVE_MS)
+    expect_slot(phone, 3)
     assert question_of(phone_choices(phone)) == "Lesquels sont pairs ?"
     expect(phone.get_by_role("checkbox")).to_have_count(3)
     assert "Lesquels sont pairs ?" not in phone.content()
@@ -165,9 +159,7 @@ def test_choices_shuffled_per_student_and_stable(teacher_page: Page, live_server
     six += [("Quatre", False), ("Cinq", False), ("Six", False)]
     quiz = make_quiz("Ordre", [make_question("Six propositions", six)])
     session = make_session(quiz, make_group("TD1", STUDENTS), shown=1)
-    phones = phones_joined(new_phone, live_server.url, session, ["00123", "42", "7"])
-    open_board(page, live_server.url, session)
-    start(page)
+    phones = started(page, live_server.url, new_phone, session, ["00123", "42", "7"])
     expect(card(page, 1).get_by_role("listitem")).to_have_text([label for label, _ in six])
 
     orders = []
@@ -187,16 +179,14 @@ def test_rotation_everyone_answers_everything_in_different_orders(
 ):
     page = teacher_page
     session = make_live(4, shown=2)
-    phones = phones_joined(new_phone, live_server.url, session, ["00123", "42", "7"])
-    open_board(page, live_server.url, session)
-    start(page)
+    phones = started(page, live_server.url, new_phone, session, ["00123", "42", "7"])
 
     seen: list[list[str]] = [[] for _ in phones]
     for slot in range(4):
         if slot:
             rewind(session, 30)
         for index, phone in enumerate(phones):
-            expect(on_slot(phone)).to_have_attribute("data-slot", str(slot), timeout=LIVE_MS)
+            expect_slot(phone, slot)
             seen[index].append(question_of(phone_choices(phone)))
         # À chaque créneau, deux étudiants voisins ont deux questions différentes.
         assert seen[0][slot] != seen[1][slot]
@@ -211,9 +201,7 @@ def test_rotation_everyone_answers_everything_in_different_orders(
 def test_answer_can_change_until_deadline_then_refused(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_live(1, shown=1)
-    (phone,) = phones_joined(new_phone, live_server.url, session, ["00123"])
-    open_board(page, live_server.url, session)
-    start(page)
+    (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
     expect(phone.get_by_role("group", name="Propositions")).to_be_visible(timeout=LIVE_MS)
 
     choose(phone, "Lyon")
@@ -241,9 +229,7 @@ def test_multiple_answer_changes_are_saved(teacher_page: Page, live_server, new_
         [make_question("Lesquels sont pairs ?", QUESTIONS["Lesquels sont pairs ?"], multiple=True)],
     )
     session = make_session(quiz, make_group("TD1", STUDENTS), shown=1)
-    (phone,) = phones_joined(new_phone, live_server.url, session, ["00123"])
-    open_board(page, live_server.url, session)
-    start(page)
+    (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
     expect(phone.get_by_role("group", name="Propositions")).to_be_visible(timeout=LIVE_MS)
 
     for label in ("2", "7", "4"):
@@ -263,12 +249,10 @@ def test_late_student_joins_and_missed_slots_are_unanswered(
 ):
     page = teacher_page
     session = make_live(4, shown=2)
-    phones_joined(new_phone, live_server.url, session, ["00123"])
-    open_board(page, live_server.url, session)
-    start(page)
+    started(page, live_server.url, new_phone, session, ["00123"])
     rewind(session, 30)  # le second créneau est en cours
 
-    (late,) = phones_joined(new_phone, live_server.url, session, ["42"])
+    (late,) = phones_joined(new_phone, live_server.url, session.code, ["42"])
     expect(late.get_by_role("group", name="Propositions")).to_be_visible()
     question = question_of(phone_choices(late))
     assert question in list(QUESTIONS)[:2]  # une question du groupe en cours
@@ -285,14 +269,13 @@ def test_late_student_joins_and_missed_slots_are_unanswered(
 def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_live(2, shown=2)
-    phones = phones_joined(new_phone, live_server.url, session, ["00123", "42"])
-    open_board(page, live_server.url, session)
-    start(page)
+    phones = started(page, live_server.url, new_phone, session, ["00123", "42"])
     for phone in phones:
         expect(phone.get_by_role("group", name="Propositions")).to_be_visible(timeout=LIVE_MS)
         choose(phone, phone_choices(phone)[0])
         expect(save_status(phone)).to_have_text("Réponse enregistrée")
-    page.wait_for_timeout(LIVE_MS)  # laisse au tableau le temps d'afficher ce qu'il afficherait
+    with page.expect_response(re.compile(r"/etat/$")):  # le tableau a vu ces réponses
+        pass
 
     board = page.get_by_role("main").inner_text()
     for forbidden in ("juste", "correct", "réponse", "%", "1 / 2", "2 / 2"):

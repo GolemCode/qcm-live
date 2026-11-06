@@ -22,6 +22,10 @@ class Slot:
     step: int  # rang du créneau dans son groupe
     size: int  # nombre de questions de son groupe
 
+    def color(self, rank: int) -> int:
+        """Couleur (1 à n) de la question de l'étudiant de rang `rank` pendant ce créneau."""
+        return (rank + self.step) % self.size + 1
+
 
 @dataclass(frozen=True)
 class Position:
@@ -60,13 +64,9 @@ class Schedule:
             return None
         return Position(self.slots[index], (index + 1) * self.seconds - elapsed)
 
-    def color_for(self, slot: Slot, rank: int) -> int:
-        """Couleur (1 à n) de la question de l'étudiant de rang `rank` pendant ce créneau."""
-        return (rank + slot.step) % slot.size + 1
-
     def question_for(self, slot: Slot, rank: int) -> int:
         """Indice, dans le QCM, de la question de l'étudiant de rang `rank` pendant ce créneau."""
-        return self.groups[slot.group][self.color_for(slot, rank) - 1]
+        return self.groups[slot.group][slot.color(rank) - 1]
 
 
 def shuffled(n_choices: int, seed: str) -> list[int]:

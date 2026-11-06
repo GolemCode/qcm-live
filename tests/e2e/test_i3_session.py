@@ -1,7 +1,5 @@
 """Incrément 3 : lancement d'une session, accueil au tableau, identification des étudiants."""
 
-import re
-
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -13,6 +11,7 @@ from tests.e2e.live_ui import (
     connected_names,
     enter_code,
     fill_launch,
+    identity,
     join,
     launch_session,
     open_sessions,
@@ -28,10 +27,6 @@ def quiz_and_group(transactional_db):
     make_quiz("Contrôle 1", [make_question("Q1"), make_question("Q2")])
     make_group("TD1", TD1)
     make_group("TD2", [("55", "ROUX Paul")])
-
-
-def identity(phone: Page):
-    return phone.get_by_text(re.compile(r"^Vous êtes "))
 
 
 @pytest.mark.spec("SES-01")

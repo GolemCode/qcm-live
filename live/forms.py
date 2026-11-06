@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from django import forms
 from django.db import IntegrityError, transaction
-from django.db.models import Count
+from django.db.models import Count, Max
 
 from bank.models import Quiz
 from config.forms import PlainForm
 from live.models import CODE_LENGTH, Participant, Session, random_code
-from live.snapshot import freeze_group, freeze_quiz
+from live.snapshot import FrozenQuestion, freeze_group, freeze_quiz
 from roster.csv_import import MAX_NUMBER_LENGTH
 from roster.models import StudentGroup
 
@@ -114,6 +116,11 @@ class IdentifyForm(PlainForm):
         self.student_name = name
         return number
 
+    def _next_rank(self) -> int:
+        """Rotation : rangs successifs 0, 1, 2… (un numéro libéré ne crée pas de doublon)."""
+        top = self.session.participants.aggregate(top=Max("rank"))["top"]
+        return 0 if top is None else top + 1
+
     def save(self) -> Participant | None:
         """Le participant, ou None si le numéro est déjà pris dans la session (erreur ajoutée).
 
@@ -126,10 +133,28 @@ class IdentifyForm(PlainForm):
                     session=self.session,
                     number=self.cleaned_data["number"],
                     name=self.student_name,
-                    rank=self.session.participants.count(),  # rotation : rangs successifs
+                    rank=self._next_rank(),
                 )
         except IntegrityError:
             self.add_error(
                 "number", "Ce numéro est déjà utilisé dans cette session, depuis un autre appareil."
             )
             return None
+
+
+class AnswerForm(PlainForm):
+    """Propositions choisies (indices canoniques) pour la question du créneau en cours."""
+
+    choice = forms.TypedMultipleChoiceField(coerce=int, required=False)
+
+    def __init__(self, *args, question: FrozenQuestion, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.multiple = question["multiple"]
+        field = cast(forms.TypedMultipleChoiceField, self.fields["choice"])
+        field.choices = [(i, i) for i in range(len(question["choices"]))]
+
+    def clean_choice(self) -> list[int]:
+        chosen = sorted(set(self.cleaned_data["choice"]))
+        if not self.multiple and len(chosen) > 1:
+            raise forms.ValidationError("Une seule proposition pour cette question.")
+        return chosen

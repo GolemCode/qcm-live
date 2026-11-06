@@ -112,3 +112,19 @@ def save_status(phone: Page) -> Locator:
 def manage_participants(page: Page) -> None:
     page.get_by_role("link", name="Gérer les connectés").click()
     expect(page.get_by_role("heading", name="Connectés", level=1)).to_be_visible()
+
+
+def identity(phone: Page) -> Locator:
+    """Confirmation d'identité affichée sur le téléphone (« Vous êtes … »)."""
+    return phone.get_by_text(re.compile(r"^Vous êtes "))
+
+
+def phones_joined(new_phone, base_url: str, code: str, numbers) -> list[Page]:
+    """Un nouveau téléphone par numéro, identifié dans la session `code`."""
+    phones = []
+    for number in numbers:
+        phone = new_phone()
+        join(phone, base_url, code, number)
+        expect(identity(phone)).to_be_visible()
+        phones.append(phone)
+    return phones

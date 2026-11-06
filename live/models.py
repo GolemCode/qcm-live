@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
 from typing import TYPE_CHECKING, Literal
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING, Literal
 from django.db import models
 
 from bank.models import TITLE_MAX_LENGTH
-from live.schedule import Position, Schedule, shuffled
+from live.schedule import Position, Schedule, Slot, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
 
@@ -22,6 +23,14 @@ if TYPE_CHECKING:
 CODE_LENGTH = 6
 
 Phase = Literal["waiting", "running", "ended"]
+
+
+@dataclass(frozen=True)
+class State:
+    """Phase d'une session à un instant donné, et créneau en cours pendant le déroulement."""
+
+    phase: Phase
+    position: Position | None = None
 
 
 def random_code() -> str:
@@ -67,16 +76,11 @@ class Session(models.Model):
     def schedule(self) -> Schedule:
         return Schedule(self.n_questions, self.shown, self.seconds)
 
-    def position(self, now: datetime) -> Position | None:
-        """Créneau en cours (None avant le démarrage et après la fin)."""
+    def state(self, now: datetime) -> State:
         if self.started_at is None:
-            return None
-        return self.schedule.position((now - self.started_at).total_seconds())
-
-    def phase(self, now: datetime) -> Phase:
-        if self.started_at is None:
-            return "waiting"
-        return "running" if self.position(now) is not None else "ended"
+            return State("waiting")
+        position = self.schedule.position((now - self.started_at).total_seconds())
+        return State("ended") if position is None else State("running", position)
 
     def student_name(self, number: str) -> str | None:
         """Nom de l'étudiant de ce numéro dans la liste figée, ou None s'il n'en fait pas partie."""
@@ -104,6 +108,11 @@ class Participant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.session} {self.number}"
+
+    def question_at(self, slot: Slot) -> tuple[int, FrozenQuestion]:
+        """Indice et contenu figé de la question de ce participant pendant ce créneau."""
+        index = self.session.schedule.question_for(slot, self.rank)
+        return index, self.session.questions[index]
 
     def choice_order(self, question: int) -> list[int]:
         """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05)."""

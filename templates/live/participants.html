@@ -9,7 +9,7 @@
   {% if can_release %}
     <p>Un numéro pris par erreur ou par un autre étudiant ? Libérez-le : l'appareil qui l'occupe perd son identité et le vrai étudiant peut le saisir.</p>
   {% else %}
-    <p>La session a démarré : plus aucun numéro ne peut être libéré.</p>
+    <p>{{ release_closed }}</p>
   {% endif %}
   {% if participants %}
     <table class="grid">

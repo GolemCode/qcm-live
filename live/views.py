@@ -1,8 +1,12 @@
 """Sessions en direct : le tableau de l'enseignant et l'écran des étudiants.
 
-Une session passe par trois phases (Session.phase) : attente, déroulement, terminée. Le
+Une session passe par trois phases (Session.state) : attente, déroulement, terminée. Le
 créneau en cours se calcule à partir de l'heure de démarrage (live.schedule), sans tâche de
 fond : chaque page et chaque état JSON le recalculent.
+
+Chaque page qui suit le direct porte un « jeton de page » (data-page) : la phase, et le groupe
+(tableau) ou le créneau (téléphone) affiché. static/js/poll.js recharge la page dès que l'état
+JSON annonce un autre jeton.
 """
 
 from __future__ import annotations
@@ -14,19 +18,33 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from live.forms import IdentifyForm, JoinForm, LaunchSessionForm
-from live.models import Answer, Participant, Session
-from live.schedule import Position
+from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
+from live.models import Answer, Participant, Session, State
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
 IDENTITIES = "live_participants"
 SAVED = "Réponse enregistrée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
+RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."
 
 
 def _ms(seconds: float) -> int:
     return int(seconds * 1000)
+
+
+def _page(state: State, *, board: bool) -> str:
+    """Jeton de la page à afficher : il change quand le tableau change de groupe, ou quand le
+    téléphone change de créneau."""
+    if state.position is None:
+        return state.phase
+    slot = state.position.slot
+    return f"running:{slot.group if board else slot.index}"
+
+
+def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
+    remaining = _ms(state.position.remaining) if state.position else None
+    return JsonResponse({"page": _page(state, board=board), "remaining_ms": remaining, **extra})
 
 
 # --- Enseignant ---------------------------------------------------------------------------
@@ -51,27 +69,21 @@ def _connected(session: Session) -> list[str]:
     return list(session.participants.values_list("name", flat=True))
 
 
-def _cards(session: Session, position: Position) -> list[dict]:
-    """Questions du groupe en cours, avec leur couleur (1 à n) : DER-01."""
-    group = session.schedule.groups[position.slot.group]
-    return [
-        {"color": color, "question": session.questions[index]}
-        for color, index in enumerate(group, start=1)
-    ]
-
-
 @login_required
 def board(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session, code=code)
-    now = timezone.now()
-    context = {"session": session, "phase": session.phase(now)}
-    if context["phase"] == "waiting":
+    state = session.state(timezone.now())
+    context: dict = {"session": session, "state": state, "page": _page(state, board=True)}
+    if state.phase == "waiting":
         context |= {"join_url": request.build_absolute_uri("/"), "connected": _connected(session)}
-    elif (position := session.position(now)) is not None:
-        context |= {
-            "slot": position.slot,
-            "cards": _cards(session, position),
-            "remaining_ms": _ms(position.remaining),
+    elif state.position is not None:
+        group = session.schedule.groups[state.position.slot.group]
+        context |= {  # DER-01 : les questions du groupe, avec leur couleur (1 à n)
+            "cards": [
+                {"color": color, "question": session.questions[index]}
+                for color, index in enumerate(group, start=1)
+            ],
+            "remaining_ms": _ms(state.position.remaining),
         }
     return render(request, "live/board.html", context)
 
@@ -80,16 +92,10 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
 def board_state(request: HttpRequest, code: str) -> JsonResponse:
     """État du tableau, interrogé chaque seconde par static/js/board.js."""
     session = get_object_or_404(Session.objects.defer("roster"), code=code)
-    now = timezone.now()
-    phase = session.phase(now)
-    if phase == "waiting":
-        return JsonResponse({"phase": phase, "connected": _connected(session)})
-    position = session.position(now)
-    if position is None:
-        return JsonResponse({"phase": "ended"})
-    return JsonResponse(
-        {"phase": phase, "group": position.slot.group, "remaining_ms": _ms(position.remaining)}
-    )
+    state = session.state(timezone.now())
+    if state.phase == "waiting":
+        return _live_json(state, board=True, connected=_connected(session))
+    return _live_json(state, board=True)
 
 
 @login_required
@@ -113,6 +119,7 @@ def participants(request: HttpRequest, code: str) -> HttpResponse:
             "session": session,
             "participants": session.participants.all(),
             "can_release": session.started_at is None,
+            "release_closed": RELEASE_CLOSED,
         },
     )
 
@@ -125,7 +132,7 @@ def participant_release(request: HttpRequest, code: str, pk: int) -> HttpRespons
         Participant.objects.select_related("session"), pk=pk, session__code=code
     )
     if participant.session.started_at is not None:
-        messages.error(request, "La session a démarré : plus aucun numéro ne peut être libéré.")
+        messages.error(request, RELEASE_CLOSED)
     else:
         participant.delete()
         messages.success(request, f"Numéro {participant.number} libéré.")
@@ -150,30 +157,18 @@ def _identity(request: HttpRequest, session: Session) -> Participant | None:
     return session.participants.filter(pk=participant_id).first()
 
 
-def _question_screen(session: Session, participant: Participant, position: Position) -> dict:
-    """Ce que voit l'étudiant pendant un créneau (ETU-04, ETU-05) : couleur et propositions
-    mélangées pour lui, jamais l'énoncé."""
-    slot = position.slot
-    index = session.schedule.question_for(slot, participant.rank)
-    question = session.questions[index]
-    saved = participant.answers.filter(question=index).values_list("choices", flat=True).first()
-    return {
-        "slot": slot,
-        "color": session.schedule.color_for(slot, participant.rank),
-        "multiple": question["multiple"],
-        "choices": [(i, question["choices"][i]["text"]) for i in participant.choice_order(index)],
-        "saved": saved or [],
-        "remaining_ms": _ms(position.remaining),
-    }
-
-
 def student_session(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session, code=code)
-    now = timezone.now()
-    phase = session.phase(now)
+    state = session.state(timezone.now())
     participant = _identity(request, session)
-    context: dict = {"session": session, "participant": participant, "phase": phase}
-    if participant is None and phase != "ended":
+    context: dict = {
+        "session": session,
+        "state": state,
+        "participant": participant,
+        "page": _page(state, board=False),
+        "follow": participant is not None and state.phase != "ended",
+    }
+    if participant is None and state.phase != "ended":
         form = IdentifyForm(request.POST or None, session=session)
         if request.method == "POST" and form.is_valid() and (participant := form.save()):
             request.session[IDENTITIES] = {
@@ -182,46 +177,45 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             }
             return redirect("student-session", code=code)
         context["form"] = form
-    elif participant is not None and (position := session.position(now)) is not None:
-        context |= _question_screen(session, participant, position)
+    elif participant is not None and state.position is not None:
+        # ETU-04, ETU-05 : couleur et propositions mélangées pour l'étudiant, jamais l'énoncé.
+        slot = state.position.slot
+        index, question = participant.question_at(slot)
+        saved = participant.answers.filter(question=index).values_list("choices", flat=True)
+        context |= {
+            "slot": slot,
+            "color": slot.color(participant.rank),
+            "multiple": question["multiple"],
+            "choices": [
+                (i, question["choices"][i]["text"]) for i in participant.choice_order(index)
+            ],
+            "saved": saved.first() or [],
+            "remaining_ms": _ms(state.position.remaining),
+        }
     return render(request, "live/student.html", context)
 
 
 def student_state(request: HttpRequest, code: str) -> JsonResponse:
     """Phase et créneau en cours, interrogés chaque seconde par static/js/phone.js."""
     session = get_object_or_404(Session.objects.defer("roster"), code=code)
-    now = timezone.now()
-    position = session.position(now)
-    return JsonResponse(
-        {
-            "phase": session.phase(now),
-            "slot": position.slot.index if position else None,
-            "remaining_ms": _ms(position.remaining) if position else None,
-        }
-    )
+    return _live_json(session.state(timezone.now()), board=False)
 
 
 @require_POST
 def student_answer(request: HttpRequest, code: str) -> JsonResponse:
     """Enregistre la réponse au créneau en cours (ETU-07) ; refusée hors délai."""
-    session = get_object_or_404(Session, code=code)
+    session = get_object_or_404(Session.objects.defer("roster"), code=code)
     participant = _identity(request, session)
     if participant is None:
         return JsonResponse({"message": "Identifiez-vous d'abord."}, status=403)
-    position = session.position(timezone.now())
+    position = session.state(timezone.now()).position
     if position is None or request.POST.get("slot") != str(position.slot.index):
         return JsonResponse({"message": TOO_LATE}, status=409)
-    index = session.schedule.question_for(position.slot, participant.rank)
-    question = session.questions[index]
-    try:
-        chosen = sorted({int(value) for value in request.POST.getlist("choice")})
-    except ValueError:
-        chosen = [-1]
-    if any(not 0 <= c < len(question["choices"]) for c in chosen) or (
-        not question["multiple"] and len(chosen) > 1
-    ):
+    index, question = participant.question_at(position.slot)
+    form = AnswerForm(request.POST, question=question)
+    if not form.is_valid():
         return JsonResponse({"message": "Réponse invalide."}, status=400)
-    if chosen:
+    if chosen := form.cleaned_data["choice"]:
         Answer.objects.update_or_create(
             participant=participant, question=index, defaults={"choices": chosen}
         )

@@ -50,7 +50,7 @@ def test_rotation_every_student_answers_every_question_once(n_questions, shown):
         assert sorted(seen) == list(range(n_questions))
         for slot in schedule.slots:  # la couleur est le rang de la question dans son groupe
             question = schedule.question_for(slot, rank)
-            assert schedule.groups[slot.group][schedule.color_for(slot, rank) - 1] == question
+            assert schedule.groups[slot.group][slot.color(rank) - 1] == question
 
 
 @pytest.mark.parametrize("shown", range(2, 7))

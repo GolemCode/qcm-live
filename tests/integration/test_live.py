@@ -6,7 +6,6 @@ from typing import cast
 import pytest
 from django.forms import ModelChoiceField
 from django.urls import reverse
-from django.utils import timezone
 
 from live import forms as live_forms
 from live.forms import IdentifyForm
@@ -57,7 +56,7 @@ def test_board_state_lists_names_in_join_order(admin_client, session):
     Participant.objects.create(session=session, number="2", name="B")
     Participant.objects.create(session=session, number="1", name="A")
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
-    assert state == {"phase": "waiting", "connected": ["B", "A"]}
+    assert state == {"page": "waiting", "remaining_ms": None, "connected": ["B", "A"]}
 
 
 def test_snapshot_keeps_quiz_order_choices_and_scales(session):
@@ -152,10 +151,10 @@ def test_board_polls_until_the_session_ends(admin_client, session):
 
 
 @pytest.fixture
-def running(client, session):
+def running(client, admin_client, session):
     """Session démarrée, l'appareil `client` identifié comme l'étudiant n°1 (rang 0)."""
     client.post(reverse("student-session", args=[session.code]), {"number": "1"})
-    Session.objects.filter(pk=session.pk).update(started_at=timezone.now())
+    admin_client.post(reverse("session-start", args=[session.code]))
     session.refresh_from_db()
     return session
 
@@ -178,7 +177,7 @@ def test_answer_requires_identity(running):
     [("x",), (9,), (-1,), (0, 1)],  # non entier, hors bornes, deux choix en simple
 )
 def test_invalid_answers_are_refused(client, running, choices):
-    # Rang 0, créneau 0 : la question multiple Q2 (3 propositions) — on vise la simple Q1.
+    # Rang 0, créneau 1 : la question simple Q1 (2 propositions).
     rewind(running, 20)
     response = answer(client, running, *choices, slot="1")
     assert response.status_code == 400
@@ -202,7 +201,7 @@ def test_release_only_before_start(admin_client, session):
     participant = Participant.objects.create(session=session, number="1", name="A")
     url = reverse("participant-release", args=[session.code, participant.pk])
     assert admin_client.get(url).status_code == 405
-    Session.objects.filter(pk=session.pk).update(started_at=timezone.now())
+    admin_client.post(reverse("session-start", args=[session.code]))
     admin_client.post(url)
     assert Participant.objects.filter(pk=participant.pk).exists()
     session.started_at = None
@@ -219,3 +218,14 @@ def test_release_requires_login(client, session):
         reverse("login")
     )
     assert Participant.objects.filter(pk=participant.pk).exists()
+
+
+def test_ranks_stay_distinct_after_a_release(admin_client, session):
+    from django.test import Client
+
+    for number in ("1", "2"):
+        Client().post(reverse("student-session", args=[session.code]), {"number": number})
+    first = session.participants.get(number="1")
+    admin_client.post(reverse("participant-release", args=[session.code, first.pk]))
+    Client().post(reverse("student-session", args=[session.code]), {"number": "1"})
+    assert sorted(session.participants.values_list("rank", flat=True)) == [1, 2]
