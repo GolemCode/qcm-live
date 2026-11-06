@@ -18,6 +18,7 @@ from roster.models import StudentGroup
 MAX_SHOWN = 6  # SES-01 : de 1 à 6 questions affichées en même temps
 MIN_SECONDS, MAX_SECONDS = 5, 600
 CODE_ATTEMPTS = 20  # un million de codes : une collision est rare, vingt d'affilée impossible
+RANK_ATTEMPTS = 10  # arrivées simultanées : une tentative par conflit de rang
 
 
 class LaunchSessionForm(PlainForm):
@@ -58,6 +59,7 @@ class LaunchSessionForm(PlainForm):
     def save(self) -> Session:
         fields = {
             **self.frozen,
+            "n_questions": len(self.frozen["content"]["questions"]),
             "shown": self.cleaned_data["shown"],
             "seconds": self.cleaned_data["seconds"],
         }
@@ -124,22 +126,27 @@ class IdentifyForm(PlainForm):
     def save(self) -> Participant | None:
         """Le participant, ou None si le numéro est déjà pris dans la session (erreur ajoutée).
 
-        La contrainte d'unicité en base est le seul arbitre : deux téléphones qui valident le
-        même numéro au même instant ne peuvent pas passer tous les deux.
+        Les contraintes d'unicité en base sont les seuls arbitres : deux téléphones qui
+        valident le même numéro au même instant ne passent pas tous les deux, et deux arrivées
+        simultanées n'obtiennent pas le même rang (le second retente avec le rang suivant).
         """
-        try:
-            with transaction.atomic():
-                return Participant.objects.create(
-                    session=self.session,
-                    number=self.cleaned_data["number"],
-                    name=self.student_name,
-                    rank=self._next_rank(),
-                )
-        except IntegrityError:
-            self.add_error(
-                "number", "Ce numéro est déjà utilisé dans cette session, depuis un autre appareil."
-            )
-            return None
+        number = self.cleaned_data["number"]
+        for _ in range(RANK_ATTEMPTS):
+            try:
+                with transaction.atomic():
+                    return Participant.objects.create(
+                        session=self.session,
+                        number=number,
+                        name=self.student_name,
+                        rank=self._next_rank(),
+                    )
+            except IntegrityError:
+                if self.session.participants.filter(number=number).exists():
+                    break
+        self.add_error(
+            "number", "Ce numéro est déjà utilisé dans cette session, depuis un autre appareil."
+        )
+        return None
 
 
 class AnswerForm(PlainForm):

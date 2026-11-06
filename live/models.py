@@ -8,7 +8,7 @@ from datetime import datetime
 from functools import cached_property
 from typing import TYPE_CHECKING, Literal
 
-from django.db import models
+from django.db import models, transaction
 
 from bank.models import TITLE_MAX_LENGTH
 from live.schedule import Position, Schedule, Slot, shuffled
@@ -46,6 +46,9 @@ class Session(models.Model):
     group_name = models.CharField(max_length=GROUP_NAME_MAX_LENGTH)
     content = models.JSONField()  # live.snapshot.FrozenQuiz
     roster = models.JSONField()  # list[live.snapshot.FrozenStudent]
+    # Nombre de questions de la copie figée : les états interrogés chaque seconde calculent
+    # le déroulement sans charger ni décoder `content`.
+    n_questions = models.PositiveSmallIntegerField()
     shown = models.PositiveSmallIntegerField()
     seconds = models.PositiveSmallIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -68,13 +71,32 @@ class Session(models.Model):
     def students(self) -> list[FrozenStudent]:
         return self.roster
 
-    @property
-    def n_questions(self) -> int:
-        return len(self.questions)
-
     @cached_property
     def schedule(self) -> Schedule:
         return Schedule(self.n_questions, self.shown, self.seconds)
+
+    def start(self, now: datetime) -> bool:
+        """Démarre la session si elle ne l'est pas déjà ; False si elle l'était (double clic).
+
+        Mise à jour conditionnelle et atomique, qui ne déplace pas l'heure de départ. Les rangs
+        de rotation sont renumérotés 0, 1, 2… dans l'ordre d'arrivée : les libérations (SES-04)
+        ne laissent pas de trou qui fausserait la répartition des questions.
+        """
+        with transaction.atomic():
+            if not Session.objects.filter(pk=self.pk, started_at__isnull=True).update(
+                started_at=now
+            ):
+                return False
+            participants = list(self.participants.order_by("rank", "pk"))
+            offset = len(participants) + max((p.rank for p in participants), default=0) + 1
+            for participant in participants:  # en deux passes, à cause de l'unicité des rangs
+                participant.rank += offset
+            Participant.objects.bulk_update(participants, ["rank"])
+            for rank, participant in enumerate(participants):
+                participant.rank = rank
+            Participant.objects.bulk_update(participants, ["rank"])
+        self.started_at = now
+        return True
 
     def state(self, now: datetime) -> State:
         if self.started_at is None:
@@ -104,6 +126,7 @@ class Participant(models.Model):
         ordering = ["joined_at", "pk"]
         constraints = [
             models.UniqueConstraint(fields=["session", "number"], name="unique_participant_number"),
+            models.UniqueConstraint(fields=["session", "rank"], name="unique_participant_rank"),
         ]
 
     def __str__(self) -> str:

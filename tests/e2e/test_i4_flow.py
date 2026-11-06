@@ -317,3 +317,32 @@ def test_teacher_releases_a_taken_number_before_start(teacher_page: Page, live_s
     manage_participants(page)
     expect(page.get_by_role("button", name="Libérer")).to_have_count(0)
     expect(page.get_by_role("main")).to_contain_text("plus aucun numéro ne peut être libéré")
+
+
+@pytest.mark.spec("ETU-07")
+def test_phone_sends_answers_one_at_a_time(teacher_page: Page, live_server, new_phone):
+    """Réseau lent : un second choix ne part qu'après le premier, avec l'état le plus récent ;
+    la dernière réponse donnée est donc toujours la dernière enregistrée."""
+    page = teacher_page
+    pairs = QUESTIONS["Lesquels sont pairs ?"]
+    quiz = make_quiz("M", [make_question("Lesquels sont pairs ?", pairs, multiple=True)])
+    session = make_session(quiz, make_group("TD1", STUDENTS), shown=1)
+    (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
+    expect(phone.get_by_role("group", name="Propositions")).to_be_visible(timeout=LIVE_MS)
+
+    held = []  # envois retenus, comme sur un réseau très lent
+    phone.route(re.compile(r".*/reponse/$"), lambda route: held.append(route))
+    choose(phone, "2")
+    choose(phone, "4")
+    phone.wait_for_timeout(500)
+    assert len(held) == 1  # le second envoi attend la fin du premier
+    held.pop().continue_()
+    for _ in range(20):  # le second envoi part une fois le premier terminé
+        if held:
+            break
+        phone.wait_for_timeout(100)
+    assert len(held) == 1
+    with phone.expect_response(re.compile(r".*/reponse/$")):
+        held.pop().continue_()
+    expect(save_status(phone)).to_have_text("Réponse enregistrée")
+    assert Answer.objects.get(participant__session=session).choices == [0, 1]  # 2 et 4

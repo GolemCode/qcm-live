@@ -4,6 +4,7 @@ import json
 from typing import cast
 
 import pytest
+from django.db import IntegrityError
 from django.forms import ModelChoiceField
 from django.urls import reverse
 
@@ -53,8 +54,8 @@ def test_start_requires_post_and_is_idempotent(admin_client, session):
 
 
 def test_board_state_lists_names_in_join_order(admin_client, session):
-    Participant.objects.create(session=session, number="2", name="B")
-    Participant.objects.create(session=session, number="1", name="A")
+    Participant.objects.create(session=session, number="2", name="B", rank=0)
+    Participant.objects.create(session=session, number="1", name="A", rank=1)
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
     assert state == {"page": "waiting", "remaining_ms": None, "connected": ["B", "A"]}
 
@@ -229,3 +230,32 @@ def test_ranks_stay_distinct_after_a_release(admin_client, session):
     admin_client.post(reverse("participant-release", args=[session.code, first.pk]))
     Client().post(reverse("student-session", args=[session.code]), {"number": "1"})
     assert sorted(session.participants.values_list("rank", flat=True)) == [1, 2]
+
+
+def test_rank_conflict_retries_with_the_next_rank(session, monkeypatch):
+    Participant.objects.create(session=session, number="1", name="A", rank=0)
+    form = IdentifyForm({"number": "2"}, session=session)
+    assert form.is_valid()
+    ranks = iter([0, 1])  # arrivée simultanée : le premier rang lu est déjà pris
+    monkeypatch.setattr(IdentifyForm, "_next_rank", lambda self: next(ranks))
+    participant = form.save()
+    assert participant is not None and participant.rank == 1
+
+
+def test_start_renumbers_ranks_in_arrival_order(admin_client, session):
+    for rank, number in ((0, "1"), (3, "2")):  # un trou laissé par une libération
+        Participant.objects.create(session=session, number=number, name=number, rank=rank)
+    admin_client.post(reverse("session-start", args=[session.code]))
+    assert list(session.participants.values_list("number", "rank")) == [("1", 0), ("2", 1)]
+
+
+def test_simultaneous_first_answers_keep_the_last(client, running, monkeypatch):
+    participant = running.participants.get()
+    Answer.objects.create(participant=participant, question=0, choices=[0])
+
+    def created_meanwhile(*args, **kwargs):
+        raise IntegrityError
+
+    monkeypatch.setattr(Answer.objects, "update_or_create", created_meanwhile)
+    assert answer(client, running, 1, 2).status_code == 200
+    assert Answer.objects.get().choices == [1, 2]

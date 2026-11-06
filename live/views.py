@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -91,7 +92,7 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
 @login_required
 def board_state(request: HttpRequest, code: str) -> JsonResponse:
     """État du tableau, interrogé chaque seconde par static/js/board.js."""
-    session = get_object_or_404(Session.objects.defer("roster"), code=code)
+    session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
     state = session.state(timezone.now())
     if state.phase == "waiting":
         return _live_json(state, board=True, connected=_connected(session))
@@ -101,9 +102,8 @@ def board_state(request: HttpRequest, code: str) -> JsonResponse:
 @login_required
 @require_POST
 def session_start(request: HttpRequest, code: str) -> HttpResponse:
-    get_object_or_404(Session.objects.only("pk"), code=code)
-    # Mise à jour conditionnelle et atomique : un double clic ne déplace pas l'heure de départ.
-    if Session.objects.filter(code=code, started_at__isnull=True).update(started_at=timezone.now()):
+    session = get_object_or_404(Session.objects.only("pk", "started_at"), code=code)
+    if session.start(timezone.now()):
         messages.success(request, "Session démarrée.")
     return redirect("board", code=code)
 
@@ -128,14 +128,13 @@ def participants(request: HttpRequest, code: str) -> HttpResponse:
 @require_POST
 def participant_release(request: HttpRequest, code: str, pk: int) -> HttpResponse:
     """SES-04 : avant le démarrage, libérer un numéro pris (par erreur ou par usurpation)."""
-    participant = get_object_or_404(
-        Participant.objects.select_related("session"), pk=pk, session__code=code
-    )
-    if participant.session.started_at is not None:
-        messages.error(request, RELEASE_CLOSED)
-    else:
-        participant.delete()
+    participant = get_object_or_404(Participant, pk=pk, session__code=code)
+    # Suppression conditionnelle et atomique : rien ne part si « Démarrer » est passé entre-temps.
+    released = Participant.objects.filter(pk=pk, session__started_at__isnull=True).delete()[0]
+    if released:
         messages.success(request, f"Numéro {participant.number} libéré.")
+    else:
+        messages.error(request, RELEASE_CLOSED)
     return redirect("participants", code=code)
 
 
@@ -197,7 +196,7 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
 
 def student_state(request: HttpRequest, code: str) -> JsonResponse:
     """Phase et créneau en cours, interrogés chaque seconde par static/js/phone.js."""
-    session = get_object_or_404(Session.objects.defer("roster"), code=code)
+    session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
     return _live_json(session.state(timezone.now()), board=False)
 
 
@@ -216,9 +215,13 @@ def student_answer(request: HttpRequest, code: str) -> JsonResponse:
     if not form.is_valid():
         return JsonResponse({"message": "Réponse invalide."}, status=400)
     if chosen := form.cleaned_data["choice"]:
-        Answer.objects.update_or_create(
-            participant=participant, question=index, defaults={"choices": chosen}
-        )
+        try:
+            with transaction.atomic():
+                Answer.objects.update_or_create(
+                    participant=participant, question=index, defaults={"choices": chosen}
+                )
+        except IntegrityError:  # deux envois simultanés : la ligne vient d'être créée
+            Answer.objects.filter(participant=participant, question=index).update(choices=chosen)
     else:  # tout décoché : pas de réponse
         Answer.objects.filter(participant=participant, question=index).delete()
     return JsonResponse({"message": SAVED})
