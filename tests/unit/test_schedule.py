@@ -40,7 +40,9 @@ def test_session_ends_after_last_slot():
     assert Schedule(5, 2, 30).position(150) is None
 
 
-@pytest.mark.parametrize(("n_questions", "shown"), itertools.product(range(1, 8), range(1, 7)))
+@pytest.mark.parametrize(
+    ("n_questions", "shown"), list(itertools.product(range(1, 8), range(1, 7)))
+)
 def test_rotation_every_student_answers_every_question_once(n_questions, shown):
     schedule = Schedule(n_questions, shown, 10)
     for rank in range(8):
