@@ -36,17 +36,29 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 
 ## Architecture (cible)
 - `config/` : réglages lus depuis l'environnement, urls, vues transverses (accueil, espace enseignant).
-- `bank/` : questions, QCM et barème AMC.
+- `bank/` : questions, QCM et barème AMC. Le barème se calcule dans `bank/scoring.py`, un module pur à côté de sa définition.
 - `roster/` : groupes d'étudiants (import CSV).
-- `live/` : sessions, créneaux, participants et réponses. On y trouve aussi les modules purs `schedule.py` (rotation), `scoring.py` (barème) et `receipt.py` (contenu du QR).
+- `live/` : sessions, créneaux, participants et réponses, avec les modules purs `schedule.py` (rotation) et `receipt.py` (contenu du QR).
+  - **Au démarrage, une session fige une copie du QCM** : questions, propositions dans l'ordre canonique, barème.
+  - Les réponses désignent cette copie, jamais les lignes `Choice` ou `QuizItem`. Modifier une question supprime et recrée ses propositions (BAN-05), et la supprimer la retire des QCM (BAN-07).
 - Le temps réel passe par un polling JSON d'environ 1 s, sans WebSocket. Le temps est calculé à partir des échéances en base, sans worker. CSP stricte : aucun script ni style inline.
 - Tests :
   - `tests/unit` : fonctions pures et hooks ;
   - `tests/integration` : client Django ;
-  - `tests/e2e` : Playwright, avec le fixture `page` pour le PC du tableau (1920x1080) et `new_phone()` pour les téléphones (Pixel 7).
+  - `tests/e2e` : Playwright, avec le fixture `page` pour le PC du tableau (1920x1080), `teacher_page` pour l'enseignant connecté et `new_phone()` pour les téléphones (Pixel 7).
+  - Préconditions des tests :
+    - `tests/factories.py` crée les données en passant par les formulaires de l'application, pour qu'aucune donnée ne soit impossible à créer par l'interface ;
+    - quand le test vérifie la création elle-même, il passe par l'interface (`tests/e2e/bank_ui.py`).
 
 ## Pièges connus
 - Playwright en mode synchrone et pytest-django : il faut `DJANGO_ALLOW_ASYNC_UNSAFE=true`, déjà réglé dans `tests/e2e/conftest.py`.
 - **Enchaîner les commits avec `&&`, jamais avec `;`.** Un commit refusé par pre-commit laisse ses fichiers indexés, et le commit suivant les emporte sous un message faux.
 - pre-commit met de côté les fichiers non indexés : une modification de configuration (`pyproject.toml`) doit entrer dans le même commit que le code qui en dépend, ou avant lui.
-- `django-types` ne suit pas Django 6 (par exemple `django.utils.csp`) : ces stubs sont retirés, et pyright infère depuis le code source de Django.
+- **Typage.**
+  - Utiliser `django-stubs`, qui suit Django 6.1 ; `django-types` ne suit pas Django 6.
+  - Sans stubs, pyright prend les champs de modèle pour des `DecimalField`, au lieu de `Decimal`.
+  - Les relations inverses (`question.choices`) se déclarent sous `if TYPE_CHECKING:` dans le modèle.
+- **Un tableau `make accept` tout vert ne prouve pas qu'un test vérifie quelque chose.** Avant la fusion, l'agent `spec-auditor` casse des comportements dans une copie jetable du dépôt et vérifie qu'un test échoue. Reproduire ensuite ces contre-épreuves après correction.
+- **Code bâti sur `TeacherForm`.**
+  - Libellés : `label_suffix` vide, sinon le français ajoute « : ».
+  - Champ dans un tableau, sans `<label>` visible : l'envelopper dans `table_field()` pour lui donner un nom accessible.

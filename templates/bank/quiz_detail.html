@@ -1,0 +1,43 @@
+{% extends "teacher/base.html" %}
+{% block title %}{{ quiz.title }} — QCM Live{% endblock %}
+{% block content %}
+  <div class="bar">
+    <h1>{{ quiz.title }}</h1>
+    <p class="actions">
+      <a href="{% url 'quiz-update' quiz.pk %}">Modifier</a>
+      <a href="{% url 'quiz-delete' quiz.pk %}">Supprimer</a>
+    </p>
+  </div>
+  <h2>Questions</h2>
+  {% if questions %}
+    <ol aria-label="Questions du QCM">
+      {% for question in questions %}
+        <li>{{ question.text }} <span class="muted">({{ question.get_kind_display }})</span></li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p>Ce QCM ne contient aucune question.</p>
+  {% endif %}
+  <h2>Barème</h2>
+  <table class="grid scale" aria-label="Barème">
+    <thead><tr><th scope="col"></th><th scope="col">b</th><th scope="col">m</th><th scope="col">v</th><th scope="col">p</th></tr></thead>
+    <tbody>
+      <tr>
+        <th scope="row">Questions simples</th>
+        <td>{{ quiz.simple_b|floatformat:"-2" }}</td>
+        <td>{{ quiz.simple_m|floatformat:"-2" }}</td>
+        <td>{{ quiz.simple_v|floatformat:"-2" }}</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <th scope="row">Questions multiples</th>
+        <td>{{ quiz.multiple_b|floatformat:"-2" }}</td>
+        <td>{{ quiz.multiple_m|floatformat:"-2" }}</td>
+        <td>{{ quiz.multiple_v|floatformat:"-2" }}</td>
+        <td>{% if quiz.multiple_p is None %}—{% else %}{{ quiz.multiple_p|floatformat:"-2" }}{% endif %}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="muted">Simple : b si juste, m si faux, v sans réponse. Multiple : b par case bien traitée,
+    m par case mal traitée, v si rien n'est coché, somme relevée au plancher p s'il est fixé.</p>
+{% endblock %}

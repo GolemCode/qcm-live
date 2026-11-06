@@ -9,6 +9,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "django-stubs>=6.1",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",
     "pytest>=9.2.0",
@@ -24,7 +25,7 @@ package = false
 # Incrément en cours : toutes les exigences de SPEC.md marquées (I0)..(I<n>)
 # doivent avoir au moins un test E2E passé (voir tests/spec_trace.py).
 [tool.qcm]
-increment = 0
+increment = 1
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
@@ -64,11 +65,14 @@ extend-exclude = ["*/migrations/*"]
 select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
+# RUF012 signale à tort les attributs des classes Meta de Django (idiome standard).
+"*/models.py" = ["RUF012"]
+"*/forms.py" = ["RUF012"]
 "tests/**" = ["S101", "S105", "S106", "S603", "S607"]
 ".claude/hooks/**" = ["S603", "S607"]
 
 [tool.pyright]
-include = ["config", "tests", ".claude/hooks", "scripts"]
+include = ["config", "bank", "tests", ".claude/hooks", "scripts"]
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
 venvPath = "."

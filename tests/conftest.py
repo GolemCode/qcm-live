@@ -29,6 +29,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _fast_password_hasher(settings) -> None:
+    """PBKDF2 (≈ 1 M itérations) coûte ~0,3 s par création ou connexion : inutile en test."""
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
 @functools.cache
 def _requirements() -> dict[str, spec_trace.Requirement]:
     return spec_trace.parse_spec(spec_trace.SPEC_FILE.read_text(encoding="utf-8"))

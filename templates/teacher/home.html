@@ -1,11 +1,7 @@
-{% extends "base.html" %}
+{% extends "teacher/base.html" %}
 {% block title %}Espace enseignant — QCM Live{% endblock %}
 {% block content %}
-  <header class="bar">
-    <h1>Espace enseignant</h1>
-    <form method="post" action="{% url 'logout' %}">
-      {% csrf_token %}
-      <button type="submit" class="link">Se déconnecter ({{ user.get_username }})</button>
-    </form>
-  </header>
+  <h1>Espace enseignant</h1>
+  <p>Préparez vos questions dans la <a href="{% url 'question-list' %}">banque de questions</a>,
+    puis composez vos <a href="{% url 'quiz-list' %}">QCM</a> à partir de ces questions.</p>
 {% endblock %}

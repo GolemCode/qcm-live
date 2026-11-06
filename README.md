@@ -53,8 +53,10 @@ La CI GitHub Actions lance les mêmes commandes à chaque PR. Elle analyse aussi
 
 ```
 config/     réglages (lus depuis l'environnement), routes, vues transverses
+bank/       banque de questions, QCM, barème AMC (scoring.py : calcul pur)
 templates/  gabarits HTML          static/  un CSS (et un JS à venir), sans script inline
 tests/      unit/ · integration/ · e2e/ (Playwright) · spec_trace.py (traçabilité SPEC.md)
+            factories.py (données de test fictives, créées via les formulaires)
 scripts/    gen_env.py (création du .env local)
 .claude/    environnement de l'agent : réglages, hooks, procédure d'incrément, auditeur de spec
 ```

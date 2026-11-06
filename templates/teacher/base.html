@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block header %}
+  <header class="bar teacher-bar">
+    <nav aria-label="Espace enseignant">
+      <a href="{% url 'teacher-home' %}">Accueil</a>
+      <a href="{% url 'question-list' %}">Banque de questions</a>
+      <a href="{% url 'quiz-list' %}">QCM</a>
+    </nav>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="link">Se déconnecter ({{ user.get_username }})</button>
+    </form>
+  </header>
+{% endblock %}

@@ -119,3 +119,64 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 | I6 | Fin : QR code, résultats, export CSV |
 | I7 | Mode classe : serveur de production local, E2E contre ce serveur |
 | I8 | Hébergement en ligne (conditionnel, selon la décision du professeur) |
+
+---
+
+## I1 — Banque de questions, QCM et barème
+
+### Objectif
+- L'enseignant crée, modifie et supprime des questions, simples ou multiples, de 2 à 8 propositions.
+- Il compose des QCM : une sélection ordonnée de questions de la banque, une même question pouvant servir dans plusieurs QCM.
+- Il règle pour chaque QCM un barème à la manière d'Auto Multiple Choice (b, m, v, p).
+
+### Questions posées à la commanditaire
+- **Modifier et supprimer.** La spec dit « définir », sans plus. Réponse : créer, modifier et supprimer, d'où les nouvelles exigences BAN-05 à BAN-08.
+- **Plancher `p` et non-réponse.** `p` relève-t-il aussi `v` ? Réponse : non, `p` ne borne que la somme des cases.
+- **Décision prise sans poser la question.** Un QCM contient au moins une question : un QCM vide ne peut pas se lancer. C'est écrit dans BAN-03 et signalé dans la PR.
+
+### Problèmes rencontrés
+- **pyright inutilisable sans stubs Django.**
+  - Sans eux, il voit les champs de modèle comme des `DecimalField`, alors qu'à l'exécution ce sont des `Decimal`.
+  - `django-types`, écarté en I0, ne suit toujours pas Django 6. En revanche, `django-stubs` 6.1 suit Django 6.1 et marche avec pyright.
+  - Il reste à déclarer les relations inverses sous `TYPE_CHECKING`.
+  - J'ai aussi découvert que le dossier de l'application n'était pas dans le périmètre de pyright : un outil de contrôle mal configuré passe en silence.
+- **pre-commit refusait la migration générée.**
+  - Appelé sur des chemins explicites, ruff ignore ses exclusions sans `--force-exclude`. C'est le défaut déjà corrigé dans le hook Claude en I0, qui restait dans pre-commit.
+  - Leçon : quand on corrige un mécanisme, chercher ses autres copies.
+- **Une suite de tests trop lente.** Deux causes :
+  - les préconditions passaient toutes par l'interface ;
+  - le hachage PBKDF2 coûte environ 0,3 s à chaque création de compte ou connexion.
+
+  Correctifs : préconditions créées en base, hachage MD5 en test. La suite passe de 27,6 s à 11 s.
+- **Un tableau de couverture vert qui ne prouvait pas tout.**
+  - L'agent `spec-auditor` a cassé six comportements sans qu'aucun test n'échoue : une question multiple à une seule bonne réponse refusée, le minimum de 2 propositions en multiple, les règles appliquées à la seule création, un plancher vide enregistré à 0, le titre ou l'énoncé vides, un ordre égal à l'inverse de la création.
+  - Les tests ont été durcis, puis les 7 contre-épreuves rejouées : toutes sont maintenant détectées.
+
+### Ce qui a bien marché
+- **Les tests d'acceptation écrits d'abord, avec des parcours réutilisables** (`bank_ui.py`). Ils ont échoué pour la bonne raison, puis sont passés du premier coup après l'implémentation. Ce succès immédiat était justement suspect, et l'audit l'a confirmé.
+- **Quatre revues complémentaires.**
+  - `/simplify` : un `ModelForm` au lieu d'un formulaire écrit à la main, une seule source pour les valeurs par défaut.
+  - `/code-review` : des messages d'erreur trompeurs, `commit=False` ignoré.
+  - `/security-review` : rien trouvé.
+  - `spec-auditor` : des tests creux.
+
+  Aucune revue n'a trouvé ce qu'a trouvé une autre.
+- **Des fabriques de données qui passent par les formulaires de l'application.** Une précondition ne peut pas créer une donnée que l'interface refuserait.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Un test de refus ne prouve pas l'acceptation à la limite.** Pour chaque règle, il faut tester le cas refusé et le cas tout juste accepté, par exemple une question multiple à une seule bonne réponse.
+- **Une valeur par défaut doit être relue après enregistrement,** pas seulement dans le formulaire vierge.
+- **Un ordre attendu ne doit pas coïncider avec l'ordre de création,** ni avec son inverse.
+- **Toute vérification de validité vaut aussi à la modification.**
+
+### Choix techniques et leur raison
+- **Sans JavaScript.**
+  - L'ordre des questions d'un QCM se saisit par numéros d'ordre ; vide signifie « exclue ».
+  - Les 8 emplacements de proposition sont fixes, et les vides sont ignorés.
+- **Barème.**
+  - Le calcul, en fonctions pures, est dans `bank/scoring.py`, à côté de la définition du barème plutôt que dans `live/`.
+  - Les valeurs par défaut viennent d'une source unique (`Scale()`).
+  - Les libellés gardent les lettres AMC en minuscules.
+- **Modifier une question supprime puis recrée ses propositions.** C'est simple, et sans risque à une condition, inscrite dans CLAUDE.md pour I3/I4 : une session lancée fige une copie de son QCM, et les réponses désignent cette copie, jamais les lignes de la banque.
+- **Messages de confirmation (`role="status"`) et erreurs (`role="alert"`) par des mécanismes communs.** Les tests les retrouvent par leur rôle accessible, ce qui vérifie au passage que l'interface est accessible.
+- **Nouvelle dépendance de développement : `django-stubs`.** Elle sert au typage statique des modèles ; elle n'est pas embarquée dans l'application.
