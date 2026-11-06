@@ -28,7 +28,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 ### Enseignant : banque de questions et QCM
 - **[BAN-01]** (I1) L'enseignant crée une question **simple** : un énoncé et 2 à 8 propositions, dont exactement une juste.
 - **[BAN-02]** (I1) L'enseignant crée une question **multiple** : un énoncé et 2 à 8 propositions, dont au moins une juste.
-- **[BAN-03]** (I1) L'enseignant crée un QCM : un titre et une sélection **ordonnée** de questions de la banque.
+- **[BAN-03]** (I1) L'enseignant crée un QCM : un titre et une sélection **ordonnée** d'au moins une question de la banque. Un QCM sans question ne peut pas se lancer. Il peut le devenir après la suppression de ses questions (BAN-07) ; pour le modifier, il faut alors lui redonner au moins une question.
 - **[BAN-04]** (I1) Une même question de la banque peut servir dans plusieurs QCM.
 - **[BAN-05]** (I1) L'enseignant modifie une question : énoncé, type, propositions, bonnes réponses. Les règles de validité sont les mêmes qu'à la création.
 - **[BAN-06]** (I1) L'enseignant modifie un QCM : titre, questions, ordre, barème.
