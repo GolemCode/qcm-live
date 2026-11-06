@@ -11,7 +11,7 @@ help: ## Liste des commandes
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
 
 .env:
-	uv run --no-env-file python scripts/gen_env.py
+	uv run --no-project --no-env-file python scripts/gen_env.py
 
 setup: .env ## Installe tout : dépendances, navigateur de test, hooks git, base
 	uv sync --locked

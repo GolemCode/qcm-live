@@ -28,7 +28,7 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     raise ImproperlyConfigured(
         "DJANGO_SECRET_KEY est absent : lancez `make setup` (ou "
-        "`uv run python scripts/gen_env.py`) puis utilisez `uv run --env-file .env …`."
+        "`uv run --no-project python scripts/gen_env.py`) puis utilisez `uv run --env-file .env …`."
     )
 
 DEBUG = env_bool("DJANGO_DEBUG")
@@ -110,7 +110,3 @@ SECURE_CSP = {
     "form-action": [CSP.SELF],
     "frame-ancestors": [CSP.NONE],
 }
-X_FRAME_OPTIONS = "DENY"
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_REFERRER_POLICY = "same-origin"
-SESSION_COOKIE_HTTPONLY = True

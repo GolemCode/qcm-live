@@ -15,6 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  UV_LOCKED: "1" # toute commande uv échoue si uv.lock n'est pas à jour
   GITLEAKS_VERSION: "8.30.1"
   GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
 
@@ -38,7 +39,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
           "$RUNNER_TEMP/gitleaks" git --redact --verbose --exit-code 1
       - name: Environnement (clé secrète éphémère, propre à ce run)
-        run: uv run --no-env-file python scripts/gen_env.py
+        run: uv run --no-project --no-env-file python scripts/gen_env.py
       - name: Dépendances (lockfile strict)
         run: uv sync --locked
       - name: Lint, format, types, checks Django, migrations
@@ -56,7 +57,7 @@ jobs:
         with:
           enable-cache: true
       - name: Environnement (clé secrète éphémère, propre à ce run)
-        run: uv run --no-env-file python scripts/gen_env.py
+        run: uv run --no-project --no-env-file python scripts/gen_env.py
       - name: Dépendances (lockfile strict)
         run: uv sync --locked
       - name: Navigateur Chromium pour Playwright

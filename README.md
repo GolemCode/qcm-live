@@ -29,7 +29,7 @@ make run          # http://localhost:8000
 ### Windows sans make (PowerShell)
 
 ```powershell
-uv run python scripts/gen_env.py
+uv run --no-project python scripts/gen_env.py
 uv sync --locked
 uv run --env-file .env python manage.py migrate
 uv run --env-file .env python manage.py createsuperuser

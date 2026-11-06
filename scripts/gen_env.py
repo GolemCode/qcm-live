@@ -1,6 +1,6 @@
 """Crée le fichier .env local avec une clé secrète aléatoire (jamais versionné).
 
-Ne réécrit jamais un .env existant. Usage : `uv run python scripts/gen_env.py`.
+Ne réécrit jamais un .env existant. Usage : `uv run --no-project python scripts/gen_env.py`.
 """
 
 import secrets
