@@ -6,24 +6,10 @@ from django import forms
 from django.db import transaction
 
 from bank.models import CHOICE_MAX_LENGTH, Choice, Question, Quiz, QuizItem
+from config.forms import TeacherForm, table_field
 
 LETTERS = "ABCDEFGH"  # 2 à 8 propositions, désignées A…H comme au tableau
 MIN_CHOICES = 2
-
-
-def table_field[F: forms.Field](field: F) -> F:
-    """Champ rendu dans un tableau, sans <label> visible : son libellé devient son nom
-    accessible (aria-label)."""
-    field.widget.attrs["aria-label"] = field.label
-    return field
-
-
-class TeacherForm(forms.ModelForm):
-    """Base des formulaires enseignant : libellés sans « : » (le français en ajouterait un)."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        kwargs.setdefault("label_suffix", "")
-        super().__init__(*args, **kwargs)
 
 
 class QuestionForm(TeacherForm):

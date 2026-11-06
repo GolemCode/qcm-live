@@ -1,0 +1,23 @@
+{% extends "teacher/base.html" %}
+{% block title %}Groupes — QCM Live{% endblock %}
+{% block content %}
+  <div class="bar">
+    <h1>Groupes</h1>
+    <a class="button" href="{% url 'group-import' %}">Importer un groupe</a>
+  </div>
+  {% if groups %}
+    <table class="grid">
+      <thead><tr><th scope="col">Groupe</th><th scope="col">Étudiants</th></tr></thead>
+      <tbody>
+        {% for group in groups %}
+          <tr>
+            <td><a href="{% url 'group-detail' group.pk %}">{{ group.name }}</a></td>
+            <td>{{ group.n_students }} étudiant{{ group.n_students|pluralize }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Aucun groupe pour l'instant.</p>
+  {% endif %}
+{% endblock %}

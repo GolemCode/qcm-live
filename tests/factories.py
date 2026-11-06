@@ -10,8 +10,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+
 from bank.forms import LETTERS, QuestionForm, QuizForm
 from bank.models import AMC_DEFAULTS, Question, Quiz
+from roster.forms import GroupImportForm
+from roster.models import StudentGroup
 
 YES_NO = (("oui", True), ("non", False))
 
@@ -40,3 +44,10 @@ def make_quiz(title: str, questions: Sequence[Question], **scale: str) -> Quiz:
     data |= {"title": title, **scale}
     data |= {QuizForm.order_field(q): position for position, q in enumerate(questions, start=1)}
     return _saved(QuizForm(data))
+
+
+def make_group(name: str, students: Sequence[tuple[str, str]]) -> StudentGroup:
+    """Groupe importé par le formulaire d'import, à partir d'un CSV construit ici."""
+    content = "".join(f"{number};{student}\n" for number, student in students).encode()
+    upload = SimpleUploadedFile("groupe.csv", content, content_type="text/csv")
+    return _saved(GroupImportForm({"name": name}, {"file": upload}))
