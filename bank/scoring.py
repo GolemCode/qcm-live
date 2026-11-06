@@ -1,0 +1,48 @@
+"""Barème sur le modèle d'Auto Multiple Choice, sous-ensemble b, m, v, p (SPEC.md §3).
+
+Fonctions pures, sans Django : les propositions sont désignées par leur indice (0, 1, …).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from decimal import Decimal
+
+
+@dataclass(frozen=True)
+class Scale:
+    """Une échelle de barème. Valeurs par défaut d'AMC : b=1, m=0, v=0, pas de plancher."""
+
+    b: Decimal = Decimal(1)  # réponse juste (simple) / case bien traitée (multiple)
+    m: Decimal = Decimal(0)  # réponse fausse (simple) / case mal traitée (multiple)
+    v: Decimal = Decimal(0)  # aucune réponse
+    p: Decimal | None = None  # plancher de la somme (questions multiples)
+
+
+def score(
+    *,
+    multiple: bool,
+    n_choices: int,
+    correct: frozenset[int],
+    chosen: frozenset[int],
+    scale: Scale,
+) -> Decimal:
+    """Note d'une question selon la réponse donnée (`chosen` vide : pas de réponse)."""
+    if not chosen <= frozenset(range(n_choices)):
+        raise ValueError("réponse hors des propositions")
+    if not chosen:
+        return scale.v
+    if not multiple:
+        if len(chosen) != 1:
+            raise ValueError("une question simple n'admet qu'une seule réponse")
+        return scale.b if chosen == correct else scale.m
+    total = sum(
+        (scale.b if (i in chosen) == (i in correct) else scale.m for i in range(n_choices)),
+        Decimal(0),
+    )
+    return total if scale.p is None else max(total, scale.p)
+
+
+def max_score(*, multiple: bool, n_choices: int, scale: Scale) -> Decimal:
+    """Note maximale d'une question : b, ou b par proposition pour une question multiple."""
+    return scale.b * n_choices if multiple else scale.b
