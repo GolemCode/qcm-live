@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Espace enseignant — QCM Live{% endblock %}
+{% block content %}
+  <header class="bar">
+    <h1>Espace enseignant</h1>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="link">Se déconnecter ({{ user.get_username }})</button>
+    </form>
+  </header>
+{% endblock %}

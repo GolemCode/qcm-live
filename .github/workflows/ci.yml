@@ -1,0 +1,73 @@
+# Vérification hors session : les mêmes commandes make qu'en local.
+# Les deux jobs sont des checks requis pour fusionner dans main (protection de branche).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_LOCKED: "1" # toute commande uv échoue si uv.lock n'est pas à jour
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # historique complet pour gitleaks
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+      - name: Secrets — gitleaks sur tout l'historique
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tgz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --verbose --exit-code 1
+      - name: Environnement (clé secrète éphémère, propre à ce run)
+        run: uv run --no-project --no-env-file python scripts/gen_env.py
+      - name: Dépendances (lockfile strict)
+        run: uv sync --locked
+      - name: Lint, format, types, checks Django, migrations
+        run: make lint
+
+  tests:
+    name: tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+      - name: Environnement (clé secrète éphémère, propre à ce run)
+        run: uv run --no-project --no-env-file python scripts/gen_env.py
+      - name: Dépendances (lockfile strict)
+        run: uv sync --locked
+      - name: Navigateur Chromium pour Playwright
+        run: uv run --no-env-file playwright install --with-deps chromium
+      - name: Tous les tests + couverture de la spec + couverture du code
+        run: make verify-tests PYTEST_ARGS="--tracing=retain-on-failure --output=test-results"
+      - name: Traces Playwright des tests en échec
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
