@@ -1,0 +1,18 @@
+# Mises à jour des dépendances (dépôt public) : actions GitHub et paquets Python (uv.lock).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore"
+    groups:
+      dev:
+        dependency-type: development
