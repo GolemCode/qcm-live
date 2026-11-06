@@ -35,12 +35,13 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 
 ## Architecture (cible)
-- `config/` : réglages lus depuis l'environnement, urls, vues transverses (accueil, espace enseignant).
+- `config/` : réglages lus depuis l'environnement, urls, vues transverses (accueil, espace enseignant). On y trouve aussi `forms.py`, les briques communes des formulaires enseignant (`TeacherForm`, `table_field`).
 - `bank/` : questions, QCM et barème AMC. Le barème se calcule dans `bank/scoring.py`, un module pur à côté de sa définition.
-- `roster/` : groupes d'étudiants (import CSV).
+- `roster/` : groupes d'étudiants. L'import CSV est lu par `roster/csv_import.py`, un module pur qui porte aussi les limites de longueur, reprises par les modèles.
 - `live/` : sessions, créneaux, participants et réponses, avec les modules purs `schedule.py` (rotation) et `receipt.py` (contenu du QR).
   - **Au démarrage, une session fige une copie du QCM** : questions, propositions dans l'ordre canonique, barème.
   - Les réponses désignent cette copie, jamais les lignes `Choice` ou `QuizItem`. Modifier une question supprime et recrée ses propositions (BAN-05), et la supprimer la retire des QCM (BAN-07).
+  - De même, un participant garde **son propre exemplaire** du numéro et du nom de l'étudiant. Supprimer un groupe (GRP-03) ne doit effacer aucun résultat de session.
 - Le temps réel passe par un polling JSON d'environ 1 s, sans WebSocket. Le temps est calculé à partir des échéances en base, sans worker. CSP stricte : aucun script ni style inline.
 - Tests :
   - `tests/unit` : fonctions pures et hooks ;
@@ -59,6 +60,8 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Sans stubs, pyright prend les champs de modèle pour des `DecimalField`, au lieu de `Decimal`.
   - Les relations inverses (`question.choices`) se déclarent sous `if TYPE_CHECKING:` dans le modèle.
 - **Un tableau `make accept` tout vert ne prouve pas qu'un test vérifie quelque chose.** Avant la fusion, l'agent `spec-auditor` casse des comportements dans une copie jetable du dépôt et vérifie qu'un test échoue. Reproduire ensuite ces contre-épreuves après correction.
+- **Export CSV (I6, RES-02).** Les noms d'étudiants viennent d'un fichier fourni de l'extérieur. Pour qu'un tableur n'exécute pas une formule, neutraliser toute cellule qui commence par `=`, `+`, `-` ou `@`.
+- **Tests de refus aux limites.** Pour chaque règle, tester le cas refusé et le cas tout juste accepté. Relire après enregistrement les valeurs par défaut et les valeurs vides.
 - **Code bâti sur `TeacherForm`.**
   - Libellés : `label_suffix` vide, sinon le français ajoute « : ».
   - Champ dans un tableau, sans `<label>` visible : l'envelopper dans `table_field()` pour lui donner un nom accessible.

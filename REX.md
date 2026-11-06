@@ -180,3 +180,60 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Modifier une question supprime puis recrée ses propositions.** C'est simple, et sans risque à une condition, inscrite dans CLAUDE.md pour I3/I4 : une session lancée fige une copie de son QCM, et les réponses désignent cette copie, jamais les lignes de la banque.
 - **Messages de confirmation (`role="status"`) et erreurs (`role="alert"`) par des mécanismes communs.** Les tests les retrouvent par leur rôle accessible, ce qui vérifie au passage que l'interface est accessible.
 - **Nouvelle dépendance de développement : `django-stubs`.** Elle sert au typage statique des modèles ; elle n'est pas embarquée dans l'application.
+
+---
+
+## I2 — Groupes d'étudiants (import CSV)
+
+### Objectif
+- L'enseignant importe un groupe nommé à partir d'un fichier CSV (numéro, nom), le consulte et le supprime.
+- Un fichier invalide est refusé en entier, avec un message qui désigne les lignes fautives.
+
+### Questions posées à la commanditaire
+- **Que faire d'un groupe après l'import ?** Réponse : importer, consulter, supprimer. Pour corriger une liste, on supprime le groupe puis on le réimporte (GRP-03).
+- **Format du numéro.** Réponse : chiffres uniquement, pour que le téléphone affiche le pavé numérique en I3.
+- **Format du CSV, choisi par moi** et décrit dans SPEC §2 bis, car c'est un détail technique :
+  - séparateur `;` ou `,` ;
+  - en-tête facultatif ;
+  - encodage UTF-8 ou Windows-1252, les deux sorties possibles d'Excel en français.
+
+### Problèmes rencontrés
+- **Faux pas sur les commits.**
+  - Les tests rouges importent un module `roster` qui n'existe pas encore. ruff le classe alors parmi les bibliothèques externes ; une fois le module créé, le classement change.
+  - Correctif : créer le paquet vide dès le commit des tests rouges.
+  - J'ai aussi dû corriger deux fois un message de commit local qui décrivait mal son contenu. Règle : relire `git show --stat` avant d'amender.
+- **Ce que la revue de code a trouvé dans la lecture du CSV.** Six cas que mes tests ne couvraient pas, chacun reproduit par la revue :
+  - une cellule de plus de 128 Ko fait planter le module `csv` (erreur 500) ;
+  - `\d` accepte aussi les chiffres pleine chasse et arabes ;
+  - un fichier UTF-16 (« Texte Unicode » d'Excel) produisait des erreurs absurdes au lieu du message d'encodage ;
+  - `splitlines()` coupe aussi sur des caractères rares (saut de page, U+2028), ce qui faussait les numéros de ligne ;
+  - les noms acceptaient des caractères de contrôle ;
+  - un double clic sur « Importer » pouvait provoquer une erreur 500.
+
+  Tous sont corrigés et couverts par un test.
+- **Une heuristique d'en-tête qui peut ignorer une vraie ligne.** Une première ligne « abc;DUPONT » est prise pour un en-tête. Je garde la règle, plus sûre que l'alternative : celle-ci aurait ignoré en silence une faute de frappe comme « 12a;DUPONT ». En revanche, je la rends visible : le message de confirmation cite la ligne ignorée.
+- **L'auditeur de spec : 30 contre-épreuves, 4 survivantes.**
+  - Une ligne vide avant une ligne fautive faussait le numéro annoncé, sans qu'aucun test ne le voie.
+  - Une suppression « douce » qui garde le nom pris passait aussi. Elle aurait empêché de réimporter un groupe corrigé.
+  - Les limites tout juste acceptées n'étaient pas testées (20 chiffres, 200 caractères).
+
+  J'ai ajouté les tests et rejoué ces contre-épreuves : toutes sont maintenant détectées.
+
+### Ce qui a bien marché
+- **Isoler la lecture du CSV dans une fonction pure** (des octets en entrée, des étudiants ou des erreurs en sortie). Elle se teste vite et à fond (30 cas), et le formulaire Django ne fait que la brancher.
+- **Le parcours E2E envoie de vrais fichiers par le champ d'envoi du navigateur**, avec plusieurs variantes : Windows-1252 avec en-tête et ligne vide, UTF-8 avec BOM et virgule.
+- **La règle de CLAUDE.md « cas refusé et cas tout juste accepté », ajoutée en I1.** Je ne l'avais pas appliquée partout, et l'auditeur l'a vu tout de suite.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Un fichier venu de l'extérieur, c'est une liste de pièges connus** : encodages, BOM, UTF-16, séparateurs, guillemets multilignes, lignes vides, colonnes vides finales, chiffres non ASCII, caractères de contrôle, taille, limite de champ du module `csv`. Il faut les tester dès le premier jet.
+- **Les numéros de ligne annoncés doivent être ceux du fichier.** Le lecteur `csv` lit directement le texte (`newline=""`), sans découpage préalable.
+- **Lire un fichier envoyé avec une borne** (`read(MAX + 1)`) : sans borne, on charge en mémoire un fichier qu'on va refuser.
+
+### Choix techniques et leur raison
+- **Aucune nouvelle dépendance.** Le module `csv` de Python suffit.
+- **Le fichier envoyé n'est jamais écrit sur le disque** ; seul son contenu, lu et validé, est enregistré. Les vraies listes d'étudiants ne vont pas dans le dépôt (`.gitignore`), et les tests n'utilisent que des noms fictifs.
+- **Les limites de longueur sont définies dans le module de lecture**, et les modèles les reprennent : une seule source.
+- **`TeacherForm` et `table_field` sont déplacés dans `config/forms.py`,** pour que `roster` ne dépende pas de `bank`.
+- **Contraintes pour la suite, inscrites dans CLAUDE.md :**
+  - un participant de session garde son propre exemplaire du numéro et du nom, pour que supprimer un groupe n'efface aucun résultat ;
+  - l'export CSV des résultats (I6) devra neutraliser les cellules qui commencent par `=`, `+`, `-` ou `@`, contre l'injection de formules.
