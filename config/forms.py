@@ -12,9 +12,17 @@ def table_field[F: forms.Field](field: F) -> F:
     return field
 
 
-class TeacherForm(forms.ModelForm):
-    """Base des formulaires enseignant : libellés sans « : » (le français en ajouterait un)."""
+class _NoColonLabels:
+    """Libellés sans « : » : en français, Django en ajoute un par défaut."""
 
     def __init__(self, *args, **kwargs) -> None:
         kwargs.setdefault("label_suffix", "")
         super().__init__(*args, **kwargs)
+
+
+class TeacherForm(_NoColonLabels, forms.ModelForm):
+    """Base des formulaires liés à un modèle."""
+
+
+class PlainForm(_NoColonLabels, forms.Form):
+    """Base des formulaires sans modèle."""
