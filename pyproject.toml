@@ -9,6 +9,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "django-stubs>=6.1",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",
     "pytest>=9.2.0",
@@ -62,6 +63,8 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "SIM", "RUF"]
+# RUF012 signale à tort les attributs des classes Meta de Django (idiome standard).
+ignore = ["RUF012"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["bank", "config", "live", "roster", "tests"]
@@ -71,7 +74,7 @@ known-first-party = ["bank", "config", "live", "roster", "tests"]
 ".claude/hooks/**" = ["S603", "S607"]
 
 [tool.pyright]
-include = ["config", "tests", ".claude/hooks", "scripts"]
+include = ["config", "bank", "tests", ".claude/hooks", "scripts"]
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
 venvPath = "."
