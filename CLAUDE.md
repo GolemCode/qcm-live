@@ -25,7 +25,7 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 6. **Git.**
    - Jamais de commit ni de push sur `main`, qui est protégée : on passe par une PR.
    - Une branche `inc/<n>-<slug>` par incrément.
-   - Commits Conventional Commits en français (`feat:`, `fix:`, `test:`, `docs:`, `ci:`, `chore:`), avec le trailer Co-Authored-By.
+   - Commits Conventional Commits en français (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`), avec le trailer Co-Authored-By.
    - Fusion par `gh pr merge --merge`, puis tag `inc-<n>`.
    - Jamais de `--no-verify` ni de push forcé : un hook les refuse.
 7. **Langue.** Code et identifiants en anglais. Interface, docs, commits et PR en français.
@@ -39,10 +39,15 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 - `bank/` : questions, QCM et barème AMC. Le barème se calcule dans `bank/scoring.py`, un module pur à côté de sa définition.
 - `roster/` : groupes d'étudiants. L'import CSV est lu par `roster/csv_import.py`, un module pur qui porte aussi les limites de longueur, reprises par les modèles.
 - `live/` : sessions, créneaux, participants et réponses, avec les modules purs `schedule.py` (rotation) et `receipt.py` (contenu du QR).
-  - **Au démarrage, une session fige une copie du QCM** : questions, propositions dans l'ordre canonique, barème.
+  - **Au lancement, une session fige une copie du QCM et de la liste du groupe** (SES-03, décision I3). Cette copie est faite par `live/snapshot.py` et décrite par des `TypedDict` (`FrozenQuiz`, `FrozenQuestion`, `FrozenStudent`). On la lit par `session.questions` et `session.students`. Le barème figé est sérialisé par `Scale.to_json` ; le lecteur correspondant viendra avec la notation.
   - Les réponses désignent cette copie, jamais les lignes `Choice` ou `QuizItem`. Modifier une question supprime et recrée ses propositions (BAN-05), et la supprimer la retire des QCM (BAN-07).
   - De même, un participant garde **son propre exemplaire** du numéro et du nom de l'étudiant. Supprimer un groupe (GRP-03) ne doit effacer aucun résultat de session.
-- Le temps réel passe par un polling JSON d'environ 1 s, sans WebSocket. Le temps est calculé à partir des échéances en base, sans worker. CSP stricte : aucun script ni style inline.
+- Le temps réel passe par un polling JSON d'environ 1 s, sans WebSocket : voir `static/js/board.js`, qui insère toujours le texte avec `textContent`.
+  - Quand le téléphone aura besoin de la même boucle (I4), la factoriser.
+  - Le temps est calculé à partir des échéances en base, sans worker.
+  - CSP stricte : aucun script ni style inline.
+- **Identité de l'étudiant.** Elle est stockée dans la session Django : `request.session["live_participants"] = {code: id du participant}`, une identité par appareil et par session. Un numéro déjà pris est refusé par la contrainte d'unicité en base, seul arbitre en cas de concurrence.
+- **Saisies numériques sur téléphone** (code, numéro) : utiliser `live.forms.DigitsField`, qui affiche le pavé numérique et ignore les espaces.
 - Tests :
   - `tests/unit` : fonctions pures et hooks ;
   - `tests/integration` : client Django ;
@@ -54,6 +59,8 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 ## Pièges connus
 - Playwright en mode synchrone et pytest-django : il faut `DJANGO_ALLOW_ASYNC_UNSAFE=true`, déjà réglé dans `tests/e2e/conftest.py`.
 - **Enchaîner les commits avec `&&`, jamais avec `;`.** Un commit refusé par pre-commit laisse ses fichiers indexés, et le commit suivant les emporte sous un message faux.
+- **Imports et ruff.** ruff ne classe un import parmi ceux du projet que si le module existe. D'où la liste `known-first-party` dans `pyproject.toml` : y ajouter toute nouvelle application **avant** d'écrire ses tests rouges.
+- **CI.** Pas de `playwright install --with-deps` : un miroir apt lent l'a fait durer 11 min. Le runner a déjà les bibliothèques, et le navigateur sans interface est mis en cache.
 - pre-commit met de côté les fichiers non indexés : une modification de configuration (`pyproject.toml`) doit entrer dans le même commit que le code qui en dépend, ou avant lui.
 - **Typage.**
   - Utiliser `django-stubs`, qui suit Django 6.1 ; `django-types` ne suit pas Django 6.
