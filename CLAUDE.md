@@ -21,7 +21,7 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 2. **Tests d'abord.** Le premier commit d'un incrément contient les tests d'acceptation, rouges.
 3. **Terminé**, c'est seulement : `make verify` vert, PR à la CI verte, fusionnée dans main, agent `spec-auditor` sans réserve bloquante, SPEC.md et REX.md à jour. Ne jamais l'affirmer avant.
 4. **Aucun secret, aucune donnée réelle** dans le dépôt : configuration par variables d'environnement, données de test fictives. gitleaks tourne en pre-commit et en CI.
-5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application ne dépend que de Django ; segno, waitress et whitenoise arriveront avec les incréments qui en ont besoin.
+5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django et de segno (QR code, I6) ; waitress et whitenoise arriveront avec le mode classe (I7). En test seulement : zxing-cpp et Pillow décodent le QR code.
 6. **Git.**
    - Jamais de commit ni de push sur `main`, qui est protégée : on passe par une PR.
    - Une branche `inc/<n>-<slug>` par incrément.
@@ -36,10 +36,10 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 
 ## Architecture (cible)
 - `config/` : réglages lus depuis l'environnement, urls, vues transverses (accueil, espace enseignant). On y trouve aussi `forms.py`, les briques communes des formulaires enseignant (`TeacherForm`, `table_field`).
-- `bank/` : questions, QCM et barème AMC. Le barème se calcule dans `bank/scoring.py`, un module pur à côté de sa définition.
+- `bank/` : questions, QCM et barème AMC. Le barème se calcule dans `bank/scoring.py`, un module pur à côté de sa définition, qui porte aussi `LETTERS` (A = indice 0).
 - `roster/` : groupes d'étudiants. L'import CSV est lu par `roster/csv_import.py`, un module pur qui porte aussi les limites de longueur, reprises par les modèles.
-- `live/` : sessions, créneaux, participants et réponses, avec les modules purs `schedule.py` (rotation) et `receipt.py` (contenu du QR).
-  - **Au lancement, une session fige une copie du QCM et de la liste du groupe** (SES-03, décision I3). Cette copie est faite par `live/snapshot.py` et décrite par des `TypedDict` (`FrozenQuiz`, `FrozenQuestion`, `FrozenStudent`). On la lit par `session.questions` et `session.students`. Le barème figé est sérialisé par `Scale.to_json` ; le lecteur correspondant viendra avec la notation.
+- `live/` : sessions, créneaux, participants et réponses, avec les modules purs `schedule.py` (rotation), `receipt.py` (contenu du QR) et `results.py` (notation et lignes du CSV).
+  - **Au lancement, une session fige une copie du QCM et de la liste du groupe** (SES-03, décision I3). Cette copie est faite par `live/snapshot.py` et décrite par des `TypedDict` (`FrozenQuiz`, `FrozenQuestion`, `FrozenStudent`). On la lit par `session.questions` et `session.students`. Le barème figé est sérialisé par `Scale.to_json` et relu par `Scale.from_json`.
   - Les réponses désignent cette copie, jamais les lignes `Choice` ou `QuizItem`. Modifier une question supprime et recrée ses propositions (BAN-05), et la supprimer la retire des QCM (BAN-07).
   - De même, un participant garde **son propre exemplaire** du numéro et du nom de l'étudiant. Supprimer un groupe (GRP-03) ne doit effacer aucun résultat de session.
 - **Déroulement (I4).** `live/schedule.py` est un module pur : groupes de N, un créneau de t secondes par question, rotation (rang + étape) mod n, couleur = `Slot.color(rang)`, mélange stable des propositions.
@@ -48,6 +48,10 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - **Temps additionnel (I5, TPS-01).** On ne décale jamais `started_at`, ce qui ferait reculer le créneau en cours. `Schedule.extra` donne les secondes ajoutées par créneau, et `position()` s'appuie sur `Schedule.deadlines`, les échéances cumulées.
     - Chaque clic est une ligne `Extension` (session, créneau), créée par `Session.add_time(slot)`. Elle vise le créneau affiché, et un clic arrivé après l'échéance est annulé.
     - Le tableau ne se recharge qu'au changement de groupe : son état JSON donne `slot`, que `board.js` reporte dans le formulaire « +10 s ».
+- **Fin et résultats (I6).**
+  - La référence d'une question, dans le QR code comme dans le CSV, est son rang dans le QCM figé (`Q1`…). Le reçu suit l'ordre de la rotation (`Participant.receipt`), le CSV l'ordre du QCM.
+  - Les notes ne sont jamais projetées : page « Résultats » à part, disponible seulement une fois la session terminée. Les absents viennent de la liste figée, sans ligne `Participant`.
+  - Un test E2E lit le QR code comme un vrai lecteur : capture de l'image, puis décodage (`qr_text` dans `tests/e2e/live_ui.py`).
 - **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` et `qcm.follow`.
   - Une page qui suit le direct porte `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
   - Le texte est toujours inséré avec `textContent`.
@@ -77,7 +81,8 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Sans stubs, pyright prend les champs de modèle pour des `DecimalField`, au lieu de `Decimal`.
   - Les relations inverses (`question.choices`) se déclarent sous `if TYPE_CHECKING:` dans le modèle.
 - **Un tableau `make accept` tout vert ne prouve pas qu'un test vérifie quelque chose.** Avant la fusion, l'agent `spec-auditor` casse des comportements dans une copie jetable du dépôt et vérifie qu'un test échoue. Reproduire ensuite ces contre-épreuves après correction.
-- **Export CSV (I6, RES-02).** Les noms d'étudiants viennent d'un fichier fourni de l'extérieur. Pour qu'un tableur n'exécute pas une formule, neutraliser toute cellule qui commence par `=`, `+`, `-` ou `@`.
+- **Export CSV (I6, RES-02).** Les noms d'étudiants viennent d'un fichier fourni de l'extérieur. Pour qu'un tableur n'exécute pas une formule, neutraliser toute cellule *de texte* qui commence par `=`, `+`, `-` ou `@` (`results.neutralised`). Ne pas l'appliquer aux nombres calculés : une note négative commence par `-`.
+- **Laisser au téléphone le temps de voir un créneau.** Il interroge l'état chaque seconde et se recharge avec un délai de 0 à 300 ms. Placer le déroulement à 1 s d'une échéance peut lui faire sauter le créneau (test intermittent en I6) : garder plusieurs secondes de marge, puis avancer.
 - **Tests de refus aux limites.** Pour chaque règle, tester le cas refusé et le cas tout juste accepté. Relire après enregistrement les valeurs par défaut et les valeurs vides.
 - **Code bâti sur `TeacherForm`.**
   - Libellés : `label_suffix` vide, sinon le français ajoute « : ».
