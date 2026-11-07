@@ -11,16 +11,21 @@ JSON annonce un autre jeton.
 
 from __future__ import annotations
 
+import csv
+
+import segno
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from segno import DataOverflowError
 
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
-from live.models import Answer, Participant, Session, State
+from live.models import PHASE_LABELS, Answer, Participant, Session, State
+from live.results import csv_rows, decimal_fr, max_total
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
@@ -30,6 +35,7 @@ CLEARED = "Réponse effacée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
 RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."
 SLOT_OVER = "Créneau terminé : aucun temps ajouté."
+QR_TOO_LARGE = "Trop de questions pour un QR code. Vos réponses sont bien enregistrées."
 
 
 def _ms(seconds: float) -> int:
@@ -64,8 +70,15 @@ def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
 
 @login_required
 def session_list(request: HttpRequest) -> HttpResponse:
-    sessions = Session.objects.defer("content", "roster")  # inutiles à la liste
-    return render(request, "live/session_list.html", {"sessions": sessions})
+    now = timezone.now()
+    # `content` et `roster` sont inutiles à la liste. La phase d'une session démarrée coûte une
+    # petite requête (ses ajouts de temps) : acceptable sur cette page de l'enseignant.
+    sessions = Session.objects.defer("content", "roster")
+    rows = []
+    for session in sessions:
+        phase = session.state(now).phase
+        rows.append((session, PHASE_LABELS[phase], phase == "ended"))
+    return render(request, "live/session_list.html", {"rows": rows})
 
 
 @login_required
@@ -159,6 +172,37 @@ def participant_release(request: HttpRequest, code: str, pk: int) -> HttpRespons
     return redirect("participants", code=code)
 
 
+def _is_over(session: Session) -> bool:
+    return session.state(timezone.now()).phase == "ended"
+
+
+@login_required
+def results(request: HttpRequest, code: str) -> HttpResponse:
+    """RES-01 : notes de la session, sur une page non projetée, une fois la session terminée."""
+    session = get_object_or_404(Session, code=code)
+    over = _is_over(session)
+    context: dict = {"session": session, "over": over}
+    if over:
+        context |= {
+            "rows": session.results(),
+            "maximum": decimal_fr(max_total(session.content)),
+        }
+    return render(request, "live/results.html", context)
+
+
+@login_required
+def results_csv(request: HttpRequest, code: str) -> HttpResponse:
+    """RES-02 : export pour Excel en français (« ; », virgule décimale, UTF-8 avec BOM)."""
+    session = get_object_or_404(Session, code=code)
+    if not _is_over(session):
+        raise Http404("Session non terminée")
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="resultats-{session.code}.csv"'
+    response.write("\ufeff")
+    csv.writer(response, delimiter=";").writerows(csv_rows(session.content, session.results()))
+    return response
+
+
 # --- Étudiant -----------------------------------------------------------------------------
 
 
@@ -197,6 +241,13 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             }
             return redirect("student-session", code=code)
         context["form"] = form
+    elif participant is not None and state.phase == "ended":
+        # FIN-01 : QR code des réponses, en texte UTF-8 lisible par toute application.
+        try:
+            qr = segno.make(participant.receipt(), encoding="utf-8", micro=False)
+            context["qr_uri"] = qr.svg_data_uri(scale=1, border=4)
+        except DataOverflowError:  # plus de 2 953 octets, soit quelque 300 questions
+            context["qr_error"] = QR_TOO_LARGE
     elif participant is not None and state.position is not None:
         # ETU-04, ETU-05 : couleur et propositions mélangées pour l'étudiant, jamais l'énoncé.
         slot = state.position.slot

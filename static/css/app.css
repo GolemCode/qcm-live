@@ -80,6 +80,7 @@ input[type="radio"], input[type="checkbox"] { width: 1.25rem; height: 1.25rem; }
 .grid { width: 100%; border-collapse: collapse; }
 .grid th, .grid td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
 .grid .center { text-align: center; }
+.grid .num { text-align: right; }
 .grid td.order { width: 6rem; }
 .grid.scale { width: auto; }
 .grid.scale td { min-width: 4rem; }
@@ -100,6 +101,7 @@ button.big { font-size: 1.5rem; padding: 0.8rem 2rem; }
 
 /* Téléphone de l'étudiant. */
 .identity { font-size: 1.5rem; font-weight: 600; }
+.qr { display: block; width: min(100%, 22rem); height: auto; margin: 1rem auto; background: #fff; }
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 

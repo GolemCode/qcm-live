@@ -34,13 +34,22 @@ def expect_slot(phone: Page, slot: int, timeout: float = LIVE_MS) -> None:
     expect(phone.locator("main")).to_have_attribute("data-page", f"running:{slot}", timeout=timeout)
 
 
-def make_live(n_questions: int, shown: int, seconds: int = 30) -> Session:
+def make_live(
+    n_questions: int,
+    shown: int,
+    seconds: int = 30,
+    *,
+    students=STUDENTS,
+    scale: dict[str, str] | None = None,
+) -> Session:
+    """Session lancée sur les `n_questions` premières questions, avec le barème `scale`."""
     questions = [
         make_question(text, choices, multiple=text in MULTIPLE)
         for text, choices in list(QUESTIONS.items())[:n_questions]
     ]
-    group = make_group("TD1", STUDENTS)
-    return make_session(make_quiz("Contrôle", questions), group, shown=shown, seconds=seconds)
+    group = make_group("TD1", students)
+    quiz = make_quiz("Contrôle", questions, **(scale or {}))
+    return make_session(quiz, group, shown=shown, seconds=seconds)
 
 
 def open_board(page: Page, base_url: str, session: Session) -> None:

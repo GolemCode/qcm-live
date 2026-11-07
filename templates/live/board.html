@@ -7,6 +7,7 @@
   <div class="bar">
     <h1>Session {{ session.code }}</h1>
     <a href="{% url 'participants' session.code %}">Gérer les connectés</a>
+    {% if state.phase == "ended" %}<a href="{% url 'results' session.code %}">Résultats</a>{% endif %}
   </div>
   {% if state.phase == "waiting" %}
     <p class="join-hint">Sur votre téléphone, ouvrez <strong>{{ join_url }}</strong>

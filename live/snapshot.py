@@ -18,7 +18,6 @@ class FrozenChoice(TypedDict):
 
 
 class FrozenQuestion(TypedDict):
-    ref: str  # référence stable de la question (QR code, I6), même si elle est supprimée
     text: str
     multiple: bool
     choices: list[FrozenChoice]  # ordre canonique : A, B, C… au tableau
@@ -39,7 +38,6 @@ def freeze_quiz(quiz: Quiz) -> FrozenQuiz:
         "scales": {kind: scale.to_json() for kind, scale in quiz.scales().items()},
         "questions": [
             {
-                "ref": f"Q{question.pk}",
                 "text": question.text,
                 "multiple": question.kind == question.Kind.MULTIPLE,
                 "choices": [

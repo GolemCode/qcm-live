@@ -5,17 +5,18 @@
     <h1>Sessions</h1>
     <a class="button" href="{% url 'session-launch' %}">Lancer une session</a>
   </div>
-  {% if sessions %}
+  {% if rows %}
     <table class="grid">
-      <thead><tr><th scope="col">Code</th><th scope="col">QCM</th><th scope="col">Groupe</th><th scope="col">Lancée le</th><th scope="col">État</th></tr></thead>
+      <thead><tr><th scope="col">Code</th><th scope="col">QCM</th><th scope="col">Groupe</th><th scope="col">Lancée le</th><th scope="col">État</th><th scope="col"><span class="visually-hidden">Résultats</span></th></tr></thead>
       <tbody>
-        {% for session in sessions %}
+        {% for session, phase, over in rows %}
           <tr>
             <td><a href="{% url 'board' session.code %}">{{ session.code }}</a></td>
             <td>{{ session.quiz_title }}</td>
             <td>{{ session.group_name }}</td>
             <td>{{ session.created_at|date:"j F Y, H:i" }}</td>
-            <td>{% if session.started_at %}Démarrée{% else %}En attente{% endif %}</td>
+            <td>{{ phase }}</td>
+            <td>{% if over %}<a href="{% url 'results' session.code %}">Résultats</a>{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>

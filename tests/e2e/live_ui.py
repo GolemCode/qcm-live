@@ -3,8 +3,11 @@ leur téléphone. Uniquement par l'interface."""
 
 from __future__ import annotations
 
+import io
 import re
 
+import zxingcpp
+from PIL import Image
 from playwright.sync_api import Locator, Page, expect
 
 CODE_RE = re.compile(r"\b(\d{6})\b")
@@ -152,3 +155,33 @@ def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> 
     """Le temps restant affiché atteint, dans le délai, une valeur entre `low` et `high` s."""
     values = "|".join(str(s) for s in range(low, high + 1))
     expect(timer(screen)).to_have_text(re.compile(rf"^({values}) s$"), timeout=timeout)
+
+
+def qr_code(phone: Page) -> Locator:
+    """QR code des réponses affiché sur le téléphone à la fin de la session (FIN-01)."""
+    return phone.get_by_role("img", name="QR code de vos réponses")
+
+
+def qr_text(phone: Page) -> str:
+    """Contenu du QR code, décodé depuis une capture de l'écran du téléphone, comme le
+    ferait une application de lecture."""
+    expect(qr_code(phone)).to_be_visible()
+    image = Image.open(io.BytesIO(qr_code(phone).screenshot()))
+    codes = zxingcpp.read_barcodes(image)
+    assert [code.format for code in codes] == [zxingcpp.BarcodeFormat.QRCode], codes
+    return codes[0].text
+
+
+def open_results(page: Page) -> None:
+    page.get_by_role("link", name="Résultats").click()
+    expect(page.get_by_role("heading", name="Résultats", level=1)).to_be_visible()
+
+
+def results_rows(page: Page) -> list[list[str]]:
+    """Lignes du tableau des résultats (sans l'en-tête), cellule par cellule."""
+    table = page.get_by_role("table", name="Résultats")
+    expect(table).to_be_visible()
+    return [
+        [cell.inner_text().strip() for cell in row.get_by_role("cell").all()]
+        for row in table.locator("tbody").get_by_role("row").all()
+    ]
