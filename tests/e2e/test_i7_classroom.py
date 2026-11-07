@@ -11,6 +11,7 @@ Le serveur lit la base de test, où les fabriques créent les préconditions.
 
 from __future__ import annotations
 
+import http.client
 import os
 import queue
 import re
@@ -24,6 +25,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from http.cookiejar import CookieJar
 from pathlib import Path
@@ -34,7 +36,7 @@ from django.utils import timezone
 from playwright.sync_api import Page, expect
 
 from live.models import Answer, Participant
-from tests.e2e.conftest import login
+from tests.e2e.conftest import TEACHER_PASSWORD, TEACHER_USERNAME, login
 from tests.e2e.live_setup import expect_slot, make_live, open_board
 from tests.e2e.live_ui import (
     choose,
@@ -67,14 +69,14 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-@pytest.fixture
-def classroom(transactional_db) -> Iterator[Classroom]:
+@contextmanager
+def class_mode(*make_args: str) -> Iterator[Classroom]:
     """`make classe` lancé sur un port libre, sur la base de test : comme en classe."""
     port = _free_port()
     env = {**os.environ, "DJANGO_DB_PATH": str(settings.DATABASES["default"]["NAME"])}
     env["DJANGO_DEBUG"] = "1"  # comme dans le .env de développement
     process = subprocess.Popen(
-        ["make", "--no-print-directory", "classe", f"PORT={port}"],
+        ["make", "--no-print-directory", "classe", f"PORT={port}", *make_args],
         cwd=REPO,
         env=env,
         stdout=subprocess.PIPE,
@@ -110,6 +112,12 @@ def classroom(transactional_db) -> Iterator[Classroom]:
         process.wait(timeout=10)
 
 
+@pytest.fixture
+def classroom(transactional_db) -> Iterator[Classroom]:
+    with class_mode() as server:
+        yield server
+
+
 @pytest.fixture(autouse=True)
 def _fast_password_hasher(settings) -> None:
     """Remplace celui de tests/conftest.py : le serveur du mode classe, lancé à part, ne
@@ -142,7 +150,7 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     missing = page.request.get(classroom.local_url + "/page-inexistante/")
     assert missing.status == 404
     assert "DEBUG = True" not in missing.text() and "URLconf" not in missing.text()
-    assert "Page introuvable" in missing.text()  # en français, comme toute l'interface
+    assert "<h1>Page introuvable</h1>" in missing.text()  # en français, comme l'interface
     # La politique de sécurité du contenu reste en place.
     assert "default-src 'self'" in response.headers.get("content-security-policy", "")
 
@@ -161,6 +169,24 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
         refused = phone.request.get(base + path, max_redirects=0)
         assert refused.status == 403, path
         assert "réservé au PC de l'enseignant" in refused.text()
+    # Y compris les envois de formulaire, avec un jeton CSRF valide pris sur la page étudiant.
+    cookies = {c["name"]: c["value"] for c in phone.context.cookies()}
+    csrf = cookies["csrftoken"]
+    credentials = {"username": TEACHER_USERNAME, "password": TEACHER_PASSWORD}
+    for path, data in (
+        ("/prof/connexion/", credentials),
+        (f"/prof/sessions/{session.code}/demarrer/", {}),
+    ):
+        refused = phone.request.post(
+            base + path, form={**data, "csrfmiddlewaretoken": csrf}, max_redirects=0
+        )
+        assert refused.status == 403, path
+        assert "réservé au PC de l'enseignant" in refused.text()
+    # Une connexion réussie aurait renouvelé la session du téléphone.
+    after = {c["name"]: c["value"] for c in phone.context.cookies()}
+    assert after["sessionid"] == cookies["sessionid"]
+    session.refresh_from_db()
+    assert session.started_at is None  # toujours en attente
 
     # Déroulement en direct : le téléphone suit le tableau (JavaScript servi) et répond.
     start(page)
@@ -248,3 +274,32 @@ def test_class_mode_serves_a_whole_class_answering_at_the_same_instant(classroom
     assert [status for status, _ in answered] == [200] * CLASS_SIZE
     assert Answer.objects.filter(participant__session=session).count() == CLASS_SIZE
     assert not any("Traceback" in line for line in classroom.output), "".join(classroom.output)
+
+
+@pytest.mark.spec("CLA-01")
+def test_class_mode_announces_the_address_imposed_by_the_teacher(
+    transactional_db, teacher, page: Page
+):
+    """La détection choisit la mauvaise interface (VPN, WSL) : `make classe ADRESSE=…`."""
+    session = make_live(1, shown=1, seconds=60)
+    with class_mode("ADRESSE=pc-prof.local") as server:
+        port = urllib.parse.urlsplit(server.local_url).port
+        assert server.phone_url == f"http://pc-prof.local:{port}/"
+        login(page, server.local_url)
+        open_board(page, server.local_url, session)
+        expect(page.get_by_text(re.compile(r"^Sur votre téléphone, ouvrez "))).to_contain_text(
+            f"http://pc-prof.local:{port}/ puis"
+        )
+        # Les téléphones qui ouvrent cette adresse sont acceptés par le serveur.
+        assert _status(port, host="pc-prof.local") == 200
+        assert _status(port, host="autre.local") == 400
+
+
+def _status(port: int | None, *, host: str) -> int:
+    """Statut de la page d'accueil demandée au serveur local sous le nom d'hôte `host`."""
+    connection = http.client.HTTPConnection("localhost", port, timeout=10)
+    try:
+        connection.request("GET", "/", headers={"Host": host})
+        return connection.getresponse().status
+    finally:
+        connection.close()

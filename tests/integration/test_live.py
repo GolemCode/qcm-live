@@ -441,9 +441,10 @@ def test_class_mode_keeps_the_teacher_area_on_the_teacher_pc(client, settings, r
     pas du PC lui-même ; les pages des étudiants restent ouvertes au réseau local."""
     settings.TEACHER_LOCAL_ONLY = True
     for path in ("/prof/", "/prof/connexion/", "/prof/sessions/"):
-        response = client.get(path, REMOTE_ADDR=remote)
-        assert response.status_code == 403, path
-        assert "réservé au PC de l'enseignant" in response.content.decode()
+        for send in (client.get, client.post):
+            response = send(path, REMOTE_ADDR=remote)
+            assert response.status_code == 403, (send, path)
+            assert "réservé au PC de l'enseignant" in response.content.decode()
     assert client.get("/", REMOTE_ADDR=remote).status_code == 200
 
 
@@ -461,10 +462,11 @@ def test_teacher_area_is_open_to_the_network_outside_class_mode(client):
 def test_error_pages_are_in_french(client, session):
     """Hors mode debug (mode classe), les pages d'erreur suivent l'interface : en français."""
     missing = client.get("/page-inexistante/")
-    assert missing.status_code == 404 and "Page introuvable" in missing.content.decode()
+    assert missing.status_code == 404 and "<h1>Page introuvable</h1>" in missing.content.decode()
     csrf_client = Client(enforce_csrf_checks=True)
     expired = csrf_client.post(reverse("student-session", args=[session.code]), {"number": "1"})
-    assert expired.status_code == 403 and "Formulaire expiré" in expired.content.decode()
-    assert "Erreur du serveur" in render_to_string("500.html")
+    assert expired.status_code == 403 and "<h1>Formulaire expiré</h1>" in expired.content.decode()
+    assert "<h1>Erreur du serveur</h1>" in render_to_string("500.html")
     unknown_host = client.get("/", headers={"host": "inconnu.example"})
-    assert unknown_host.status_code == 400 and "Requête refusée" in unknown_host.content.decode()
+    assert unknown_host.status_code == 400
+    assert "<h1>Requête refusée</h1>" in unknown_host.content.decode()
