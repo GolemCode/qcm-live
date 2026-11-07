@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import secrets
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import cached_property
 from typing import TYPE_CHECKING, Literal
 
@@ -77,7 +78,10 @@ class Session(models.Model):
 
     @cached_property
     def schedule(self) -> Schedule:
-        clicks = Counter(self.extensions.values_list("slot", flat=True))
+        return self._schedule(self.extensions.all())
+
+    def _schedule(self, extensions: models.QuerySet[Extension]) -> Schedule:
+        clicks = Counter(extensions.values_list("slot", flat=True))
         extra = {slot: n * EXTRA_SECONDS for slot, n in clicks.items()}
         return Schedule(self.n_questions, self.shown, self.seconds, extra)
 
@@ -110,26 +114,30 @@ class Session(models.Model):
         position = self.schedule.position((now - self.started_at).total_seconds())
         return State("ended") if position is None else State("running", position)
 
-    def add_time(self, slot: str | None) -> bool:
+    def add_time(self, slot: str | None, clock: Callable[[], datetime] = timezone.now) -> bool:
         """TPS-01 : ajoute 10 s au créneau `slot` (son rang, tel qu'envoyé par le tableau) s'il
         est en cours ; False sinon (clic arrivé après la fin du créneau, avant le démarrage ou
         après la fin de la session).
 
-        Une ligne par clic : deux clics simultanés s'ajoutent sans se perdre. L'échéance est
-        revérifiée une fois la ligne écrite, juste avant de valider : un clic qui arrive au
-        moment où le créneau se termine ne le rouvre pas.
+        Une ligne par clic : deux clics simultanés s'ajoutent sans se perdre. La ligne est
+        écrite d'abord, ce qui prend le verrou d'écriture de la base ; le créneau en cours est
+        alors recalculé avec les ajouts déjà validés, sans celui-ci. Un clic arrivé après
+        l'échéance est annulé : il ne rouvre pas un créneau terminé. Reste la fenêtre, de
+        quelques millisecondes, entre ce calcul et la validation (REX, I5).
         """
-        now = timezone.now()
-        position = self.state(now).position
+        if self.started_at is None:
+            return False
+        position = self.state(clock()).position
         if position is None or slot != str(position.slot.index):
             return False
-        deadline = now + timedelta(seconds=position.remaining)
         with transaction.atomic():
-            Extension.objects.create(session=self, slot=position.slot.index)
-            if timezone.now() >= deadline:
+            added = Extension.objects.create(session=self, slot=position.slot.index)
+            others = self._schedule(self.extensions.exclude(pk=added.pk))
+            current = others.position((clock() - self.started_at).total_seconds())
+            if current is None or current.slot != position.slot:
                 transaction.set_rollback(True)
                 return False
-        del self.schedule  # calculé par state() ci-dessus : à refaire avec le temps ajouté
+        vars(self).pop("schedule", None)  # à recalculer avec le temps ajouté
         return True
 
     def student_name(self, number: str) -> str | None:

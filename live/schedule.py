@@ -44,7 +44,8 @@ class Schedule:
     n_questions: int
     shown: int  # N : questions affichées en même temps
     seconds: int  # t : durée d'un créneau
-    extra: Mapping[int, int] = field(default_factory=dict)  # secondes ajoutées, par créneau
+    # Secondes ajoutées, par rang de créneau. Hors du hachage : un dict n'est pas hachable.
+    extra: Mapping[int, int] = field(default_factory=dict, hash=False)
 
     @cached_property
     def groups(self) -> list[list[int]]:

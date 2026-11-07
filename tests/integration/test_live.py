@@ -13,6 +13,7 @@ from django.utils import timezone
 from live import forms as live_forms
 from live.forms import IdentifyForm
 from live.models import Answer, Extension, Participant, Session
+from live.schedule import Schedule
 from live.views import CLEARED, SAVED, SLOT_OVER
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
 
@@ -329,15 +330,36 @@ def test_add_time_refused_before_start_and_after_end(admin_client, session):
     assert not Extension.objects.exists()
 
 
-def test_add_time_arriving_at_the_deadline_does_not_reopen_the_slot(session, monkeypatch):
+def test_add_time_arriving_at_the_deadline_does_not_reopen_the_slot(session):
     """Le créneau se termine entre la vérification et l'écriture : l'ajout est annulé."""
     start = timezone.now()
     session.start(start)
     times = iter([start + timedelta(seconds=19.99)])  # vérification : encore dans le créneau 0
     late = start + timedelta(seconds=20)  # écriture : le créneau 0 vient de finir
-    monkeypatch.setattr("live.models.timezone.now", lambda: next(times, late))
-    assert not session.add_time("0")
+    assert not session.add_time("0", clock=lambda: next(times, late))
     assert not Extension.objects.exists()
+
+
+def test_concurrent_click_near_the_deadline_is_not_lost(session):
+    """Deux clics à 0,01 s de l'échéance : le second vérifie l'échéance avant que le premier
+    ne soit validé, puis écrit après elle. Il tient compte du premier ajout et passe."""
+    start = timezone.now()
+    session.start(start)
+
+    calls = []
+
+    def clock():
+        calls.append(None)
+        if len(calls) == 1:  # vérification du second clic, avant l'échéance
+            return start + timedelta(seconds=19.99)
+        return start + timedelta(seconds=20.5)  # écriture, après l'échéance d'origine
+
+    Extension.objects.create(session=session, slot=0)  # le premier clic, validé entre-temps
+    session = Session.objects.get(pk=session.pk)
+    session.schedule = Schedule(2, 2, 20)  # mais la vérification ne l'avait pas vu
+    assert session.add_time("0", clock=clock)
+    assert Extension.objects.filter(slot=0).count() == 2
+    assert Session.objects.get(pk=session.pk).schedule.deadlines == [40, 60]
 
 
 def test_board_state_has_no_slot_once_ended(admin_client, session):

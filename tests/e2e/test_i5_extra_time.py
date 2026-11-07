@@ -134,16 +134,19 @@ def test_student_clears_single_answer(teacher_page: Page, live_server, new_phone
     (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
     expect(phone.get_by_role("group", name="Propositions")).to_be_visible(timeout=LIVE_MS)
     answers = Answer.objects.filter(participant__session=session)
+    expect(clear_button(phone)).to_be_disabled()  # rien à effacer
 
     choose(phone, "Lyon")
     expect(save_status(phone)).to_have_text(SAVED)
     clear_answer(phone)
     expect(save_status(phone)).to_have_text(CLEARED)
     expect(phone.get_by_role("radio", checked=True)).to_have_count(0)
+    expect(clear_button(phone)).to_be_disabled()
     assert not answers.exists()  # non-réponse (v), et non plus une mauvaise réponse
     phone.reload()
     expect(phone.get_by_role("radio")).to_have_count(3)
     expect(phone.get_by_role("radio", checked=True)).to_have_count(0)
+    expect(clear_button(phone)).to_be_disabled()
 
     choose(phone, "Paris")  # on peut encore répondre après avoir effacé
     expect(save_status(phone)).to_have_text(SAVED)
