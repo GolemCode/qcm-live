@@ -6,6 +6,7 @@ Aucun secret n'est écrit ici : `DJANGO_SECRET_KEY` vient de l'environnement
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
@@ -36,8 +37,10 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 # Adresse que les téléphones ouvrent, projetée au tableau (SES-01). Le mode classe
 # (config/classroom.py) y met celle du PC sur le réseau local ; à défaut, le tableau
-# affiche l'adresse par laquelle il a lui-même été ouvert.
+# affiche l'adresse par laquelle il a lui-même été ouvert. Son hôte est toujours accepté.
 JOIN_URL = os.environ.get("QCM_JOIN_URL", "")
+if join_host := urlsplit(JOIN_URL).hostname:
+    ALLOWED_HOSTS.append(join_host)
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -136,12 +139,13 @@ SECURE_CSP = {
 # Hors mode debug, Django ne montre pas les erreurs des requêtes : en mode classe, elles
 # s'affichent dans le terminal. Les alertes de file d'attente de waitress, normales quand
 # toute la classe envoie au même instant, n'y figurent pas.
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "loggers": {
-        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
-        "waitress.queue": {"level": "ERROR"},
-    },
-}
+if not DEBUG:
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {"console": {"class": "logging.StreamHandler"}},
+        "loggers": {
+            "django.request": {"handlers": ["console"], "level": "ERROR"},
+            "waitress.queue": {"level": "ERROR"},
+        },
+    }

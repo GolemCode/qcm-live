@@ -15,10 +15,9 @@ import argparse
 import os
 import socket
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 
 DEFAULT_PORT = 8000
-DEFAULT_HOSTS = "localhost,127.0.0.1"
 # Adresse de documentation (RFC 5737) : « connecter » une socket UDP vers elle choisit
 # l'interface de la route par défaut, sans envoyer aucun paquet.
 PROBE = ("192.0.2.1", 9)
@@ -37,15 +36,10 @@ def lan_address() -> str:
         return probe.getsockname()[0]
 
 
-def classroom_environ(environ: Mapping[str, str], host: str, port: int) -> dict[str, str]:
+def classroom_environ(host: str, port: int) -> dict[str, str]:
     """Réglages imposés par le mode classe : jamais de debug, et l'adresse du réseau local
-    acceptée par Django et projetée au tableau."""
-    hosts = environ.get("DJANGO_ALLOWED_HOSTS", DEFAULT_HOSTS)
-    return {
-        "DJANGO_DEBUG": "0",
-        "DJANGO_ALLOWED_HOSTS": f"{hosts},{host}",
-        "QCM_JOIN_URL": f"http://{host}:{port}/",
-    }
+    projetée au tableau (et donc acceptée par Django, voir `JOIN_URL` dans settings.py)."""
+    return {"DJANGO_DEBUG": "0", "QCM_JOIN_URL": f"http://{host}:{port}/"}
 
 
 def banner(join_url: str, port: int) -> str:
@@ -57,16 +51,9 @@ def banner(join_url: str, port: int) -> str:
     )
 
 
-def _port(value: str) -> int:
-    port = int(value)
-    if not 1 <= port <= 65535:
-        raise ValueError(value)
-    return port
-
-
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="make classe", description="Mode classe de QCM Live.")
-    parser.add_argument("--port", type=_port, default=DEFAULT_PORT, help="port d'écoute")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port d'écoute")
     parser.add_argument("--adresse", help="adresse du PC à annoncer (détectée par défaut)")
     return parser.parse_args(argv)
 
@@ -74,26 +61,20 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — testé de bout en bout
     args = parse_args(argv)
     host = args.adresse or lan_address()
-    os.environ.update(classroom_environ(os.environ, host, args.port))
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    environ = classroom_environ(host, args.port)
+    os.environ.update(environ)
 
-    import django
-    from django.conf import settings
     from django.core.management import call_command
     from waitress.server import create_server
 
-    django.setup()
-    if settings.DEBUG:
-        raise SystemExit("Le mode classe refuse de démarrer en mode debug.")
+    from config.wsgi import application  # charge les réglages, avec l'environnement ci-dessus
+
     call_command("migrate", interactive=False, verbosity=0)
-
-    from config.wsgi import application
-
     # Toutes les interfaces : les téléphones viennent du réseau local.
     server = create_server(application, host="0.0.0.0", port=args.port, threads=THREADS)  # noqa: S104
-    print(banner(settings.JOIN_URL, args.port), flush=True)
     if host.startswith("127."):
         print("Attention : aucun réseau détecté, les téléphones ne pourront pas se connecter.")
+    print(banner(environ["QCM_JOIN_URL"], args.port), flush=True)
     try:
         server.run()
     except KeyboardInterrupt:

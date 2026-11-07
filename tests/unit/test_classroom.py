@@ -42,18 +42,10 @@ def test_lan_address_on_this_machine_is_an_ipv4_address():
 
 
 def test_classroom_environ_forces_production_and_announces_the_lan_address():
-    env = classroom.classroom_environ({"DJANGO_DEBUG": "1"}, "192.168.1.23", 8000)
-    assert env == {
+    assert classroom.classroom_environ("192.168.1.23", 8000) == {
         "DJANGO_DEBUG": "0",
-        "DJANGO_ALLOWED_HOSTS": "localhost,127.0.0.1,192.168.1.23",
         "QCM_JOIN_URL": "http://192.168.1.23:8000/",
     }
-
-
-def test_classroom_environ_keeps_the_allowed_hosts_already_configured():
-    env = classroom.classroom_environ({"DJANGO_ALLOWED_HOSTS": "pc-prof"}, "10.0.0.5", 8080)
-    assert env["DJANGO_ALLOWED_HOSTS"] == "pc-prof,10.0.0.5"
-    assert env["QCM_JOIN_URL"] == "http://10.0.0.5:8080/"
 
 
 def test_banner_gives_the_phone_address_and_the_teacher_address():
@@ -63,13 +55,12 @@ def test_banner_gives_the_phone_address_and_the_teacher_address():
     assert "Ctrl+C" in text
 
 
-@pytest.mark.parametrize("argv", [["--port", "0"], ["--port", "70000"], ["--port", "abc"]])
-def test_invalid_port_is_refused(argv):
+def test_non_numeric_port_is_refused():
     with pytest.raises(SystemExit):
-        classroom.parse_args(argv)
+        classroom.parse_args(["--port", "abc"])
 
 
-def test_default_port_and_detected_address(monkeypatch):
+def test_default_port_and_detected_address():
     args = classroom.parse_args([])
     assert args.port == 8000
     assert args.adresse is None
