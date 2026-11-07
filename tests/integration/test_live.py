@@ -1,16 +1,19 @@
 """Sessions : accès enseignant, copies figées, et cas de concurrence (codes, numéros)."""
 
 import json
+from datetime import timedelta
 from typing import cast
 
 import pytest
 from django.db import IntegrityError
 from django.forms import ModelChoiceField
 from django.urls import reverse
+from django.utils import timezone
 
 from live import forms as live_forms
 from live.forms import IdentifyForm
-from live.models import Answer, Participant, Session
+from live.models import Answer, Extension, Participant, Session
+from live.views import CLEARED, SAVED, SLOT_OVER
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
 
 pytestmark = pytest.mark.django_db
@@ -32,6 +35,7 @@ def test_teacher_pages_require_login(client, session, method):
         reverse("board", args=[session.code]),
         reverse("board-state", args=[session.code]),
         reverse("session-start", args=[session.code]),
+        reverse("session-add-time", args=[session.code]),
     ]
     for url in urls:
         response = getattr(client, method)(url)
@@ -188,8 +192,19 @@ def test_invalid_answers_are_refused(client, running, choices):
 def test_unchecking_everything_means_no_answer(client, running):
     assert answer(client, running, 0, 1).status_code == 200  # Q2, multiple
     assert Answer.objects.get().choices == [0, 1]
-    assert answer(client, running).status_code == 200
+    response = answer(client, running)
+    assert response.status_code == 200
+    assert response.json() == {"message": CLEARED}
     assert not Answer.objects.exists()
+
+
+def test_clearing_a_single_answer_means_no_answer(client, running):
+    """ETU-09 : « Effacer ma réponse » envoie une réponse vide."""
+    rewind(running, 20)  # rang 0, créneau 1 : Q1, simple
+    assert answer(client, running, 1, slot="1").json() == {"message": SAVED}
+    assert answer(client, running, slot="1").json() == {"message": CLEARED}
+    assert not Answer.objects.exists()
+    assert answer(client, running, slot="1").json() == {"message": CLEARED}  # déjà vide
 
 
 def test_answer_for_another_slot_is_too_late(client, running):
@@ -267,3 +282,66 @@ def test_answer_accepted_until_the_very_end_of_the_slot(client, running):
     jump_to(running, running.seconds + 0.01)
     assert answer(client, running, 1, slot="0").status_code == 409
     assert Answer.objects.get().choices == [0]
+
+
+# --- Temps additionnel (TPS-01) -----------------------------------------------------------
+
+
+def _add_time(client, session, slot) -> list[str]:
+    response = client.post(
+        reverse("session-add-time", args=[session.code]), {"slot": slot}, follow=True
+    )
+    assert response.redirect_chain[-1][0] == reverse("board", args=[session.code])
+    return [str(m) for m in response.context["messages"]]
+
+
+def test_add_time_requires_post(admin_client, session):
+    url = reverse("session-add-time", args=[session.code])
+    assert admin_client.get(url).status_code == 405
+
+
+def test_add_time_to_current_slot(admin_client, session):
+    session.start(timezone.now())
+    jump_to(session, 25)  # créneau 1 (t = 20 s)
+    assert _add_time(admin_client, session, "1") == []
+    assert _add_time(admin_client, session, "1") == []
+    session = Session.objects.get(pk=session.pk)
+    assert session.schedule.deadlines == [20, 60]
+    state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
+    assert state["slot"] == 1
+    assert 34_000 < state["remaining_ms"] <= 35_000
+
+
+@pytest.mark.parametrize("slot", ["0", "2", "", "x", "-1", "1.0"])
+def test_add_time_refused_for_another_slot(admin_client, session, slot):
+    """Un clic parti avant le changement de créneau, ou une valeur invalide : rien n'est ajouté."""
+    session.start(timezone.now())
+    jump_to(session, 25)
+    assert _add_time(admin_client, session, slot) == [SLOT_OVER]
+    assert not Extension.objects.exists()
+
+
+def test_add_time_refused_before_start_and_after_end(admin_client, session):
+    assert _add_time(admin_client, session, "0") == [SLOT_OVER]
+    session.start(timezone.now())
+    jump_to(session, 40.5)
+    assert _add_time(admin_client, session, "1") == [SLOT_OVER]
+    assert not Extension.objects.exists()
+
+
+def test_add_time_arriving_at_the_deadline_does_not_reopen_the_slot(session, monkeypatch):
+    """Le créneau se termine entre la vérification et l'écriture : l'ajout est annulé."""
+    start = timezone.now()
+    session.start(start)
+    times = iter([start + timedelta(seconds=19.99)])  # vérification : encore dans le créneau 0
+    late = start + timedelta(seconds=20)  # écriture : le créneau 0 vient de finir
+    monkeypatch.setattr("live.models.timezone.now", lambda: next(times, late))
+    assert not session.add_time(0)
+    assert not Extension.objects.exists()
+
+
+def test_board_state_has_no_slot_once_ended(admin_client, session):
+    session.start(timezone.now())
+    rewind(session, 40)
+    state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
+    assert state == {"page": "ended", "remaining_ms": None}

@@ -26,8 +26,10 @@ from live.models import Answer, Participant, Session, State
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
 IDENTITIES = "live_participants"
 SAVED = "Réponse enregistrée"
+CLEARED = "Réponse effacée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
 RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."
+SLOT_OVER = "Créneau terminé : aucun temps ajouté."
 
 
 def _ms(seconds: float) -> int:
@@ -85,6 +87,7 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
                 for color, index in enumerate(group, start=1)
             ],
             "remaining_ms": _ms(state.position.remaining),
+            "slot": state.position.slot.index,
         }
     return render(request, "live/board.html", context)
 
@@ -96,6 +99,8 @@ def board_state(request: HttpRequest, code: str) -> JsonResponse:
     state = session.state(timezone.now())
     if state.phase == "waiting":
         return _live_json(state, board=True, connected=_connected(session))
+    if state.position is not None:  # créneau visé par « +10 s » (TPS-01)
+        return _live_json(state, board=True, slot=state.position.slot.index)
     return _live_json(state, board=True)
 
 
@@ -105,6 +110,20 @@ def session_start(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session.objects.only("pk", "started_at"), code=code)
     if session.start(timezone.now()):
         messages.success(request, "Session démarrée.")
+    return redirect("board", code=code)
+
+
+@login_required
+@require_POST
+def session_add_time(request: HttpRequest, code: str) -> HttpResponse:
+    """TPS-01 : +10 s au créneau affiché au tableau, s'il est toujours en cours."""
+    session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
+    try:
+        slot = int(request.POST.get("slot", ""))
+    except ValueError:
+        slot = -1
+    if not session.add_time(slot):
+        messages.error(request, SLOT_OVER)
     return redirect("board", code=code)
 
 
@@ -222,6 +241,7 @@ def student_answer(request: HttpRequest, code: str) -> JsonResponse:
                 )
         except IntegrityError:  # deux envois simultanés : la ligne vient d'être créée
             Answer.objects.filter(participant=participant, question=index).update(choices=chosen)
-    else:  # tout décoché : pas de réponse
+    else:  # tout décoché, ou « Effacer ma réponse » (ETU-09) : pas de réponse (v)
         Answer.objects.filter(participant=participant, question=index).delete()
+        return JsonResponse({"message": CLEARED})
     return JsonResponse({"message": SAVED})

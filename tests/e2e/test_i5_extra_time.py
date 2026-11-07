@@ -111,12 +111,14 @@ def test_added_time_accumulates_and_shifts_next_slots(teacher_page: Page, live_s
 
 @pytest.mark.spec("TPS-01")
 def test_added_time_belongs_to_current_slot_only(teacher_page: Page, live_server, new_phone):
-    """Un ajout au second créneau ne change ni le premier ni la fin des suivants au-delà."""
+    """Un ajout au second créneau l'allonge, lui seul. N = 2 : le tableau reste sur le même
+    groupe, sans se recharger, et « +10 s » vise pourtant le second créneau."""
     page = teacher_page
-    session = make_live(3, shown=1)
+    session = make_live(3, shown=2)
     (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
     jump_to(session, 40)  # second créneau, 20 s restantes
     expect_slot(phone, 1)
+    timer_shows(page, 18, 20)  # le tableau est passé au second créneau
     add_time(page)
     timer_shows(page, 28, 30)
     timer_shows(phone, 28, 30)
@@ -125,6 +127,7 @@ def test_added_time_belongs_to_current_slot_only(teacher_page: Page, live_server
     jump_to(session, 70.5)
     expect_slot(phone, 2)
     timer_shows(phone, 28, 30)  # le troisième dure ses 30 s
+    expect(card(page, 1).get_by_role("heading")).to_have_text("Deux plus deux ?")
 
 
 @pytest.mark.spec("ETU-09")

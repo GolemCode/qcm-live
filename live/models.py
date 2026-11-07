@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import secrets
+from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cached_property
 from typing import TYPE_CHECKING, Literal
 
 from django.db import models, transaction
+from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
 from live.schedule import Position, Schedule, Slot, shuffled
@@ -21,6 +23,7 @@ if TYPE_CHECKING:
     from live.snapshot import FrozenQuestion, FrozenStudent
 
 CODE_LENGTH = 6
+EXTRA_SECONDS = 10  # TPS-01 : temps ajouté par un clic de l'enseignant
 
 Phase = Literal["waiting", "running", "ended"]
 
@@ -56,6 +59,7 @@ class Session(models.Model):
 
     if TYPE_CHECKING:
         participants: RelatedManager[Participant]
+        extensions: RelatedManager[Extension]
 
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -73,7 +77,9 @@ class Session(models.Model):
 
     @cached_property
     def schedule(self) -> Schedule:
-        return Schedule(self.n_questions, self.shown, self.seconds)
+        clicks = Counter(self.extensions.values_list("slot", flat=True))
+        extra = {slot: n * EXTRA_SECONDS for slot, n in clicks.items()}
+        return Schedule(self.n_questions, self.shown, self.seconds, extra)
 
     def start(self, now: datetime) -> bool:
         """Démarre la session si elle ne l'est pas déjà ; False si elle l'était (double clic).
@@ -103,6 +109,26 @@ class Session(models.Model):
             return State("waiting")
         position = self.schedule.position((now - self.started_at).total_seconds())
         return State("ended") if position is None else State("running", position)
+
+    def add_time(self, slot: int) -> bool:
+        """TPS-01 : ajoute 10 s au créneau `slot` s'il est en cours ; False sinon (clic arrivé
+        après la fin du créneau, avant le démarrage ou après la fin de la session).
+
+        Une ligne par clic : deux clics simultanés s'ajoutent sans se perdre. L'échéance est
+        revérifiée une fois la ligne écrite, juste avant de valider : un clic qui arrive au
+        moment où le créneau se termine ne le rouvre pas.
+        """
+        position = self.state(timezone.now()).position
+        if self.started_at is None or position is None or position.slot.index != slot:
+            return False
+        deadline = self.started_at + timedelta(seconds=self.schedule.deadlines[slot])
+        with transaction.atomic():
+            Extension.objects.create(session=self, slot=slot)
+            if timezone.now() >= deadline:
+                transaction.set_rollback(True)
+                return False
+        self.__dict__.pop("schedule", None)  # à recalculer avec le temps ajouté
+        return True
 
     def student_name(self, number: str) -> str | None:
         """Nom de l'étudiant de ce numéro dans la liste figée, ou None s'il n'en fait pas partie."""
@@ -163,3 +189,18 @@ class Answer(models.Model):
 
     def __str__(self) -> str:
         return f"{self.participant} Q{self.question} {self.choices}"
+
+
+class Extension(models.Model):
+    """10 secondes ajoutées par l'enseignant au créneau `slot` (rang dans la session) : une
+    ligne par clic (TPS-01, Session.add_time)."""
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="extensions")
+    slot = models.PositiveSmallIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+    def __str__(self) -> str:
+        return f"{self.session} +{EXTRA_SECONDS} s au créneau {self.slot}"

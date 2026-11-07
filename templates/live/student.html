@@ -32,6 +32,7 @@
           <label class="answer"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if index in saved %} checked{% endif %}> {{ text }}</label>
         {% endfor %}
       </fieldset>
+      {% if not multiple %}<button type="button" id="clear-answer" class="secondary">Effacer ma réponse</button>{% endif %}
       <p id="save-status" class="save-status" role="status"></p>
     </form>
     <p class="muted">Vous êtes {{ participant.name }}</p>

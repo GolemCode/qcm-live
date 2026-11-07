@@ -1,5 +1,5 @@
 // Téléphone de l'étudiant : suit le direct (poll.js) et enregistre chaque choix aussitôt
-// (ETU-04, ETU-07). Les envois partent un par un, chacun avec l'état du formulaire au moment
+// (ETU-04, ETU-07), comme l'effacement de la réponse à une question simple (ETU-09). Les envois partent un par un, chacun avec l'état du formulaire au moment
 // de partir : la dernière réponse arrive toujours en dernier, même sur un réseau lent.
 (() => {
   const main = document.querySelector("main[data-state-url]");
@@ -23,8 +23,17 @@
   }
 
   let queue = Promise.resolve();
-  form.addEventListener("change", () => {
+  function changed() {
     status.textContent = "";
     queue = queue.then(send);
-  });
+  }
+  form.addEventListener("change", changed);
+
+  const clear = document.getElementById("clear-answer");
+  if (clear) {
+    clear.addEventListener("click", () => {
+      for (const input of form.querySelectorAll("input[name=choice]")) input.checked = false;
+      changed();
+    });
+  }
 })();

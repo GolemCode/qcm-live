@@ -26,7 +26,14 @@
       <button type="submit" class="big">Démarrer</button>
     </form>
   {% elif state.phase == "running" %}
-    <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
+    <div class="bar">
+      <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
+      <form method="post" action="{% url 'session-add-time' session.code %}">
+        {% csrf_token %}
+        <input type="hidden" name="slot" value="{{ slot }}">
+        <button type="submit">+10 s</button>
+      </form>
+    </div>
     <div class="qcards">
       {% for card in cards %}
         <article class="qcard color-{{ card.color }}" aria-label="Couleur {{ card.color }}">
