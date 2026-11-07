@@ -127,7 +127,7 @@ class Session(models.Model):
             if timezone.now() >= deadline:
                 transaction.set_rollback(True)
                 return False
-        self.__dict__.pop("schedule", None)  # à recalculer avec le temps ajouté
+        del self.schedule  # calculé par state() ci-dessus : à refaire avec le temps ajouté
         return True
 
     def student_name(self, number: str) -> str | None:
