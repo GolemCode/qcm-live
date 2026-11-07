@@ -23,8 +23,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
-from live.models import Answer, Participant, Session, State
-from live.results import ABSENT, csv_rows, decimal_fr, max_total
+from live.models import PHASE_LABELS, Answer, Participant, Session, State
+from live.results import csv_rows, decimal_fr, max_total
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
@@ -69,8 +69,12 @@ def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
 @login_required
 def session_list(request: HttpRequest) -> HttpResponse:
     now = timezone.now()
-    sessions = Session.objects.defer("content", "roster")  # inutiles à la liste
-    rows = [(session, session.state(now).phase) for session in sessions]
+    # `content` et `roster` sont inutiles à la liste ; les ajouts de temps donnent la phase.
+    sessions = Session.objects.defer("content", "roster").prefetch_related("extensions")
+    rows = []
+    for session in sessions:
+        phase = session.state(now).phase
+        rows.append((session, PHASE_LABELS[phase], phase == "ended"))
     return render(request, "live/session_list.html", {"rows": rows})
 
 
@@ -173,12 +177,11 @@ def _is_over(session: Session) -> bool:
 def results(request: HttpRequest, code: str) -> HttpResponse:
     """RES-01 : notes de la session, sur une page non projetée, une fois la session terminée."""
     session = get_object_or_404(Session, code=code)
-    context: dict = {"session": session, "over": _is_over(session)}
-    if context["over"]:
+    over = _is_over(session)
+    context: dict = {"session": session, "over": over}
+    if over:
         context |= {
-            "rows": [
-                (r, ABSENT if r.total is None else decimal_fr(r.total)) for r in session.results()
-            ],
+            "rows": session.results(),
             "maximum": decimal_fr(max_total(session.content)),
         }
     return render(request, "live/results.html", context)

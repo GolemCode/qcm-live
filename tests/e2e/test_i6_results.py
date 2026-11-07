@@ -26,11 +26,20 @@ from playwright.sync_api import Page, expect
 from bank.models import Quiz
 from live.models import Answer, Session
 from roster.models import StudentGroup
-from tests.e2e.live_setup import MULTIPLE, QUESTIONS, expect_slot, open_board, question_of
+from tests.e2e import live_setup
+from tests.e2e.live_setup import (
+    QUESTIONS,
+    expect_slot,
+    make_live,
+    open_board,
+    question_of,
+    started,
+)
 from tests.e2e.live_ui import (
     LIVE_MS,
     choose,
     open_results,
+    open_sessions,
     phone_choices,
     phones_joined,
     qr_code,
@@ -51,12 +60,7 @@ SCALE = {
     "multiple_p": "0",
 }
 MAX_TOTAL = "9"  # 3 questions simples à 2 points, une multiple de 3 propositions à 1 point
-STUDENTS = [
-    ("00123", "DURAND Élise"),
-    ("42", "MARTIN Léo"),
-    ("7", "Ng Anh"),
-    ("0999", "ABSENT Zoé"),
-]
+STUDENTS = [*live_setup.STUDENTS, ("0999", "ABSENT Zoé")]  # 00123, 42, 7, puis un absent
 
 # Réponses de chaque étudiant, créneau par créneau : (question attendue, propositions choisies).
 ANSWERS = {
@@ -86,12 +90,7 @@ def receipt(code: str, number: str, lines: list[str]) -> str:
 
 
 def make_results_session() -> Session:
-    questions = [
-        make_question(text, choices, multiple=text in MULTIPLE)
-        for text, choices in QUESTIONS.items()
-    ]
-    group = make_group("TD1", STUDENTS)
-    return make_session(make_quiz("Contrôle", questions, **SCALE), group, shown=2, seconds=30)
+    return make_live(4, shown=2, students=STUDENTS, scale=SCALE)
 
 
 def answer_slot(phones: dict, slot: int, session: Session) -> None:
@@ -129,15 +128,8 @@ def play_session(page: Page, base_url: str, new_phone) -> tuple[Session, dict[st
     """Session jouée jusqu'au bout : 00123 et 42 dès le départ, 7 au troisième créneau,
     0999 jamais connecté."""
     session = make_results_session()
-    phones = dict(
-        zip(
-            ["00123", "42"],
-            phones_joined(new_phone, base_url, session.code, ["00123", "42"]),
-            strict=True,
-        )
-    )
-    open_board(page, base_url, session)
-    start(page)
+    numbers = ["00123", "42"]
+    phones = dict(zip(numbers, started(page, base_url, new_phone, session, numbers), strict=True))
     answer_slot(phones, 0, session)
     answer_slot(phones, 1, session)
     jump_to(session, 61)
@@ -183,10 +175,11 @@ def test_no_qr_code_before_the_end(teacher_page: Page, live_server, new_phone):
     expect(qr_code(phone)).to_have_count(0)  # en attente
     open_board(page, live_server.url, session)
     start(page)
-    jump_to(session, 119)  # dernier créneau, 1 s avant la fin
+    jump_to(session, 110)  # dernier créneau, 10 s avant la fin
     expect_slot(phone, 3)
     expect(qr_code(phone)).to_have_count(0)
-    expect(qr_code(phone)).to_be_visible(timeout=LIVE_MS + 1_000)
+    jump_to(session, 120.5)  # la fin arrive seule, sans recharger à la main
+    expect(qr_code(phone)).to_be_visible(timeout=LIVE_MS)
     assert qr_text(phone) == receipt(session.code, "00123", ["Q1 -", "Q2 -", "Q3 -", "Q4 -"])
 
 
@@ -218,7 +211,7 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     ]
 
     # Les résultats sont aussi accessibles depuis la liste des sessions.
-    page.get_by_role("navigation").get_by_role("link", name="Sessions").click()
+    open_sessions(page)
     row = page.get_by_role("row").filter(has_text=session.code)
     expect(row).to_contain_text("Terminée")
     row.get_by_role("link", name="Résultats").click()
@@ -287,8 +280,7 @@ def test_results_csv_neutralises_formulas(teacher_page: Page, live_server, new_p
     group = make_group("TD2", [(str(i), name) for i, name in enumerate(names, start=1)])
     quiz = make_quiz("Court", [make_question("Oui ?")])
     session = make_session(quiz, group, seconds=5)
-    open_board(page, live_server.url, session)
-    start(page)
+    started(page, live_server.url, new_phone, session)
     jump_to(session, 6)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     open_results(page)

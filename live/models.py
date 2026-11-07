@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
@@ -29,6 +29,11 @@ CODE_LENGTH = 6
 EXTRA_SECONDS = 10  # TPS-01 : temps ajouté par un clic de l'enseignant
 
 Phase = Literal["waiting", "running", "ended"]
+PHASE_LABELS: dict[Phase, str] = {
+    "waiting": "En attente",
+    "running": "En cours",
+    "ended": "Terminée",
+}
 
 
 @dataclass(frozen=True)
@@ -82,8 +87,8 @@ class Session(models.Model):
     def schedule(self) -> Schedule:
         return self._schedule(self.extensions.all())
 
-    def _schedule(self, extensions: models.QuerySet[Extension]) -> Schedule:
-        clicks = Counter(extensions.values_list("slot", flat=True))
+    def _schedule(self, extensions: Iterable[Extension]) -> Schedule:
+        clicks = Counter(extension.slot for extension in extensions)  # préchargées ou non
         extra = {slot: n * EXTRA_SECONDS for slot, n in clicks.items()}
         return Schedule(self.n_questions, self.shown, self.seconds, extra)
 
@@ -144,10 +149,7 @@ class Session(models.Model):
 
     def results(self) -> list[StudentResult]:
         """RES-01 : un résultat par étudiant du groupe figé ; les absents n'ont pas de note."""
-        present = {
-            p.number: {a.question: a.choices for a in p.answers.all()}
-            for p in self.participants.prefetch_related("answers")
-        }
+        present = {p.number: p.answer_map() for p in self.participants.prefetch_related("answers")}
         return results(self.content, self.students, present)
 
     def student_name(self, number: str) -> str | None:
@@ -191,10 +193,13 @@ class Participant(models.Model):
     def receipt(self) -> str:
         """FIN-01 : contenu du QR code ; les questions dans l'ordre où l'étudiant les a eues,
         y compris celles des créneaux manqués par un retardataire (ETU-08)."""
-        schedule = self.session.schedule
-        answers = {a.question: a.choices for a in self.answers.all()}
-        received = [schedule.question_for(slot, self.rank) for slot in schedule.slots]
+        answers = self.answer_map()
+        received = [self.question_at(slot)[0] for slot in self.session.schedule.slots]
         return receipt(self.session.code, self.number, [(q, answers.get(q, [])) for q in received])
+
+    def answer_map(self) -> dict[int, list[int]]:
+        """Propositions choisies, par indice de question ; une question absente : pas de réponse."""
+        return {answer.question: answer.choices for answer in self.answers.all()}
 
 
 class Answer(models.Model):

@@ -45,13 +45,24 @@ class StudentResult:
             return None
         return sum((mark.points for mark in self.marks), Decimal(0))
 
+    @property
+    def total_text(self) -> str:
+        """Note affichée, sur la page comme dans le CSV : « Absent » ou nombre à la française."""
+        total = self.total
+        return ABSENT if total is None else decimal_fr(total)
 
-def _scale(quiz: FrozenQuiz, question: FrozenQuestion) -> Scale:
-    return Scale.from_json(quiz["scales"]["multiple" if question["multiple"] else "simple"])
+
+def _scales(quiz: FrozenQuiz) -> dict[str, Scale]:
+    return {kind: Scale.from_json(scale) for kind, scale in quiz["scales"].items()}
+
+
+def _kind(question: FrozenQuestion) -> str:
+    return "multiple" if question["multiple"] else "simple"
 
 
 def grade(quiz: FrozenQuiz, answers: Answers) -> list[Mark]:
     """Réponse et points de chaque question du QCM, dans son ordre."""
+    scales = _scales(quiz)
     marks = []
     for index, question in enumerate(quiz["questions"]):
         chosen = frozenset(answers.get(index, ()))
@@ -60,16 +71,17 @@ def grade(quiz: FrozenQuiz, answers: Answers) -> list[Mark]:
             n_choices=len(question["choices"]),
             correct=frozenset(i for i, c in enumerate(question["choices"]) if c["correct"]),
             chosen=chosen,
-            scale=_scale(quiz, question),
+            scale=scales[_kind(question)],
         )
         marks.append(Mark(letters(chosen), points))
     return marks
 
 
 def max_total(quiz: FrozenQuiz) -> Decimal:
+    scales = _scales(quiz)
     return sum(
         (
-            max_score(multiple=q["multiple"], n_choices=len(q["choices"]), scale=_scale(quiz, q))
+            max_score(multiple=q["multiple"], n_choices=len(q["choices"]), scale=scales[_kind(q)])
             for q in quiz["questions"]
         ),
         Decimal(0),
@@ -114,10 +126,10 @@ def csv_rows(quiz: FrozenQuiz, rows: Sequence[StudentResult]) -> list[list[str]]
     lines = [header]
     for row in rows:
         identity = [neutralised(row.number), neutralised(row.name)]
-        if row.marks is None or row.total is None:
-            lines.append([*identity, ABSENT, maximum, *[""] * (2 * n)])
+        cells = [*identity, row.total_text, maximum]
+        if row.marks is None:  # absent
+            lines.append(cells + [""] * (2 * n))
             continue
-        cells = [*identity, decimal_fr(row.total), maximum]
         for mark in row.marks:
             cells += [mark.letters or NO_ANSWER, decimal_fr(mark.points)]
         lines.append(cells)

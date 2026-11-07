@@ -10,11 +10,11 @@
     <table class="grid" aria-label="Résultats">
       <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th><th scope="col" class="num">Note</th><th scope="col" class="num">Note maximale</th></tr></thead>
       <tbody>
-        {% for result, total in rows %}
+        {% for result in rows %}
           <tr>
             <td>{{ result.number }}</td>
             <td>{{ result.name }}</td>
-            <td class="num{% if result.total is None %} muted{% endif %}">{{ total }}</td>
+            <td class="num{% if result.marks is None %} muted{% endif %}">{{ result.total_text }}</td>
             <td class="num">{{ maximum }}</td>
           </tr>
         {% endfor %}

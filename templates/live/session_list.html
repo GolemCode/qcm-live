@@ -9,14 +9,14 @@
     <table class="grid">
       <thead><tr><th scope="col">Code</th><th scope="col">QCM</th><th scope="col">Groupe</th><th scope="col">Lancée le</th><th scope="col">État</th><th scope="col"><span class="visually-hidden">Résultats</span></th></tr></thead>
       <tbody>
-        {% for session, phase in rows %}
+        {% for session, phase, over in rows %}
           <tr>
             <td><a href="{% url 'board' session.code %}">{{ session.code }}</a></td>
             <td>{{ session.quiz_title }}</td>
             <td>{{ session.group_name }}</td>
             <td>{{ session.created_at|date:"j F Y, H:i" }}</td>
-            <td>{% if phase == "waiting" %}En attente{% elif phase == "running" %}En cours{% else %}Terminée{% endif %}</td>
-            <td>{% if phase == "ended" %}<a href="{% url 'results' session.code %}">Résultats</a>{% endif %}</td>
+            <td>{{ phase }}</td>
+            <td>{% if over %}<a href="{% url 'results' session.code %}">Résultats</a>{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>
