@@ -5,8 +5,11 @@ Fonctions pures, sans Django : les propositions sont désignées par leur indice
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from decimal import Decimal
+
+LETTERS = "ABCDEFGH"  # 2 à 8 propositions, désignées A…H comme au tableau (indice 0 = A)
 
 
 @dataclass(frozen=True)
@@ -21,6 +24,12 @@ class Scale:
     def to_json(self) -> dict[str, str | None]:
         """Forme sérialisable (décimaux en texte, sans perte), pour les copies figées."""
         return {key: None if value is None else str(value) for key, value in asdict(self).items()}
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, str | None]) -> Scale:
+        """Lecteur de `to_json` : le barème figé d'une session (notation, I6)."""
+        p = data["p"]
+        return cls(*(Decimal(str(data[key])) for key in "bmv"), p=None if p is None else Decimal(p))
 
 
 def score(

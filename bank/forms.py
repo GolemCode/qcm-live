@@ -6,9 +6,9 @@ from django import forms
 from django.db import transaction
 
 from bank.models import CHOICE_MAX_LENGTH, Choice, Question, Quiz, QuizItem
+from bank.scoring import LETTERS
 from config.forms import TeacherForm, table_field
 
-LETTERS = "ABCDEFGH"  # 2 à 8 propositions, désignées A…H comme au tableau
 MIN_CHOICES = 2
 
 

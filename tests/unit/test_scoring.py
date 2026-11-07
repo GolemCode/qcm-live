@@ -97,3 +97,15 @@ def test_scale_to_json_keeps_decimals_exactly():
     scale = Scale(b=D("0.5"), m=D("-0.25"), v=D("-1"), p=D("-2.00"))
     assert scale.to_json() == {"b": "0.5", "m": "-0.25", "v": "-1", "p": "-2.00"}
     assert Scale().to_json() == {"b": "1", "m": "0", "v": "0", "p": None}
+
+
+@pytest.mark.parametrize(
+    "scale",
+    [Scale(), Scale(b=D("0.5"), m=D("-0.25"), v=D("-1"), p=D("-2.00")), Scale(p=D(0))],
+)
+def test_scale_from_json_reads_to_json(scale):
+    assert Scale.from_json(scale.to_json()) == scale
+
+
+def test_scale_from_json_keeps_a_zero_floor():
+    assert Scale.from_json({"b": "1", "m": "0", "v": "0", "p": "0.00"}).p == D(0)
