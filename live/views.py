@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 
 import segno
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
@@ -100,7 +101,8 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
     state = session.state(timezone.now())
     context: dict = {"session": session, "state": state, "page": _page(state, board=True)}
     if state.phase == "waiting":
-        context |= {"join_url": request.build_absolute_uri("/"), "connected": _connected(session)}
+        join_url = settings.JOIN_URL or request.build_absolute_uri("/")  # CLA-01 : réseau local
+        context |= {"join_url": join_url, "connected": _connected(session)}
     elif state.position is not None:
         group = session.schedule.groups[state.position.slot.group]
         context |= {  # DER-01 : les questions du groupe, avec leur couleur (1 à n)

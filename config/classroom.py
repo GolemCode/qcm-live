@@ -1,0 +1,106 @@
+"""Mode classe (CLA-01) : le PC de l'enseignant sert l'application aux téléphones de la salle.
+
+Usage : `make classe` (ou `uv run --env-file .env python -m config.classroom`), avec
+`--port` pour changer de port et `--adresse` pour imposer l'adresse annoncée si la détection
+choisit la mauvaise interface réseau (VPN, par exemple).
+
+- Serveur de production (waitress), sans mode debug, quel que soit `DJANGO_DEBUG` dans `.env`.
+- Il écoute sur toutes les interfaces : les téléphones le joignent par le réseau local.
+- L'adresse à ouvrir sur les téléphones est affichée dans le terminal et projetée au tableau.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import socket
+import sys
+from collections.abc import Sequence
+
+DEFAULT_PORT = 8000
+# Adresse de documentation (RFC 5737) : « connecter » une socket UDP vers elle choisit
+# l'interface de la route par défaut, sans envoyer aucun paquet.
+PROBE = ("192.0.2.1", 9)
+# Un fil par requête en cours : une classe interroge l'état chaque seconde, et ces
+# requêtes sont brèves. 4 (valeur par défaut de waitress) laisse peu de marge.
+THREADS = 16
+# Adresse imposée à la main : une adresse IPv4 ou un nom de machine, sans schéma ni port.
+HOST_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?")
+
+
+def lan_address() -> str:
+    """Adresse IPv4 du PC sur le réseau local : celle de la route par défaut, sinon (réseau
+    de la salle sans passerelle) la première adresse non locale du PC ; 127.0.0.1 sans réseau."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.connect(PROBE)
+            return probe.getsockname()[0]
+        except OSError:
+            pass
+    try:
+        addresses = socket.gethostbyname_ex(socket.gethostname())[2]
+    except OSError:
+        addresses = []
+    return next((a for a in addresses if not a.startswith("127.")), "127.0.0.1")
+
+
+def classroom_environ(host: str, port: int) -> dict[str, str]:
+    """Réglages imposés par le mode classe : jamais de debug, l'adresse du réseau local
+    projetée au tableau (et donc acceptée par Django, voir `JOIN_URL` dans settings.py), et
+    l'espace enseignant réservé au PC lui-même."""
+    return {
+        "DJANGO_DEBUG": "0",
+        "QCM_JOIN_URL": f"http://{host}:{port}/",
+        "QCM_TEACHER_LOCAL_ONLY": "1",
+    }
+
+
+def banner(join_url: str, port: int) -> str:
+    return (
+        "QCM Live, mode classe.\n"
+        f"  Sur les téléphones des étudiants, ouvrir : {join_url}\n"
+        f"  Sur ce PC, espace enseignant : http://localhost:{port}/prof/\n"
+        "Ctrl+C pour arrêter."
+    )
+
+
+def _host(value: str) -> str:
+    if not HOST_RE.fullmatch(value):
+        raise ValueError(value)
+    return value
+
+
+def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="make classe", description="Mode classe de QCM Live.")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port d'écoute")
+    parser.add_argument("--adresse", type=_host, help="adresse du PC à annoncer")
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — testé de bout en bout
+    args = parse_args(argv)
+    host = args.adresse or lan_address()
+    environ = classroom_environ(host, args.port)
+    os.environ.update(environ)
+
+    from django.core.management import call_command
+    from waitress.server import create_server
+
+    from config.wsgi import application  # charge les réglages, avec l'environnement ci-dessus
+
+    call_command("migrate", interactive=False, verbosity=0)
+    # Toutes les interfaces : les téléphones viennent du réseau local.
+    server = create_server(application, host="0.0.0.0", port=args.port, threads=THREADS)  # noqa: S104
+    if host.startswith("127."):
+        print("Attention : aucun réseau détecté, les téléphones ne pourront pas se connecter.")
+    print(banner(environ["QCM_JOIN_URL"], args.port), flush=True)
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        print("Serveur arrêté.")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())

@@ -6,6 +6,8 @@ requires-python = ">=3.12"
 dependencies = [
     "django>=6.0,<6.2",
     "segno>=1.6.6",
+    "waitress>=3",
+    "whitenoise>=6",
 ]
 
 [dependency-groups]
@@ -28,7 +30,7 @@ package = false
 # Incrément en cours : toutes les exigences de SPEC.md marquées (I0)..(I<n>)
 # doivent avoir au moins un test E2E passé (voir tests/spec_trace.py).
 [tool.qcm]
-increment = 6
+increment = 7
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"

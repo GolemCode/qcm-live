@@ -36,6 +36,30 @@ uv run --env-file .env python manage.py createsuperuser
 uv run --env-file .env python manage.py runserver
 ```
 
+## En classe : `make classe`
+
+```bash
+make classe                 # port 8000 ; autre port : make classe PORT=8080
+```
+
+Le PC de l'enseignant sert alors l'application aux téléphones de la salle, sur le même réseau Wi-Fi :
+
+- un serveur de production (waitress), jamais en mode debug, même si `.env` contient `DJANGO_DEBUG=1` ;
+- les migrations sont appliquées au démarrage ;
+- le terminal affiche l'adresse à ouvrir sur les téléphones, par exemple `http://192.168.1.23:8000/`, et celle de l'espace enseignant sur le PC (`http://localhost:8000/prof/`) ;
+- le tableau projette l'adresse des téléphones, même s'il est ouvert en `localhost` ;
+- l'espace enseignant ne s'ouvre que sur ce PC, par `http://localhost:…/prof/` : les téléphones, et tout autre appareil du réseau, n'y ont pas accès. Sur le PC lui-même, l'adresse du réseau local est aussi refusée pour l'espace enseignant : passer par `localhost`.
+
+Si l'adresse détectée n'est pas la bonne (VPN, plusieurs cartes réseau) : `make classe ADRESSE=192.168.1.23` (une adresse IPv4 ou un nom de machine, sans `http://` ni port).
+
+Sous Windows sans make : `uv run --env-file .env python -m config.classroom` (options `--port` et `--adresse`).
+
+Points à vérifier avant le premier cours :
+
+- **Pare-feu.** Au premier lancement, Windows demande d'autoriser Python : l'autoriser sur les réseaux privés.
+- **WSL.** Lancer le mode classe depuis Windows et non depuis WSL : l'adresse d'une machine WSL n'est pas joignable depuis les téléphones (sauf réseau WSL en mode « mirrored »).
+- **Wi-Fi d'école.** Certains réseaux isolent les appareils entre eux : les téléphones ne joignent alors pas le PC. Essayer avant le cours depuis un téléphone. Voir SPEC.md, §5.
+
 ## Vérifier
 
 | Commande | Ce qu'elle vérifie |
@@ -52,9 +76,11 @@ La CI GitHub Actions lance les mêmes commandes à chaque PR. Elle analyse aussi
 ## Organisation du code
 
 ```
-config/     réglages (lus depuis l'environnement), routes, vues transverses
+config/     réglages (lus depuis l'environnement), routes, vues transverses, mode classe (classroom.py)
 bank/       banque de questions, QCM, barème AMC (scoring.py : calcul pur)
-templates/  gabarits HTML          static/  un CSS (et un JS à venir), sans script inline
+roster/     groupes d'étudiants, import CSV
+live/       sessions en direct : déroulement, réponses, QR code, résultats
+templates/  gabarits HTML          static/  CSS et JS, sans script ni style inline
 tests/      unit/ · integration/ · e2e/ (Playwright) · spec_trace.py (traçabilité SPEC.md)
             factories.py (données de test fictives, créées via les formulaires)
 scripts/    gen_env.py (création du .env local)
