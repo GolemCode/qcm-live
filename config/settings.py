@@ -79,6 +79,10 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        # Base de test dans un fichier, pas en mémoire : en mémoire partagée, SQLite refuse
+        # aussitôt (« table is locked ») un accès concurrent entre le test et le serveur de
+        # test, au lieu d'attendre. En fichier, il attend la fin de l'écriture, comme en usage.
+        "TEST": {"NAME": BASE_DIR / ".test-db.sqlite3"},
     }
 }
 

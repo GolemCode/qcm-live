@@ -341,6 +341,10 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
   J'ai ajouté les tests (liste blanche du contenu du tableau, temps comparé entre écrans, cas « tout juste avant l'échéance ») et rejoué les 5 : toutes détectées.
 - **Contre-audit.** Une bonne réponse signalée par une simple classe CSS (contenu ajouté par `::after`, bordure) passait encore. Le test vérifie désormais que les propositions n'ont aucun attribut, aucun pseudo-élément, et toutes les mêmes propriétés de style calculées.
 
+- **Un test intermittent, révélé par hasard.** Pendant le contre-audit, le test de rotation a échoué une fois sous une mutation qui ne le concernait pas. Relancé 8 fois de suite, il échouait une fois sur 8.
+  - Cause : la base de test SQLite en mémoire partagée refuse aussitôt un accès concurrent (« table is locked ») au lieu d'attendre. Le test, qui avance l'horloge en base, entrait parfois en concurrence avec les téléphones, qui interrogent le serveur chaque seconde.
+  - Correction à la racine : base de test dans un fichier. Résultat : 0 échec sur 25 lancements, et la suite E2E 3 fois de suite sans échec.
+
 ### Ce qui a bien marché
 - **Le module pur du déroulement**, avec ses 58 tests unitaires (rotation vérifiée pour N de 1 à 6 et jusqu'à 7 questions). La logique difficile est prouvée hors navigateur.
 - **Un jeton de page** et un seul mécanisme de suivi du direct (`qcm.follow`), partagé par le tableau et le téléphone.
@@ -352,6 +356,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Toute action déclenchée par l'utilisateur peut arriver en double ou dans le désordre** : double clic, deux onglets, réseau lent. Prévoir dès le premier jet des mises à jour conditionnelles, des contraintes d'unicité et une file d'envoi.
 - **Un test qui dépend d'un tirage aléatoire** ne détecte une erreur qu'une fois sur n. Il faut forcer le tirage.
 - **Chiffrer chaque délai visible** et le vérifier sur tous les écrans, pas seulement sur le premier.
+- **Un échec « isolé » est un signal.** Relancer le test plusieurs fois de suite avant de fusionner : un test intermittent en CI ruine la confiance dans toute la vérification.
 
 ### Choix techniques et leur raison
 - **Aucune nouvelle dépendance.** Polling chaque seconde, avec des rechargements étalés au hasard sur 300 ms pour ne pas recevoir la classe entière dans la même milliseconde.
