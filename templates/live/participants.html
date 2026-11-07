@@ -1,0 +1,37 @@
+{% extends "teacher/base.html" %}
+{% block title %}Connectés — Session {{ session.code }} — QCM Live{% endblock %}
+{% block content %}
+  <div class="bar">
+    <h1>Connectés</h1>
+    <a href="{% url 'board' session.code %}">Retour au tableau</a>
+  </div>
+  <p class="muted">Session {{ session.code }} · page à ne pas projeter : elle montre les numéros.</p>
+  {% if can_release %}
+    <p>Un numéro pris par erreur ou par un autre étudiant ? Libérez-le : l'appareil qui l'occupe perd son identité et le vrai étudiant peut le saisir.</p>
+  {% else %}
+    <p>{{ release_closed }}</p>
+  {% endif %}
+  {% if participants %}
+    <table class="grid">
+      <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th>{% if can_release %}<th scope="col"></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for participant in participants %}
+          <tr>
+            <td>{{ participant.number }}</td>
+            <td>{{ participant.name }}</td>
+            {% if can_release %}
+              <td>
+                <form method="post" action="{% url 'participant-release' session.code participant.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="danger">Libérer</button>
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Aucun étudiant connecté.</p>
+  {% endif %}
+{% endblock %}

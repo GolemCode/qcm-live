@@ -98,3 +98,31 @@ button.big { font-size: 1.5rem; padding: 0.8rem 2rem; }
 
 /* Téléphone de l'étudiant. */
 .identity { font-size: 1.5rem; font-weight: 600; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Six couleurs de questions, numérotées (repère pour les daltoniens), texte sombre lisible. */
+.color-1 { background: #ffd54f; }
+.color-2 { background: #64b5f6; }
+.color-3 { background: #f48fb1; }
+.color-4 { background: #81c784; }
+.color-5 { background: #ffb74d; }
+.color-6 { background: #b39ddb; }
+
+/* Tableau en déroulement : les N questions côte à côte. */
+.board .page { max-width: none; }
+.timer { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0.25rem 0; }
+.qcards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.qcard { border-radius: 0.75rem; padding: 1rem 1.5rem; font-size: 1.4rem; color: var(--fg); }
+.qcard h2 { font-size: 1.6rem; margin: 0.25rem 0 0.75rem; }
+.badge { display: inline-block; margin: 0; font-weight: 700; font-size: 1.25rem; }
+.qcard .badge { font-size: 2rem; }
+
+/* Téléphone : fond de la couleur de la question, grandes cibles tactiles. */
+.phone-head { display: flex; justify-content: space-between; align-items: center; }
+.phone .answers { border: 0; padding: 0; margin: 1rem 0; display: grid; gap: 0.75rem; }
+.phone .answer {
+  display: flex; gap: 0.75rem; align-items: center; padding: 1rem;
+  background: rgba(255, 255, 255, 0.85); border-radius: 0.75rem; font-size: 1.25rem;
+}
+.save-status { min-height: 1.5em; font-weight: 600; }

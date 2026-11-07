@@ -297,3 +297,68 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Polling JSON chaque seconde** par un script externe (CSP stricte), qui insère du texte et jamais du HTML. Il s'arrête une fois la session démarrée.
 - **Aucune nouvelle dépendance.**
 - **Point d'attention transmis à la commanditaire.** Quelqu'un qui connaît le code peut, par un script, essayer tous les numéros du groupe et les réserver avant les vrais étudiants. Ceux-ci n'ont alors aucun recours dans l'application. La parade actuelle, déjà prévue par la spec, est que le tableau affiche les connectés avant le départ. Une vraie protection demanderait un secret par étudiant, ce qui est une décision fonctionnelle.
+
+---
+
+## I4 — Déroulement d'une session
+
+### Objectif
+- **Le cœur de l'application.** Au tableau, les questions défilent par groupes de N, chacune sur sa couleur et avec son numéro. Les créneaux de t secondes passent seuls.
+- **Sur le téléphone**, l'étudiant voit la couleur de sa question et les propositions mélangées pour lui, jamais l'énoncé. Il répond, peut changer d'avis jusqu'à l'échéance, et sa réponse est refusée ensuite.
+- **La rotation** fait répondre chacun à toutes les questions, dans des ordres différents.
+- **Ajouté à la demande de la commanditaire :** avant le démarrage, l'enseignant peut libérer un numéro usurpé (SES-04).
+
+### Questions et décisions
+- **Validées par la commanditaire :**
+  - le délai de 2 s pour le « direct » ;
+  - le recours contre l'usurpation : libération d'un numéro avant le démarrage, depuis une page non projetée qui montre les numéros. Je l'ai placé en I4 parce qu'il touche au démarrage.
+- **Décisions dérivées, écrites dans SPEC.md :**
+  - réponse enregistrée à chaque choix, sans bouton « Valider » ;
+  - propositions sans lettres sur le téléphone ;
+  - écran « Session terminée » au tableau et sur les téléphones.
+- **Question ouverte, posée à la commanditaire :** sur une question simple (boutons radio), l'étudiant ne peut pas revenir à « pas de réponse ». C'est important, car AMC peut noter différemment une non-réponse (v) et une mauvaise réponse (m).
+
+### Problèmes rencontrés
+- **Concevoir le temps sans tâche de fond.** Le créneau en cours se calcule à partir de l'heure de démarrage, par un module pur. Chaque page et chaque état JSON le recalculent, et une page se recharge dès que son « jeton » (phase, groupe ou créneau) change.
+  - Avantage : simple, robuste à la veille des téléphones.
+  - Limite repérée pour I5 : « +10 s » ne pourra pas se faire en décalant l'heure de départ, car le créneau en cours reculerait. Le module devra connaître les secondes ajoutées par créneau. C'est consigné dans CLAUDE.md.
+- **Tester le temps.**
+  - Un seul test tourne en temps réel (deux créneaux de 5 s) : il prouve le passage automatique.
+  - Les autres « avancent l'horloge » en reculant l'heure de démarrage en base.
+  - Pour une échéance à la demi-seconde près, il fallait placer le déroulement à un instant précis, quel que soit le temps déjà écoulé dans le test (`jump_to`).
+- **Ce que la revue de code a trouvé** (aucune revue précédente ne l'avait vu) :
+  - deux choix rapides sur un réseau lent pouvaient arriver dans le désordre et enregistrer l'ancien. Corrigé : file d'envoi sur le téléphone, testée en retenant volontairement la première requête ;
+  - un double insert donnait une erreur 500 ;
+  - deux arrivées simultanées, ou une libération, pouvaient donner le même rang à deux étudiants et casser la rotation. Corrigé : rangs uniques en base, nouvel essai en cas de conflit, renumérotation au démarrage ;
+  - une libération pouvait passer en même temps que « Démarrer ». Corrigé : suppression conditionnelle et atomique ;
+  - chaque interrogation, chaque seconde, décodait la copie figée entière. Corrigé : nombre de questions stocké à part.
+- **Ce que l'auditeur de spec a trouvé.** 35 contre-épreuves, 5 survivantes :
+  - un compte à rebours figé à 0 au second créneau ;
+  - un temps faux sur les téléphones ;
+  - la bonne réponse mise en gras au tableau, ou un compteur de répondants : une liste noire de mots ne les voyait pas ;
+  - un refus 10 s avant l'échéance.
+
+  J'ai ajouté les tests (liste blanche du contenu du tableau, temps comparé entre écrans, cas « tout juste avant l'échéance ») et rejoué les 5 : toutes détectées.
+- **Contre-audit.** Une bonne réponse signalée par une simple classe CSS (contenu ajouté par `::after`, bordure) passait encore. Le test vérifie désormais que les propositions n'ont aucun attribut, aucun pseudo-élément, et toutes les mêmes propriétés de style calculées.
+
+- **Un test intermittent, révélé par hasard.** Pendant le contre-audit, le test de rotation a échoué une fois sous une mutation qui ne le concernait pas. Relancé 8 fois de suite, il échouait une fois sur 8.
+  - Cause : la base de test SQLite en mémoire partagée refuse aussitôt un accès concurrent (« table is locked ») au lieu d'attendre. Le test, qui avance l'horloge en base, entrait parfois en concurrence avec les téléphones, qui interrogent le serveur chaque seconde.
+  - Correction à la racine : base de test dans un fichier. Résultat : 0 échec sur 25 lancements, et la suite E2E 3 fois de suite sans échec.
+
+### Ce qui a bien marché
+- **Le module pur du déroulement**, avec ses 58 tests unitaires (rotation vérifiée pour N de 1 à 6 et jusqu'à 7 questions). La logique difficile est prouvée hors navigateur.
+- **Un jeton de page** et un seul mécanisme de suivi du direct (`qcm.follow`), partagé par le tableau et le téléphone.
+- **Les interceptions réseau de Playwright** pour reproduire un téléphone qui perd le réseau, ou un réseau très lent.
+- **Forcer le mélange des propositions dans le serveur de test** (même processus) rend déterministe la vérification « le téléphone envoie l'indice canonique et pas la position à l'écran ».
+
+### Ce que j'aurais dû savoir dès le départ
+- **Une liste noire ne prouve pas une absence.** Pour « le tableau n'affiche rien d'autre », il faut une liste blanche du texte visible et une comparaison des styles.
+- **Toute action déclenchée par l'utilisateur peut arriver en double ou dans le désordre** : double clic, deux onglets, réseau lent. Prévoir dès le premier jet des mises à jour conditionnelles, des contraintes d'unicité et une file d'envoi.
+- **Un test qui dépend d'un tirage aléatoire** ne détecte une erreur qu'une fois sur n. Il faut forcer le tirage.
+- **Chiffrer chaque délai visible** et le vérifier sur tous les écrans, pas seulement sur le premier.
+- **Un échec « isolé » est un signal.** Relancer le test plusieurs fois de suite avant de fusionner : un test intermittent en CI ruine la confiance dans toute la vérification.
+
+### Choix techniques et leur raison
+- **Aucune nouvelle dépendance.** Polling chaque seconde, avec des rechargements étalés au hasard sur 300 ms pour ne pas recevoir la classe entière dans la même milliseconde.
+- **Réponses stockées en indices canoniques** (A = 0) de la copie figée. Le reçu du QR code (lettres du tableau) et la notation AMC (I6) les liront directement.
+- **Six couleurs claires, numérotées**, avec un texte sombre lisible. Le numéro est le repère pour les étudiants daltoniens.

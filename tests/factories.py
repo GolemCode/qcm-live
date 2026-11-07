@@ -9,8 +9,11 @@ par l'interface (tests/e2e/bank_ui.py).
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models import F
+from django.utils import timezone
 
 from bank.forms import LETTERS, QuestionForm, QuizForm
 from bank.models import AMC_DEFAULTS, Question, Quiz
@@ -59,3 +62,19 @@ def make_session(quiz: Quiz, group: StudentGroup, *, shown: int = 1, seconds: in
     """Session lancée par le formulaire de lancement."""
     data = {"quiz": quiz.pk, "group": group.pk, "shown": shown, "seconds": seconds}
     return _saved(LaunchSessionForm(data))
+
+
+def rewind(session: Session, seconds: float) -> None:
+    """Fait comme si la session avait démarré `seconds` plus tôt : avance le déroulement
+    sans attendre (les tests à temps réel restent ceux de DER-02)."""
+    Session.objects.filter(pk=session.pk).update(
+        started_at=F("started_at") - timedelta(seconds=seconds)
+    )
+
+
+def jump_to(session: Session, elapsed: float) -> None:
+    """Place le déroulement `elapsed` secondes après le démarrage, à partir de maintenant :
+    pour tester une échéance à la demi-seconde près, quel que soit le temps déjà écoulé."""
+    Session.objects.filter(pk=session.pk).update(
+        started_at=timezone.now() - timedelta(seconds=elapsed)
+    )

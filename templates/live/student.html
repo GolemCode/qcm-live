@@ -1,11 +1,13 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Session {{ session.code }} — QCM Live{% endblock %}
+{% block body_class %}phone{% if color %} color-{{ color }}{% endif %}{% endblock %}
+{% block main_attrs %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
 {% block content %}
-  <h1>Session {{ session.code }}</h1>
-  {% if participant %}
-    <p class="identity">Vous êtes {{ participant.name }}</p>
-    <p>En attente du démarrage.</p>
-  {% else %}
+  {% if not color %}<h1>Session {{ session.code }}</h1>{% endif %}
+  {% if state.phase == "ended" %}
+    <p class="identity">Session terminée.</p>
+  {% elif not participant %}
     <form method="post" class="form" novalidate>
       {% csrf_token %}
       {% include "form_errors.html" %}
@@ -13,5 +15,29 @@
       {{ form.number }}
       <button type="submit">Valider</button>
     </form>
+  {% elif state.phase == "waiting" %}
+    <p class="identity">Vous êtes {{ participant.name }}</p>
+    <p>En attente du démarrage.</p>
+  {% else %}
+    <div class="phone-head">
+      <p class="badge">Couleur {{ color }}</p>
+      <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
+    </div>
+    <form id="answer-form" method="post" action="{% url 'student-answer' session.code %}">
+      {% csrf_token %}
+      <input type="hidden" name="slot" value="{{ slot.index }}">
+      <fieldset class="answers">
+        <legend class="visually-hidden">Propositions</legend>
+        {% for index, text in choices %}
+          <label class="answer"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if index in saved %} checked{% endif %}> {{ text }}</label>
+        {% endfor %}
+      </fieldset>
+      <p id="save-status" class="save-status" role="status"></p>
+    </form>
+    <p class="muted">Vous êtes {{ participant.name }}</p>
+  {% endif %}
+  {% if follow %}
+    <script src="{% static 'js/poll.js' %}" defer></script>
+    <script src="{% static 'js/phone.js' %}" defer></script>
   {% endif %}
 {% endblock %}

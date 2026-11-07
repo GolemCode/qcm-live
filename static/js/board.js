@@ -1,32 +1,17 @@
-// Tableau de l'enseignant : liste des étudiants connectés, rafraîchie chaque seconde.
-// Script externe (CSP stricte) ; les noms sont insérés comme texte, jamais comme HTML.
+// Tableau de l'enseignant : suit le direct (poll.js) ; en attente, met à jour la liste des
+// connectés. Les noms sont insérés comme texte, jamais comme HTML.
 (() => {
-  const section = document.querySelector("[data-state-url]");
-  if (!section) return;
-  const count = document.getElementById("connected-n");
-  const list = document.getElementById("connected");
-
-  function render(state) {
-    count.textContent = state.connected.length;
-    list.replaceChildren(
+  const main = document.querySelector("main[data-state-url]");
+  if (!main) return;
+  window.qcm.follow(main, (state) => {
+    if (!state.connected) return;
+    document.getElementById("connected-n").textContent = state.connected.length;
+    document.getElementById("connected").replaceChildren(
       ...state.connected.map((name) => {
         const item = document.createElement("li");
         item.textContent = name;
         return item;
       }),
     );
-  }
-
-  async function refresh() {
-    try {
-      const response = await fetch(section.dataset.stateUrl, { cache: "no-store" });
-      if (response.ok) render(await response.json());
-    } catch {
-      // Réseau momentanément indisponible : on réessaie au prochain tour.
-    } finally {
-      setTimeout(refresh, 1000);
-    }
-  }
-
-  setTimeout(refresh, 1000);
+  });
 })();
