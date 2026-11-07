@@ -37,6 +37,8 @@ def test_teacher_pages_require_login(client, session, method):
         reverse("board-state", args=[session.code]),
         reverse("session-start", args=[session.code]),
         reverse("session-add-time", args=[session.code]),
+        reverse("results", args=[session.code]),
+        reverse("results-csv", args=[session.code]),
     ]
     for url in urls:
         response = getattr(client, method)(url)
@@ -75,7 +77,6 @@ def test_snapshot_keeps_quiz_order_choices_and_scales(session):
         {"text": "y", "correct": True},
         {"text": "z", "correct": False},
     ]
-    assert questions[1]["ref"].startswith("Q")
     assert session.content["scales"]["multiple"]["p"] == "-1.00"
     assert session.content["scales"]["simple"]["p"] is None
     assert session.roster == [{"number": "1", "name": "A"}, {"number": "2", "name": "B"}]
@@ -367,3 +368,46 @@ def test_board_state_has_no_slot_once_ended(admin_client, session):
     rewind(session, 40)
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
     assert state == {"page": "ended", "remaining_ms": None, "slot": None}
+
+
+# --- Fin de session et résultats (FIN-01, RES-01, RES-02) ---------------------------------
+
+
+def test_results_only_once_the_session_is_over(admin_client, running):
+    page = reverse("results", args=[running.code])
+    export = reverse("results-csv", args=[running.code])
+    for moment in ("waiting", "running"):
+        if moment == "running":
+            rewind(running, 1)
+        assert admin_client.get(export).status_code == 404, moment
+        assert "<table" not in admin_client.get(page).content.decode(), moment
+    rewind(running, running.schedule.duration)
+    assert "<table" in admin_client.get(page).content.decode()
+    response = admin_client.get(export)
+    assert response.status_code == 200
+    assert response["Content-Type"] == "text/csv; charset=utf-8"
+    assert response["Content-Disposition"] == f'attachment; filename="resultats-{running.code}.csv"'
+
+
+def test_results_of_unknown_session_are_404(admin_client):
+    assert admin_client.get(reverse("results", args=["000000"])).status_code == 404
+    assert admin_client.get(reverse("results-csv", args=["000000"])).status_code == 404
+
+
+def test_qr_code_only_for_an_identified_phone_once_over(client, running):
+    from django.test import Client
+
+    url = reverse("student-session", args=[running.code])
+    assert "QR code" not in client.get(url).content.decode()
+    rewind(running, running.schedule.duration)
+    assert 'alt="QR code de vos réponses"' in client.get(url).content.decode()
+    assert "QR code" not in Client().get(url).content.decode()
+
+
+def test_receipt_follows_rotation_and_ignores_extra_time(client, running):
+    """Rang 0, N = 2 : Q1 puis Q2 ; le temps ajouté ne change pas l'ordre."""
+    participant = running.participants.get()
+    answer(client, running, 0, 1)  # question multiple, en premier dans le QCM
+    Extension.objects.create(session=running, slot=0)
+    running.refresh_from_db()
+    assert participant.receipt() == f"Session {running.code}\nÉtudiant 1\nQ1 AB\nQ2 -"

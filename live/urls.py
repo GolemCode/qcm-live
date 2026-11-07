@@ -11,6 +11,8 @@ urlpatterns = [
     path("sessions/<str:code>/etat/", views.board_state, name="board-state"),
     path("sessions/<str:code>/demarrer/", views.session_start, name="session-start"),
     path("sessions/<str:code>/plus-10/", views.session_add_time, name="session-add-time"),
+    path("sessions/<str:code>/resultats/", views.results, name="results"),
+    path("sessions/<str:code>/resultats.csv", views.results_csv, name="results-csv"),
     path("sessions/<str:code>/connectes/", views.participants, name="participants"),
     path(
         "sessions/<str:code>/connectes/<int:pk>/liberer/",

@@ -11,16 +11,20 @@ JSON annonce un autre jeton.
 
 from __future__ import annotations
 
+import csv
+
+import segno
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import Answer, Participant, Session, State
+from live.results import ABSENT, csv_rows, decimal_fr, max_total
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
@@ -64,8 +68,10 @@ def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
 
 @login_required
 def session_list(request: HttpRequest) -> HttpResponse:
+    now = timezone.now()
     sessions = Session.objects.defer("content", "roster")  # inutiles à la liste
-    return render(request, "live/session_list.html", {"sessions": sessions})
+    rows = [(session, session.state(now).phase) for session in sessions]
+    return render(request, "live/session_list.html", {"rows": rows})
 
 
 @login_required
@@ -159,6 +165,38 @@ def participant_release(request: HttpRequest, code: str, pk: int) -> HttpRespons
     return redirect("participants", code=code)
 
 
+def _is_over(session: Session) -> bool:
+    return session.state(timezone.now()).phase == "ended"
+
+
+@login_required
+def results(request: HttpRequest, code: str) -> HttpResponse:
+    """RES-01 : notes de la session, sur une page non projetée, une fois la session terminée."""
+    session = get_object_or_404(Session, code=code)
+    context: dict = {"session": session, "over": _is_over(session)}
+    if context["over"]:
+        context |= {
+            "rows": [
+                (r, ABSENT if r.total is None else decimal_fr(r.total)) for r in session.results()
+            ],
+            "maximum": decimal_fr(max_total(session.content)),
+        }
+    return render(request, "live/results.html", context)
+
+
+@login_required
+def results_csv(request: HttpRequest, code: str) -> HttpResponse:
+    """RES-02 : export pour Excel en français (« ; », virgule décimale, UTF-8 avec BOM)."""
+    session = get_object_or_404(Session, code=code)
+    if not _is_over(session):
+        raise Http404("Session non terminée")
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="resultats-{session.code}.csv"'
+    response.write("\ufeff")
+    csv.writer(response, delimiter=";").writerows(csv_rows(session.content, session.results()))
+    return response
+
+
 # --- Étudiant -----------------------------------------------------------------------------
 
 
@@ -197,6 +235,10 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             }
             return redirect("student-session", code=code)
         context["form"] = form
+    elif participant is not None and state.phase == "ended":
+        # FIN-01 : QR code des réponses, en texte UTF-8 lisible par toute application.
+        qr = segno.make(participant.receipt(), encoding="utf-8", micro=False)
+        context["qr_uri"] = qr.svg_data_uri(scale=1, border=4)
     elif participant is not None and state.position is not None:
         # ETU-04, ETU-05 : couleur et propositions mélangées pour l'étudiant, jamais l'énoncé.
         slot = state.position.slot

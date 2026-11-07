@@ -14,6 +14,8 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
+from live.receipt import receipt
+from live.results import StudentResult, results
 from live.schedule import Position, Schedule, Slot, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
@@ -140,6 +142,14 @@ class Session(models.Model):
         vars(self).pop("schedule", None)  # à recalculer avec le temps ajouté
         return True
 
+    def results(self) -> list[StudentResult]:
+        """RES-01 : un résultat par étudiant du groupe figé ; les absents n'ont pas de note."""
+        present = {
+            p.number: {a.question: a.choices for a in p.answers.all()}
+            for p in self.participants.prefetch_related("answers")
+        }
+        return results(self.content, self.students, present)
+
     def student_name(self, number: str) -> str | None:
         """Nom de l'étudiant de ce numéro dans la liste figée, ou None s'il n'en fait pas partie."""
         return next((s["name"] for s in self.students if s["number"] == number), None)
@@ -177,6 +187,14 @@ class Participant(models.Model):
         """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05)."""
         n_choices = len(self.session.questions[question]["choices"])
         return shuffled(n_choices, f"{self.session.code}:{self.pk}:{question}")
+
+    def receipt(self) -> str:
+        """FIN-01 : contenu du QR code ; les questions dans l'ordre où l'étudiant les a eues,
+        y compris celles des créneaux manqués par un retardataire (ETU-08)."""
+        schedule = self.session.schedule
+        answers = {a.question: a.choices for a in self.answers.all()}
+        received = [schedule.question_for(slot, self.rank) for slot in schedule.slots]
+        return receipt(self.session.code, self.number, [(q, answers.get(q, [])) for q in received])
 
 
 class Answer(models.Model):

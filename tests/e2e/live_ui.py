@@ -167,8 +167,8 @@ def qr_text(phone: Page) -> str:
     ferait une application de lecture."""
     expect(qr_code(phone)).to_be_visible()
     image = Image.open(io.BytesIO(qr_code(phone).screenshot()))
-    codes = zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode)
-    assert len(codes) == 1, f"{len(codes)} QR code(s) lisible(s)"
+    codes = zxingcpp.read_barcodes(image)
+    assert [code.format for code in codes] == [zxingcpp.BarcodeFormat.QRCode], codes
     return codes[0].text
 
 

@@ -1,0 +1,26 @@
+{% extends "teacher/base.html" %}
+{% block title %}Résultats {{ session.code }} — QCM Live{% endblock %}
+{% block content %}
+  <div class="bar">
+    <h1>Résultats</h1>
+    {% if over %}<a class="button" href="{% url 'results-csv' session.code %}" download>Télécharger le CSV</a>{% endif %}
+  </div>
+  <p class="muted">Session {{ session.code }} · {{ session.quiz_title }} · Groupe {{ session.group_name }}</p>
+  {% if over %}
+    <table class="grid" aria-label="Résultats">
+      <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th><th scope="col" class="num">Note</th><th scope="col" class="num">Note maximale</th></tr></thead>
+      <tbody>
+        {% for result, total in rows %}
+          <tr>
+            <td>{{ result.number }}</td>
+            <td>{{ result.name }}</td>
+            <td class="num{% if result.total is None %} muted{% endif %}">{{ total }}</td>
+            <td class="num">{{ maximum }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Les résultats seront disponibles à la fin de la session.</p>
+  {% endif %}
+{% endblock %}
