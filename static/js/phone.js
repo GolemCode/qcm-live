@@ -1,6 +1,7 @@
 // Téléphone de l'étudiant : suit le direct (poll.js) et enregistre chaque choix aussitôt
-// (ETU-04, ETU-07). Les envois partent un par un, chacun avec l'état du formulaire au moment
-// de partir : la dernière réponse arrive toujours en dernier, même sur un réseau lent.
+// (ETU-04, ETU-07), comme l'effacement de la réponse à une question simple (ETU-09). Les
+// envois partent un par un, chacun avec l'état du formulaire au moment de partir : la
+// dernière réponse arrive toujours en dernier, même sur un réseau lent.
 (() => {
   const main = document.querySelector("main[data-state-url]");
   if (!main) return;
@@ -22,9 +23,20 @@
     }
   }
 
-  let queue = Promise.resolve();
-  form.addEventListener("change", () => {
+  // « Effacer ma réponse » n'est actif que si une proposition est choisie.
+  const clear = document.getElementById("clear-answer");
+  function changed() {
+    if (clear) clear.disabled = !form.querySelector("input[name=choice]:checked");
     status.textContent = "";
     queue = queue.then(send);
-  });
+  }
+
+  let queue = Promise.resolve();
+  form.addEventListener("change", changed);
+  if (clear) {
+    clear.addEventListener("click", () => {
+      for (const input of form.querySelectorAll("input[name=choice]")) input.checked = false;
+      changed();
+    });
+  }
 })();

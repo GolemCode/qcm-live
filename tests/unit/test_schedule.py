@@ -41,6 +41,39 @@ def test_session_ends_after_last_slot():
 
 
 @pytest.mark.parametrize(
+    ("elapsed", "slot", "remaining"),
+    [
+        (29.5, 0, 0.5),
+        (30, 1, 50),  # créneau 1 : 30 + 20 s ajoutées
+        (59.5, 1, 20.5),
+        (79.9, 1, 0.1),
+        (80, 2, 30),  # les suivants sont décalés de 20 s
+        (110, 3, 40),  # créneau 3 : 30 + 10 s
+        (149.5, 3, 0.5),
+        (150, 4, 30),
+        (179.5, 4, 0.5),
+    ],
+)
+def test_added_time_lengthens_its_slot_and_shifts_the_next(elapsed, slot, remaining):
+    schedule = Schedule(5, 2, 30, extra={1: 20, 3: 10})
+    assert schedule.deadlines == [30, 80, 110, 150, 180]
+    assert schedule.duration == 180
+    position = schedule.position(elapsed)
+    assert position is not None
+    assert position.slot.index == slot
+    assert position.remaining == pytest.approx(remaining)
+    assert schedule.position(180) is None
+
+
+def test_added_time_changes_neither_slots_nor_rotation():
+    plain, extended = Schedule(5, 2, 30), Schedule(5, 2, 30, extra={0: 10, 4: 50})
+    assert extended.slots == plain.slots
+    for slot in plain.slots:
+        for rank in range(4):
+            assert extended.question_for(slot, rank) == plain.question_for(slot, rank)
+
+
+@pytest.mark.parametrize(
     ("n_questions", "shown"), list(itertools.product(range(1, 8), range(1, 7)))
 )
 def test_rotation_every_student_answers_every_question_once(n_questions, shown):

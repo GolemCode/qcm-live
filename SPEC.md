@@ -1,6 +1,6 @@
 # SPEC — QCM Live
 
-Spécification fonctionnelle de référence : la spec initiale enrichie des réponses de la commanditaire.
+Spécification fonctionnelle de référence : la spec initiale enrichie des réponses du commanditaire.
 
 **Règle de traçabilité.**
 - Chaque comportement attendu porte un identifiant `[XXX-nn]` et l'incrément qui le livre `(In)`.
@@ -81,10 +81,11 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[ETU-06]** (I4) Tous les étudiants répondent à toutes les questions, mais pas dans le même ordre : à chaque créneau d'un groupe, chacun a une autre question du groupe (rotation). Si N=1, l'ordre est forcément le même pour tous.
 - **[ETU-07]** (I4) L'étudiant peut changer sa réponse jusqu'à la fin du créneau ; c'est la dernière qui compte. Un téléphone rechargé réaffiche la réponse enregistrée. Après la fin du créneau, toute réponse est refusée par le serveur, et le téléphone le signale.
 - **[ETU-08]** (I4) Un étudiant peut rejoindre une session déjà commencée. Les créneaux qu'il a manqués comptent comme non-réponse.
+- **[ETU-09]** (I5) Sur une question simple, l'étudiant peut **effacer sa réponse** jusqu'à la fin du créneau, avec le bouton « Effacer ma réponse » : plus aucune proposition n'est choisie, le téléphone confirme l'effacement et la question compte comme non-réponse (v). Sur une question multiple, décocher toutes les cases revient au même. Après la fin du créneau, l'effacement est refusé comme toute réponse (ETU-07). *(dérivé : le téléphone affiche « Réponse effacée » ; le bouton est inactif quand aucune proposition n'est choisie)*
 - **[DER-03]** (I4) Le tableau n'affiche ni la correction ni de statistiques pendant la session.
 
 ### Session : temps additionnel
-- **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée.
+- **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée. Le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ; un clic arrivé après la fin du créneau n'ajoute rien. *(emplacement et clic tardif : dérivé)*
 
 ### Fin de session et résultats
 - **[FIN-01]** (I6) À la fin de la session, chaque téléphone affiche un QR code. Il contient le code de session, le numéro de l'étudiant et, pour chaque question dans l'ordre où il l'a eue, la référence de la question et la réponse donnée. Les lettres sont celles du tableau, et `-` signifie aucune réponse.
@@ -135,7 +136,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
 - **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel I8) devient nécessaire.
 
-## 6. Journal des décisions de la commanditaire
+## 6. Journal des décisions du commanditaire
 
 | Question | Réponse |
 |---|---|
@@ -162,3 +163,4 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Confirmation sur le téléphone (I3) | Le nom de l'étudiant |
 | Délai du « direct » au tableau (I3) | 2 secondes au plus (SES-02), confirmé |
 | Recours contre la réservation de numéros (avant I4) | L'enseignant libère un numéro avant le démarrage (SES-04) |
+| Revenir à « pas de réponse » sur une question simple (I4) | Oui : bouton « Effacer ma réponse » (ETU-09, livré en I5) |

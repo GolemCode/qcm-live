@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import secrets
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
 from typing import TYPE_CHECKING, Literal
 
 from django.db import models, transaction
+from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
 from live.schedule import Position, Schedule, Slot, shuffled
@@ -21,6 +24,7 @@ if TYPE_CHECKING:
     from live.snapshot import FrozenQuestion, FrozenStudent
 
 CODE_LENGTH = 6
+EXTRA_SECONDS = 10  # TPS-01 : temps ajouté par un clic de l'enseignant
 
 Phase = Literal["waiting", "running", "ended"]
 
@@ -56,6 +60,7 @@ class Session(models.Model):
 
     if TYPE_CHECKING:
         participants: RelatedManager[Participant]
+        extensions: RelatedManager[Extension]
 
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -73,7 +78,12 @@ class Session(models.Model):
 
     @cached_property
     def schedule(self) -> Schedule:
-        return Schedule(self.n_questions, self.shown, self.seconds)
+        return self._schedule(self.extensions.all())
+
+    def _schedule(self, extensions: models.QuerySet[Extension]) -> Schedule:
+        clicks = Counter(extensions.values_list("slot", flat=True))
+        extra = {slot: n * EXTRA_SECONDS for slot, n in clicks.items()}
+        return Schedule(self.n_questions, self.shown, self.seconds, extra)
 
     def start(self, now: datetime) -> bool:
         """Démarre la session si elle ne l'est pas déjà ; False si elle l'était (double clic).
@@ -103,6 +113,32 @@ class Session(models.Model):
             return State("waiting")
         position = self.schedule.position((now - self.started_at).total_seconds())
         return State("ended") if position is None else State("running", position)
+
+    def add_time(self, slot: str | None, clock: Callable[[], datetime] = timezone.now) -> bool:
+        """TPS-01 : ajoute 10 s au créneau `slot` (son rang, tel qu'envoyé par le tableau) s'il
+        est en cours ; False sinon (clic arrivé après la fin du créneau, avant le démarrage ou
+        après la fin de la session).
+
+        Une ligne par clic : deux clics simultanés s'ajoutent sans se perdre. La ligne est
+        écrite d'abord, ce qui prend le verrou d'écriture de la base ; le créneau en cours est
+        alors recalculé avec les ajouts déjà validés, sans celui-ci. Un clic arrivé après
+        l'échéance est annulé : il ne rouvre pas un créneau terminé. Reste la fenêtre, de
+        quelques millisecondes, entre ce calcul et la validation (REX, I5).
+        """
+        if self.started_at is None:
+            return False
+        position = self.state(clock()).position
+        if position is None or slot != str(position.slot.index):
+            return False
+        with transaction.atomic():
+            added = Extension.objects.create(session=self, slot=position.slot.index)
+            others = self._schedule(self.extensions.exclude(pk=added.pk))
+            current = others.position((clock() - self.started_at).total_seconds())
+            if current is None or current.slot != position.slot:
+                transaction.set_rollback(True)
+                return False
+        vars(self).pop("schedule", None)  # à recalculer avec le temps ajouté
+        return True
 
     def student_name(self, number: str) -> str | None:
         """Nom de l'étudiant de ce numéro dans la liste figée, ou None s'il n'en fait pas partie."""
@@ -163,3 +199,15 @@ class Answer(models.Model):
 
     def __str__(self) -> str:
         return f"{self.participant} Q{self.question} {self.choices}"
+
+
+class Extension(models.Model):
+    """10 secondes ajoutées par l'enseignant au créneau `slot` (rang dans la session) : une
+    ligne par clic (TPS-01, Session.add_time)."""
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="extensions")
+    slot = models.PositiveSmallIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.session} +{EXTRA_SECONDS} s au créneau {self.slot}"

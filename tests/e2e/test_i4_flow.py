@@ -6,7 +6,16 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from bank.models import Question
-from live.models import Answer, Session
+from live.models import Answer
+from tests.e2e.live_setup import (
+    QUESTIONS,
+    STUDENTS,
+    expect_slot,
+    make_live,
+    open_board,
+    question_of,
+    started,
+)
 from tests.e2e.live_ui import (
     LIVE_MS,
     background,
@@ -25,58 +34,6 @@ from tests.e2e.live_ui import (
     timer,
 )
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
-
-# Des propositions distinctes d'une question à l'autre : le téléphone, qui n'affiche jamais
-# l'énoncé, se reconnaît à ses propositions.
-QUESTIONS = {
-    "Capitale de la France ?": [("Paris", True), ("Lyon", False), ("Nice", False)],
-    "Couleur du ciel ?": [("Bleu", True), ("Vert", False), ("Rouge", False)],
-    "Deux plus deux ?": [("Quatre", True), ("Trois", False), ("Cinq", False)],
-    "Lesquels sont pairs ?": [("2", True), ("4", True), ("7", False)],
-}
-MULTIPLE = {"Lesquels sont pairs ?"}
-STUDENTS = [("00123", "DURAND Élise"), ("42", "MARTIN Léo"), ("7", "Ng Anh")]
-
-
-def question_of(choices: list[str]) -> str:
-    """Énoncé de la question dont le téléphone affiche ces propositions (dans le désordre)."""
-    for text, expected in QUESTIONS.items():
-        if sorted(choices) == sorted(label for label, _ in expected):
-            return text
-    raise AssertionError(f"propositions inconnues : {choices}")
-
-
-@pytest.fixture
-def reversed_choices(monkeypatch):
-    """Propositions affichées en ordre inverse : l'indice canonique (A = 0) envoyé par le
-    téléphone diffère toujours de la position à l'écran."""
-    monkeypatch.setattr("live.models.shuffled", lambda n, seed: list(reversed(range(n))))
-
-
-def expect_slot(phone: Page, slot: int) -> None:
-    """Le téléphone affiche le créneau `slot` (jeton de page « running:<slot> »)."""
-    expect(phone.locator("main")).to_have_attribute("data-page", f"running:{slot}", timeout=LIVE_MS)
-
-
-def make_live(n_questions: int, shown: int, seconds: int = 30) -> Session:
-    questions = [
-        make_question(text, choices, multiple=text in MULTIPLE)
-        for text, choices in list(QUESTIONS.items())[:n_questions]
-    ]
-    group = make_group("TD1", STUDENTS)
-    return make_session(make_quiz("Contrôle", questions), group, shown=shown, seconds=seconds)
-
-
-def open_board(page: Page, base_url: str, session: Session) -> None:
-    page.goto(f"{base_url}/prof/sessions/{session.code}/")
-
-
-def started(page: Page, base_url: str, new_phone, session: Session, numbers=()) -> list[Page]:
-    """Les téléphones `numbers` rejoignent la session, puis l'enseignant la démarre."""
-    phones = phones_joined(new_phone, base_url, session.code, numbers)
-    open_board(page, base_url, session)
-    start(page)
-    return phones
 
 
 @pytest.mark.spec("DER-01")
@@ -301,6 +258,7 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
 
     # Liste blanche (hors barre de navigation) : le titre, le temps restant, les questions.
     allowed = {f"Session {session.code}", "Gérer les connectés", "Session démarrée.", "1", "2"}
+    allowed.add("+10 s")  # bouton de l'enseignant (TPS-01)
     for text in list(QUESTIONS)[:2]:
         allowed |= {text, *(label for label, _ in QUESTIONS[text])}
     shown = page.locator("main").evaluate(
