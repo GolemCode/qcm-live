@@ -91,6 +91,11 @@ DATABASES = {
         # aussitôt (« table is locked ») un accès concurrent entre le test et le serveur de
         # test, au lieu d'attendre. En fichier, il attend la fin de l'écriture, comme en usage.
         "TEST": {"NAME": BASE_DIR / ".test-db.sqlite3"},
+        # Toute une classe écrit au même instant (CLA-01). Une transaction ordinaire lit
+        # d'abord, puis demande le verrou d'écriture : si une autre écrit déjà, SQLite
+        # refuse aussitôt (« database is locked »). IMMEDIATE prend le verrou dès le début,
+        # et les suivantes attendent leur tour (jusqu'à `timeout` secondes).
+        "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
     }
 }
 
