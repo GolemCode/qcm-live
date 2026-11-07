@@ -41,6 +41,9 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 JOIN_URL = os.environ.get("QCM_JOIN_URL", "")
 if join_host := urlsplit(JOIN_URL).hostname:
     ALLOWED_HOSTS.append(join_host)
+# Mode classe : l'application est ouverte au réseau de l'école, mais l'espace enseignant
+# (connexion, notes, pilotage) ne répond qu'au PC lui-même (config/middleware.py).
+TEACHER_LOCAL_ONLY = env_bool("QCM_TEACHER_LOCAL_ONLY")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -64,6 +67,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
+    "config.middleware.teacher_local_only",
 ]
 
 ROOT_URLCONF = "config.urls"

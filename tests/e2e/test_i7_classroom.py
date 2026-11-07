@@ -156,6 +156,12 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     css = phone.request.get(urllib.parse.urljoin(base + "/", stylesheet))
     assert css.status == 200 and "text/css" in css.headers["content-type"]
 
+    # L'espace enseignant ne s'ouvre que sur le PC : pas depuis le réseau de l'école.
+    for path in ("/prof/", "/prof/connexion/", f"/prof/sessions/{session.code}/resultats/"):
+        refused = phone.request.get(base + path, max_redirects=0)
+        assert refused.status == 403, path
+        assert "réservé au PC de l'enseignant" in refused.text()
+
     # Déroulement en direct : le téléphone suit le tableau (JavaScript servi) et répond.
     start(page)
     expect_slot(phone, 0)

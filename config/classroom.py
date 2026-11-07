@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import socket
 import sys
 from collections.abc import Sequence
@@ -24,22 +25,35 @@ PROBE = ("192.0.2.1", 9)
 # Un fil par requête en cours : une classe interroge l'état chaque seconde, et ces
 # requêtes sont brèves. 4 (valeur par défaut de waitress) laisse peu de marge.
 THREADS = 16
+# Adresse imposée à la main : une adresse IPv4 ou un nom de machine, sans schéma ni port.
+HOST_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?")
 
 
 def lan_address() -> str:
-    """Adresse IPv4 du PC sur le réseau local ; 127.0.0.1 s'il n'a pas de réseau."""
+    """Adresse IPv4 du PC sur le réseau local : celle de la route par défaut, sinon (réseau
+    de la salle sans passerelle) la première adresse non locale du PC ; 127.0.0.1 sans réseau."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
         try:
             probe.connect(PROBE)
+            return probe.getsockname()[0]
         except OSError:
-            return "127.0.0.1"
-        return probe.getsockname()[0]
+            pass
+    try:
+        addresses = socket.gethostbyname_ex(socket.gethostname())[2]
+    except OSError:
+        addresses = []
+    return next((a for a in addresses if not a.startswith("127.")), "127.0.0.1")
 
 
 def classroom_environ(host: str, port: int) -> dict[str, str]:
-    """Réglages imposés par le mode classe : jamais de debug, et l'adresse du réseau local
-    projetée au tableau (et donc acceptée par Django, voir `JOIN_URL` dans settings.py)."""
-    return {"DJANGO_DEBUG": "0", "QCM_JOIN_URL": f"http://{host}:{port}/"}
+    """Réglages imposés par le mode classe : jamais de debug, l'adresse du réseau local
+    projetée au tableau (et donc acceptée par Django, voir `JOIN_URL` dans settings.py), et
+    l'espace enseignant réservé au PC lui-même."""
+    return {
+        "DJANGO_DEBUG": "0",
+        "QCM_JOIN_URL": f"http://{host}:{port}/",
+        "QCM_TEACHER_LOCAL_ONLY": "1",
+    }
 
 
 def banner(join_url: str, port: int) -> str:
@@ -51,10 +65,16 @@ def banner(join_url: str, port: int) -> str:
     )
 
 
+def _host(value: str) -> str:
+    if not HOST_RE.fullmatch(value):
+        raise ValueError(value)
+    return value
+
+
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="make classe", description="Mode classe de QCM Live.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port d'écoute")
-    parser.add_argument("--adresse", help="adresse du PC à annoncer (détectée par défaut)")
+    parser.add_argument("--adresse", type=_host, help="adresse du PC à annoncer")
     return parser.parse_args(argv)
 
 

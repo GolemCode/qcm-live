@@ -24,7 +24,7 @@ run: .env ## Serveur de développement (http://localhost:8000)
 	$(RUN) python manage.py runserver
 
 classe: .env ## Mode classe : serveur de production, ouvert aux téléphones du réseau local
-	$(RUN) python -m config.classroom $(if $(PORT),--port $(PORT)) $(if $(ADRESSE),--adresse $(ADRESSE))
+	$(RUN) python -m config.classroom $(if $(filter command line,$(origin PORT)),--port $(PORT)) $(if $(ADRESSE),--adresse $(ADRESSE))
 
 superuser: .env ## Crée un compte enseignant
 	$(RUN) python manage.py createsuperuser

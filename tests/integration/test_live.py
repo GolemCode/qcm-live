@@ -435,6 +435,29 @@ def test_board_projects_the_join_url_of_class_mode(admin_client, session, settin
     assert "http://192.168.1.23:8000/" in html and "testserver" not in html
 
 
+@pytest.mark.parametrize("remote", ["192.168.1.50", "10.0.0.7", "fe80::1"])
+def test_class_mode_keeps_the_teacher_area_on_the_teacher_pc(client, settings, remote):
+    """Mode classe : l'espace enseignant, connexion comprise, refuse toute requête qui ne vient
+    pas du PC lui-même ; les pages des étudiants restent ouvertes au réseau local."""
+    settings.TEACHER_LOCAL_ONLY = True
+    for path in ("/prof/", "/prof/connexion/", "/prof/sessions/"):
+        response = client.get(path, REMOTE_ADDR=remote)
+        assert response.status_code == 403, path
+        assert "réservé au PC de l'enseignant" in response.content.decode()
+    assert client.get("/", REMOTE_ADDR=remote).status_code == 200
+
+
+@pytest.mark.parametrize("remote", ["127.0.0.1", "::1"])
+def test_class_mode_opens_the_teacher_area_on_the_teacher_pc(client, settings, remote):
+    settings.TEACHER_LOCAL_ONLY = True
+    assert client.get("/prof/connexion/", REMOTE_ADDR=remote).status_code == 200
+    assert client.get("/prof/", REMOTE_ADDR=remote).status_code == 302  # vers la connexion
+
+
+def test_teacher_area_is_open_to_the_network_outside_class_mode(client):
+    assert client.get("/prof/connexion/", REMOTE_ADDR="192.168.1.50").status_code == 200
+
+
 def test_error_pages_are_in_french(client, session):
     """Hors mode debug (mode classe), les pages d'erreur suivent l'interface : en français."""
     missing = client.get("/page-inexistante/")
