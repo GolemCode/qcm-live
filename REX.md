@@ -339,6 +339,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
   - un refus 10 s avant l'échéance.
 
   J'ai ajouté les tests (liste blanche du contenu du tableau, temps comparé entre écrans, cas « tout juste avant l'échéance ») et rejoué les 5 : toutes détectées.
+- **Contre-audit.** Une bonne réponse signalée par une simple classe CSS (contenu ajouté par `::after`, bordure) passait encore. Le test vérifie désormais que les propositions n'ont aucun attribut, aucun pseudo-élément, et toutes les mêmes propriétés de style calculées.
 
 ### Ce qui a bien marché
 - **Le module pur du déroulement**, avec ses 58 tests unitaires (rotation vérifiée pour N de 1 à 6 et jusqu'à 7 questions). La logique difficile est prouvée hors navigateur.

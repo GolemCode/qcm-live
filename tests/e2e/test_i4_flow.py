@@ -317,17 +317,20 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
     )
     extra = [t for t in shown if t not in allowed and not re.fullmatch(r"\d+ s", t)]
     assert extra == []
-    # Aucune proposition mise en valeur : pas de balise, même apparence pour toutes.
+    # Aucune proposition mise en valeur : ni balise, ni attribut (classe…), ni contenu ajouté
+    # par CSS (::before, ::after), et toutes les propriétés de style calculées identiques.
     for color in (1, 2):
-        items = card(page, color).get_by_role("listitem")
         looks = set()
-        for item in items.all():
+        for item in card(page, color).get_by_role("listitem").all():
             assert item.evaluate("li => li.innerHTML.trim() === li.textContent.trim()")
+            assert item.evaluate("li => li.attributes.length") == 0
+            for pseudo in ("::before", "::after"):
+                content = item.evaluate(f"li => getComputedStyle(li, '{pseudo}').content")
+                assert content in ("none", "normal"), content
             looks.add(
                 item.evaluate(
                     "li => { const s = getComputedStyle(li);"
-                    " return [s.fontWeight, s.color, s.backgroundColor, s.textDecorationLine]"
-                    ".join(); }"
+                    " return Array.from(s).map(p => p + ':' + s.getPropertyValue(p)).join(';'); }"
                 )
             )
         assert len(looks) == 1
