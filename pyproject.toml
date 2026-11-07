@@ -10,6 +10,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "django-stubs>=6.1",
+    "pillow>=13.0.0",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",
     "pytest>=9.2.0",
@@ -17,6 +18,7 @@ dev = [
     "pytest-django>=4.14.0",
     "pytest-playwright>=0.10.0",
     "ruff>=0.17.4",
+    "zxing-cpp>=3.1.1",
 ]
 
 [tool.uv]
@@ -25,7 +27,7 @@ package = false
 # Incrément en cours : toutes les exigences de SPEC.md marquées (I0)..(I<n>)
 # doivent avoir au moins un test E2E passé (voir tests/spec_trace.py).
 [tool.qcm]
-increment = 5
+increment = 6
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
