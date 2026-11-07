@@ -11,6 +11,7 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 ## Commandes (toujours via make ou uv, jamais pip)
 - `make setup` : installation complète. Elle crée `.env`, qui contient des secrets : **ne jamais le lire**.
 - `make run` : serveur de développement. `make superuser` : crée un compte enseignant.
+- `make classe` : mode classe (CLA-01), serveur de production ouvert au réseau local (`PORT=`, `ADRESSE=`).
 - `make check` : vérification rapide (lint, types, unitaires, intégration). Le hook Stop la lance.
 - `make verify` : vérification complète, identique à la CI (y compris E2E, couverture de la spec et couverture du code).
 - `make accept INC=n` : tableau des exigences de l'incrément n et des tests qui les vérifient.
@@ -21,7 +22,7 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 2. **Tests d'abord.** Le premier commit d'un incrément contient les tests d'acceptation, rouges.
 3. **Terminé**, c'est seulement : `make verify` vert, PR à la CI verte, fusionnée dans main, agent `spec-auditor` sans réserve bloquante, SPEC.md et REX.md à jour. Ne jamais l'affirmer avant.
 4. **Aucun secret, aucune donnée réelle** dans le dépôt : configuration par variables d'environnement, données de test fictives. gitleaks tourne en pre-commit et en CI.
-5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django et de segno (QR code, I6) ; waitress et whitenoise arriveront avec le mode classe (I7). En test seulement : zxing-cpp et Pillow décodent le QR code.
+5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django, de segno (QR code, I6), de waitress et de whitenoise (mode classe, I7). En test seulement : zxing-cpp et Pillow décodent le QR code.
 6. **Git.**
    - Jamais de commit ni de push sur `main`, qui est protégée : on passe par une PR.
    - Une branche `inc/<n>-<slug>` par incrément.
@@ -52,6 +53,11 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - La référence d'une question, dans le QR code comme dans le CSV, est son rang dans le QCM figé (`Q1`…). Le reçu suit l'ordre de la rotation (`Participant.receipt`), le CSV l'ordre du QCM.
   - Les notes ne sont jamais projetées : page « Résultats » à part, disponible seulement une fois la session terminée. Les absents viennent de la liste figée, sans ligne `Participant`.
   - Un test E2E lit le QR code comme un vrai lecteur : capture de l'image, puis décodage (`qr_text` dans `tests/e2e/live_ui.py`).
+- **Mode classe (I7).** `config/classroom.py`, lancé par `make classe`.
+  - Il fixe l'environnement *avant* de charger les réglages : `DJANGO_DEBUG=0`, `QCM_JOIN_URL` (l'adresse du réseau local) et `QCM_TEACHER_LOCAL_ONLY=1`. Le tableau projette `settings.JOIN_URL` (sinon l'adresse de la requête), et son hôte est ajouté à `ALLOWED_HOSTS`.
+  - Puis il applique les migrations et sert l'application avec waitress sur toutes les interfaces. whitenoise sert les fichiers statiques depuis leurs dossiers (`WHITENOISE_USE_FINDERS`), sans `collectstatic`.
+  - `config/middleware.py` réserve alors tout `/prof/` (connexion comprise) aux requêtes venues du PC lui-même (`REMOTE_ADDR` de boucle locale ; waitress n'est derrière aucun mandataire).
+  - Hors debug, les erreurs des requêtes s'affichent dans le terminal (`LOGGING`). Les pages d'erreur `400`, `403_csrf`, `404` et `500` sont en français.
 - **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` et `qcm.follow`.
   - Une page qui suit le direct porte `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
   - Le texte est toujours inséré avec `textContent`.
@@ -68,6 +74,11 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Temps : `tests.factories.rewind(session, s)` avance le déroulement sans attendre, en reculant `started_at` ; `jump_to(session, s)` le place à s secondes du démarrage, pour tester une échéance à la demi-seconde près. Au moins un test par exigence de temps tourne en temps réel (DER-02). Pour attendre qu'un téléphone affiche un créneau, attendre son jeton `data-page`, jamais un délai fixe.
 
 ## Pièges connus
+- **SQLite sous la charge d'une classe.** Une transaction ordinaire lit puis demande le verrou d'écriture : si une autre écrit déjà, SQLite refuse aussitôt (« database is locked »), sans attendre. 40 téléphones qui valident leur numéro au même instant donnaient des erreurs 500. D'où `transaction_mode: IMMEDIATE` dans `DATABASES` : ne pas le retirer.
+- **Ne jamais rendre la main pendant un `make verify` en arrière-plan** : le hook Stop lance `make check`, donc un second pytest sur la même base de test (I7 : 8 tests en erreur, « no such table »). Lancer `make verify` au premier plan.
+- **Tests du mode classe** (`tests/e2e/test_i7_classroom.py`).
+  - Ils lancent `make classe` dans un autre processus, sur la base de test (`DJANGO_DB_PATH`), et non `live_server`.
+  - Ce serveur ne connaît pas le hachage MD5 des tests : le module redéfinit `_fast_password_hasher` pour hacher comme en production.
 - Playwright en mode synchrone et pytest-django : il faut `DJANGO_ALLOW_ASYNC_UNSAFE=true`, déjà réglé dans `tests/e2e/conftest.py`.
 - **Jamais deux exécutions de pytest en parallèle dans le même dépôt** : elles partagent la base de test en fichier (« no such table »). Un agent qui fait des contre-épreuves travaille dans un worktree jetable.
 - **Base de test SQLite en fichier** (`DATABASES["default"]["TEST"]["NAME"]`), pas en mémoire. En mémoire partagée, un accès concurrent entre le test et le serveur de test échoue aussitôt (« table is locked ») : un test E2E qui écrit en base pendant que les téléphones interrogent le serveur devenait intermittent (1 fois sur 10).

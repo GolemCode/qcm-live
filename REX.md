@@ -437,6 +437,13 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Ce que les revues ont trouvé :**
   - `/simplify` : la note affichée (« Absent » ou nombre) était décidée à trois endroits, et le barème relu à chaque question. J'ai aussi supprimé une requête par session dans la liste des sessions, en préchargeant les ajouts de temps ;
   - `/code-review` : ce préchargement alourdissait les états interrogés chaque seconde et pouvait servir un cache périmé après un « +10 s ». J'ai annulé ce changement : une petite requête par session sur une page de l'enseignant coûte moins qu'un risque sur le chemin chaud. La revue a aussi relevé qu'un QCM d'environ 300 questions dépasse la capacité d'un QR code et provoquait une erreur 500. Un message la remplace désormais ;
+  - **Agent `spec-auditor`** : 31 contre-épreuves, dont 26 détectées d'emblée. Deux réserves bloquantes :
+    - l'adresse imposée (`ADRESSE=`) n'était prouvée par aucun test : ignorer l'option, dans le lanceur ou dans le Makefile, passait inaperçu ;
+    - le filtre de l'espace enseignant n'était testé qu'en lecture (GET) : un filtre qui aurait laissé passer les envois de formulaire, donc les essais de mot de passe et le démarrage de la session, passait aussi. Le jeton CSRF n'aurait rien empêché, car le téléphone l'obtient sur la page étudiant.
+
+    Ajouts : un test E2E lance `make classe ADRESSE=pc-prof.local`, et le téléphone envoie la connexion et le démarrage avec un jeton valide. Les pages d'erreur sont aussi vérifiées sur leur titre, et non plus sur le seul titre de l'onglet. J'ai rejoué les trois contre-épreuves (envois non filtrés, option ignorée par le lanceur, puis par le Makefile) : toutes détectées.
+
+    Restent, non bloquants : le test de charge ne simule pas les interrogations d'état en même temps que les réponses, et 16 fils ne sont pas justifiés par un test (4 suffisent au test de charge).
   - `/security-review` : aucune vulnérabilité. Notes protégées par la connexion et jamais projetées, QR code toujours celui de l'appareil identifié, CSV neutralisé.
 - **Ce que l'auditeur de spec a trouvé.** 31 contre-épreuves, dont 5 survivantes :
   - l'ordre du fichier n'était pas prouvé, car l'ordre d'arrivée des téléphones était le même et l'absent était en dernier ;
@@ -465,3 +472,80 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **zxing-cpp et Pillow, en dépendances de test seulement** : décoder le QR code depuis une capture d'écran. Ce sont des paquets précompilés, sans bibliothèque système à installer, contrairement à pyzbar ; OpenCV aurait été beaucoup plus lourd.
 - **Pas de nouveau modèle.** Les résultats se recalculent à la demande, à partir de la copie figée et des réponses : rien à garder synchronisé.
 - **CSV écrit par le module standard `csv`**, qui gère les guillemets. Seuls les champs de texte venus de l'extérieur (numéro, nom) sont neutralisés, pas les nombres calculés.
+
+---
+
+## I7 — Mode classe : serveur de production local
+
+### Objectif
+- **CLA-01.** Lancer l'application en classe sur le PC de l'enseignant, avec un serveur de production local, sans mode debug.
+- La faire fonctionner de bout en bout depuis les téléphones du réseau local, et afficher l'adresse à ouvrir.
+- Prouver tout cela par des tests de bout en bout contre ce serveur, et non contre le serveur de test de Django.
+
+### Questions et décisions
+- **Aucune question fonctionnelle bloquante.** CLA-01 est précise, et les choix restants sont techniques. Ils sont écrits dans SPEC.md comme *dérivés*, pour validation :
+  - une commande, `make classe` ;
+  - l'adresse du réseau local, affichée dans le terminal et projetée au tableau ;
+  - une adresse imposable à la main ;
+  - la tenue de charge d'une classe entière ;
+  - des pages d'erreur en français.
+- **Le plan n'est pas passé par le plan mode.** L'incrément a été mené d'un seul tenant, sur un objectif donné par le commanditaire. Le plan est donc détaillé dans la PR.
+- **L'adresse projetée.** Le tableau affichait l'adresse par laquelle il avait été ouvert. Or l'enseignant ouvre naturellement `localhost` sur son PC, et le tableau aurait alors projeté une adresse injoignable depuis les téléphones. Le mode classe impose donc l'adresse du réseau local, détectée au lancement.
+
+### Problèmes rencontrés
+- **SQLite refusait les écritures simultanées.** Le test de charge (40 téléphones qui valident leur numéro au même instant) a échoué dès son premier lancement : erreurs 500, « database is locked ».
+  - Une transaction ordinaire commence par lire, puis demande le verrou d'écriture. Si une autre transaction écrit déjà, SQLite refuse aussitôt, sans attendre, pour éviter un interblocage.
+  - Les tests précédents, avec trois ou quatre téléphones, ne pouvaient pas le voir.
+  - Correctif : les transactions demandent le verrou d'écriture dès leur début (mode `IMMEDIATE`), et les suivantes attendent leur tour, jusqu'à 20 s. Le même test passe ensuite 3 fois sur 3.
+- **Hors mode debug, une erreur 500 ne laisse aucune trace.** Django n'affiche alors rien dans le terminal. Pour trouver la cause, j'ai ajouté une journalisation des erreurs des requêtes sur la console. Elle reste : en classe, c'est le seul moyen de comprendre un incident.
+- **Les alertes de file d'attente de waitress** (« Task queue depth ») s'affichaient dès que toute la classe envoyait au même instant. Elles sont normales mais alarmantes pour l'enseignant, et sont donc masquées. Le nombre de fils passe de 4 à 16.
+- **Les pages d'erreur étaient en anglais.** Hors mode debug, Django affiche ses pages par défaut (« Not Found »). Les pages 400, 403 (formulaire expiré), 404 et 500 sont désormais en français, comme le reste de l'interface.
+- **Le serveur du mode classe ne reconnaissait pas le mot de passe de test.** Les tests hachent les mots de passe en MD5 pour aller vite, et un vrai serveur ne connaît pas ce hachage. Le test du mode classe crée donc le compte enseignant avec les hachages de production.
+- **Une vérification gâchée par mon propre hook.** J'ai lancé `make verify` en arrière-plan, puis rendu la main. Le hook Stop a alors lancé `make check`, un second pytest sur la même base de test : 8 tests en erreur (« no such table », « attempt to write a readonly database »), sans rapport avec le code. Relancée au premier plan, la vérification est verte. Règle ajoutée à CLAUDE.md.
+- **Ce que les revues ont trouvé :**
+  - `/simplify` (quatre angles) :
+    - l'hôte autorisé était recopié à deux endroits : les réglages ajoutent désormais eux-mêmes l'hôte de l'adresse projetée ;
+    - le port par défaut était défini deux fois ;
+    - une vérification « refuser le mode debug » ne pouvait jamais se déclencher ;
+    - la journalisation coupait aussi les avertissements en développement : elle n'agit plus qu'hors debug ;
+    - le test de charge gérait ses fils à la main : il passe par un pool de fils.
+  - `/simplify`, constats écartés :
+    - **Les reprises après conflit**, rendues inutiles avec SQLite par le mode `IMMEDIATE` : elles restent. Elles protègent toujours si la base change (hébergement en I8), et leurs tests en dépendent.
+    - **Des connexions persistantes à la base** : gain modeste, aucun symptôme mesuré.
+  - `/code-review`, retenus :
+    - **L'espace enseignant ouvert à tout le Wi-Fi de l'école.** Le serveur écoute sur toutes les interfaces, donc un étudiant pouvait ouvrir la page de connexion de l'enseignant, essayer des mots de passe, ou lire une connexion faite en clair depuis un autre appareil. En mode classe, l'espace enseignant ne répond plus qu'au PC lui-même. La contre-épreuve est faite : sans ce filtre, le test E2E échoue (redirection vers la connexion au lieu d'un refus).
+    - **L'adresse imposée à la main n'était pas vérifiée.** `http://…` ou un port en trop donnaient une adresse projetée fausse.
+    - **Un réseau de salle sans passerelle** (point d'accès local) faisait projeter `127.0.0.1`. Le PC cherche désormais aussi ses propres adresses.
+    - **Les navigateurs demandaient `/favicon.ico` à chaque page**, ce qui produisait une erreur 404 rendue en entier. Une icône vide est déclarée.
+    - **Un `PORT` exporté dans le shell** changeait le port en silence.
+  - `/code-review`, écartés :
+    - **Le journal en mode WAL de SQLite** : le test de charge passe sans lui, et les validations sont brèves.
+    - **`STATIC_ROOT`, retiré** : `collectstatic` ne sert à rien ici. À revoir en I8 si l'hébergement l'exige.
+    - **`DJANGO_DB_PATH`** : un module de réglages propre aux tests serait plus lourd pour le même effet.
+  - **Agent `spec-auditor`** : 31 contre-épreuves, dont 26 détectées d'emblée. Deux réserves bloquantes :
+    - l'adresse imposée (`ADRESSE=`) n'était prouvée par aucun test : ignorer l'option, dans le lanceur ou dans le Makefile, passait inaperçu ;
+    - le filtre de l'espace enseignant n'était testé qu'en lecture (GET) : un filtre qui aurait laissé passer les envois de formulaire, donc les essais de mot de passe et le démarrage de la session, passait aussi. Le jeton CSRF n'aurait rien empêché, car le téléphone l'obtient sur la page étudiant.
+
+    Ajouts : un test E2E lance `make classe ADRESSE=pc-prof.local`, et le téléphone envoie la connexion et le démarrage avec un jeton valide. Les pages d'erreur sont aussi vérifiées sur leur titre, et non plus sur le seul titre de l'onglet. J'ai rejoué les trois contre-épreuves (envois non filtrés, option ignorée par le lanceur, puis par le Makefile) : toutes détectées.
+
+    Restent, non bloquants : le test de charge ne simule pas les interrogations d'état en même temps que les réponses, et 16 fils ne sont pas justifiés par un test (4 suffisent au test de charge).
+  - `/security-review` : aucune vulnérabilité. Les fichiers servis par whitenoise se limitent aux fichiers statiques listés, le mode debug est toujours désactivé, et CSRF et la connexion sont inchangés.
+
+### Ce qui a bien marché
+- **Tester le vrai lanceur.** Les tests E2E lancent `make classe`, la commande même de l'enseignant, dans un processus à part, sur la base de test. Le téléphone ouvre l'adresse *lue au tableau*. Ils prouvent ensemble la désactivation du debug (le `.env` de test demande le debug), les fichiers statiques, le JavaScript du direct et l'adresse projetée.
+- **Un test de charge simple, à l'échelle d'une classe.** 40 « téléphones » réduits à leurs requêtes HTTP, déclenchés au même instant par une barrière. Il a trouvé un vrai défaut dès son premier lancement, invisible avec quatre téléphones.
+- **Les contre-épreuves faites au fil de l'eau** : SQLite sans `IMMEDIATE` et le filtre de l'espace enseignant retiré font chacun échouer un test.
+
+### Ce que j'aurais dû savoir dès le départ
+- **SQLite et la concurrence en écriture.** Avec une transaction ordinaire, un conflit de verrou échoue tout de suite au lieu d'attendre. Le mode `IMMEDIATE` (Django 5.1 et plus) est le réglage à prendre dès qu'un serveur à plusieurs fils écrit.
+- **Hors debug, Django est muet.** Prévoir la journalisation des erreurs dès qu'on quitte le mode debug, sinon une erreur 500 ne laisse aucune trace.
+- **Ouvrir un serveur au réseau, c'est l'ouvrir à tous les appareils du réseau**, y compris l'espace d'administration. Se demander dès la conception qui doit pouvoir joindre chaque partie de l'application.
+- **Le hook Stop lance pytest.** Une vérification longue doit tourner au premier plan.
+
+### Choix techniques et leur raison
+- **waitress**, nouvelle dépendance d'exécution : le serveur de développement de Django n'est pas fait pour la production. waitress est en pur Python, fonctionne sous Windows (le PC de l'enseignant) et s'installe sans compilation. gunicorn ne fonctionne pas sous Windows. 16 fils au lieu de 4.
+- **whitenoise**, nouvelle dépendance d'exécution : hors mode debug, Django ne sert plus les fichiers CSS et JS. whitenoise les sert depuis leurs dossiers (`WHITENOISE_USE_FINDERS`), sans étape `collectstatic` ni dossier à générer.
+- **Un lanceur Python (`config/classroom.py`) plutôt qu'une commande `manage.py`** : le mode debug et l'adresse doivent être fixés *avant* le chargement des réglages, ce qu'une commande de gestion ne permet pas. Il fonctionne aussi sans make, sous Windows.
+- **L'adresse du réseau local, détectée par la route par défaut** : une socket UDP « connectée » vers une adresse de documentation choisit la bonne interface, sans envoyer aucun paquet. L'adresse peut être imposée.
+- **Le filtre de l'espace enseignant, par l'adresse de l'appareil** : waitress n'est derrière aucun mandataire, donc l'adresse de l'appareil est fiable. Ce filtre ne dépend d'aucun en-tête que le client pourrait falsifier.
+- **Pages d'erreur en français** : sans le mode debug, ce sont les pages que voient les téléphones.

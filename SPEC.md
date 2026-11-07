@@ -107,6 +107,12 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
 ### Mode classe
 - **[CLA-01]** (I7) L'application se lance en mode classe sur le PC de l'enseignant : serveur de production local, sans mode debug. Elle fonctionne de bout en bout depuis les téléphones du réseau local, et l'adresse à ouvrir s'affiche.
+  - Une commande : `make classe` (port 8000 par défaut). Le mode debug est toujours désactivé, quel que soit le réglage de `.env`. *(dérivé)*
+  - L'adresse à ouvrir sur les téléphones est celle du PC sur le réseau local (par exemple `http://192.168.1.23:8000/`). Elle s'affiche dans le terminal, avec celle de l'espace enseignant, et le tableau la projette (SES-01) même s'il est ouvert en `localhost`. *(dérivé)*
+  - Si la détection choisit la mauvaise interface réseau, l'enseignant impose l'adresse (`ADRESSE=…`). *(dérivé)*
+  - En mode classe, l'espace enseignant (connexion, notes, pilotage) ne s'ouvre que sur le PC de l'enseignant ; depuis un autre appareil, il est refusé. Les étudiants partagent le réseau du serveur, et la connexion passe en clair (HTTP). *(dérivé, à confirmer)*
+  - Toute une classe (40 téléphones) peut valider son numéro, puis répondre, au même instant, sans qu'aucune requête échoue. *(dérivé)*
+  - Hors mode debug, les pages d'erreur (page introuvable, requête refusée, formulaire expiré, erreur du serveur) sont en français, comme le reste de l'interface. *(dérivé)*
 
 ## 2 bis. Format du CSV d'un groupe (*dérivé*)
 
@@ -182,3 +188,4 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Étudiants jamais connectés (I6) | Listés « Absent », sans note |
 | Format du CSV des résultats (I6) | Excel en français : « ; », virgule décimale, UTF-8 avec BOM |
 | Zéros de tête des numéros, perdus par Excel à l'ouverture du CSV (I6) | Numéro écrit tel quel ; colonne à reformater en texte au besoin |
+| Lancement en classe (I7) | Aucune question fonctionnelle : décisions dérivées sous CLA-01, à valider |
