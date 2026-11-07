@@ -27,7 +27,6 @@ from tests.e2e.live_ui import (
     phone_choices,
     phones_joined,
     save_status,
-    seconds_left,
     start,
     timer_shows,
 )
@@ -59,8 +58,8 @@ def test_added_time_in_real_time(teacher_page: Page, live_server, new_phone):
     expect_slot(phone, 1, timeout=15_000)
     assert 13.5 <= time.monotonic() - t0 <= 15 + LIVE_MS / 1000
     expect(card(page, 1).get_by_role("heading")).to_have_text("Couleur du ciel ?", timeout=LIVE_MS)
-    assert 3 <= seconds_left(phone) <= 5
-    assert 3 <= seconds_left(page) <= 5
+    timer_shows(phone, 3, 5)  # attendu : le compte à rebours se remplit après le rechargement
+    timer_shows(page, 3, 5)
 
 
 @pytest.mark.spec("TPS-01")
