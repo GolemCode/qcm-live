@@ -1,7 +1,8 @@
 """Incrément 6 : QR code des réponses sur le téléphone, résultats et export CSV.
 
 Préconditions communes : quatre questions, N = 2 (deux groupes de deux), t = 30 s, et un
-barème qui distingue chaque cas (v non nul, m négatif, plancher). Les propositions sont
+barème qui distingue chaque cas (v et m négatifs et distincts, plancher p = 0 au-dessus du v
+des multiples : appliqué à tort à v, il se verrait). Les propositions sont
 affichées en ordre inverse sur les téléphones (`reversed_choices`) : une lettre calculée sur
 la position à l'écran, et non sur l'ordre du tableau, serait fausse.
 
@@ -12,7 +13,11 @@ Questions, dans l'ordre du QCM (lettres du tableau) :
 - Q4 « Lesquels sont pairs ? » (multiple) : A 2 (juste), B 4 (juste), C 7.
 
 Rotation (rang + étape) mod 2 : rang 0 (00123) a Q1, Q2, Q3, Q4 ; rang 1 (42) a Q2, Q1, Q4,
-Q3 ; le retardataire (7), arrivé au troisième créneau, a le rang 2 : Q1, Q2 (manquées), Q3, Q4.
+Q3 ; le retardataire (7), arrivé au troisième créneau, a le rang 2 : Q1, Q2 (manquées), Q3, Q4 ;
+555, arrivé au dernier créneau et qui ne répond jamais, a le rang 3 : Q2, Q1, Q4, Q3.
+
+L'ordre du fichier du groupe (7, 00123, 0999, 42, 555) diffère de l'ordre d'arrivée
+(00123, 42, 7, 555), et l'absent (0999) est au milieu.
 """
 
 from __future__ import annotations
@@ -26,7 +31,6 @@ from playwright.sync_api import Page, expect
 from bank.models import Quiz
 from live.models import Answer, Session
 from roster.models import StudentGroup
-from tests.e2e import live_setup
 from tests.e2e.live_setup import (
     QUESTIONS,
     expect_slot,
@@ -53,20 +57,26 @@ from tests.factories import jump_to, make_group, make_question, make_quiz, make_
 SCALE = {
     "simple_b": "2",
     "simple_m": "-0.5",
-    "simple_v": "0.25",
+    "simple_v": "-0.25",
     "multiple_b": "1",
     "multiple_m": "-1",
-    "multiple_v": "0.5",
+    "multiple_v": "-0.5",
     "multiple_p": "0",
 }
 MAX_TOTAL = "9"  # 3 questions simples à 2 points, une multiple de 3 propositions à 1 point
-STUDENTS = [*live_setup.STUDENTS, ("0999", "ABSENT Zoé")]  # 00123, 42, 7, puis un absent
+STUDENTS = [
+    ("7", "Ng Anh"),
+    ("00123", "DURAND Élise"),
+    ("0999", "ABSENT Zoé"),  # jamais connecté
+    ("42", "MARTIN Léo"),
+    ("555", "SILENCIEUX Paul"),  # connecté, sans aucune réponse : noté, pas absent
+]
 
 # Réponses de chaque étudiant, créneau par créneau : (question attendue, propositions choisies).
 ANSWERS = {
     "00123": [
         ("Capitale de la France ?", ["Lyon"]),  # B : faux, -0,5
-        ("Couleur du ciel ?", []),  # pas de réponse : v = 0,25
+        ("Couleur du ciel ?", []),  # pas de réponse : v = -0,25
         ("Deux plus deux ?", ["Quatre"]),  # A : juste, 2
         ("Lesquels sont pairs ?", ["2", "7"]),  # AC : 1 - 1 - 1 = -1, plancher 0
     ],
@@ -74,13 +84,13 @@ ANSWERS = {
         ("Couleur du ciel ?", ["Rouge"]),  # C : faux, -0,5
         ("Capitale de la France ?", ["Paris"]),  # A : juste, 2
         ("Lesquels sont pairs ?", ["4"]),  # B : -1 + 1 + 1 = 1
-        ("Deux plus deux ?", []),  # pas de réponse : 0,25
+        ("Deux plus deux ?", []),  # pas de réponse : -0,25
     ],
     "7": [  # arrivé au troisième créneau
         None,
         None,
         ("Deux plus deux ?", ["Quatre"]),  # A : juste, 2
-        ("Lesquels sont pairs ?", []),  # pas de réponse : v = 0,5
+        ("Lesquels sont pairs ?", []),  # pas de réponse : v = -0,5, sans plancher
     ],
 }
 
@@ -125,8 +135,8 @@ def wait_saved(phone: Page, session: Session, number: str, question: str, chosen
 
 
 def play_session(page: Page, base_url: str, new_phone) -> tuple[Session, dict[str, Page]]:
-    """Session jouée jusqu'au bout : 00123 et 42 dès le départ, 7 au troisième créneau,
-    0999 jamais connecté."""
+    """Session jouée jusqu'au bout : 00123 et 42 dès le départ, 7 au troisième créneau, 555 au
+    dernier sans répondre, 0999 jamais connecté."""
     session = make_results_session()
     numbers = ["00123", "42"]
     phones = dict(zip(numbers, started(page, base_url, new_phone, session, numbers), strict=True))
@@ -136,6 +146,7 @@ def play_session(page: Page, base_url: str, new_phone) -> tuple[Session, dict[st
     (phones["7"],) = phones_joined(new_phone, base_url, session.code, ["7"])
     answer_slot(phones, 2, session)
     answer_slot(phones, 3, session)
+    (phones["555"],) = phones_joined(new_phone, base_url, session.code, ["555"])
     jump_to(session, 121)
     return session, phones
 
@@ -153,6 +164,7 @@ def test_phone_shows_qr_code_of_its_answers(teacher_page: Page, live_server, new
     assert qr_text(phones["42"]) == receipt(code, "42", ["Q2 C", "Q1 A", "Q4 B", "Q3 -"])
     # Retardataire : les créneaux manqués figurent, sans réponse, dans l'ordre de la rotation.
     assert qr_text(phones["7"]) == receipt(code, "7", ["Q1 -", "Q2 -", "Q3 A", "Q4 -"])
+    assert qr_text(phones["555"]) == receipt(code, "555", ["Q2 -", "Q1 -", "Q4 -", "Q3 -"])
 
     # Un téléphone rechargé, ou sorti de veille, réaffiche le même QR code.
     phones["42"].reload()
@@ -190,7 +202,7 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     session, _ = play_session(page, live_server.url, new_phone)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     # Le tableau projeté n'affiche aucune note.
-    expect(page.get_by_role("main")).not_to_contain_text("1,75")
+    expect(page.get_by_role("main")).not_to_contain_text("1,25")
     expect(page.get_by_role("table")).to_have_count(0)
 
     # Le contenu figé fait foi (SES-03) : changer le barème ou supprimer le groupe après le
@@ -203,11 +215,12 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     expect(page.get_by_role("main")).to_contain_text("TD1")
     headers = page.get_by_role("table", name="Résultats").get_by_role("columnheader")
     expect(headers).to_have_text(["Numéro", "Nom", "Note", "Note maximale"])
-    assert results_rows(page) == [  # ordre du fichier du groupe
-        ["00123", "DURAND Élise", "1,75", MAX_TOTAL],  # -0,5 + 0,25 + 2 + 0
-        ["42", "MARTIN Léo", "2,75", MAX_TOTAL],  # -0,5 + 2 + 1 + 0,25
-        ["7", "Ng Anh", "3", MAX_TOTAL],  # 0,25 + 0,25 + 2 + 0,5
+    assert results_rows(page) == [  # ordre du fichier du groupe, pas celui d'arrivée
+        ["7", "Ng Anh", "1", MAX_TOTAL],  # -0,25 - 0,25 + 2 - 0,5
+        ["00123", "DURAND Élise", "1,25", MAX_TOTAL],  # -0,5 - 0,25 + 2 + 0
         ["0999", "ABSENT Zoé", "Absent", MAX_TOTAL],
+        ["42", "MARTIN Léo", "2,25", MAX_TOTAL],  # -0,5 + 2 + 1 - 0,25
+        ["555", "SILENCIEUX Paul", "-1,25", MAX_TOTAL],  # 3 x -0,25 - 0,5
     ]
 
     # Les résultats sont aussi accessibles depuis la liste des sessions.
@@ -216,14 +229,14 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     expect(row).to_contain_text("Terminée")
     row.get_by_role("link", name="Résultats").click()
     expect(page.get_by_role("heading", name="Résultats", level=1)).to_be_visible()
-    assert results_rows(page)[0] == ["00123", "DURAND Élise", "1,75", MAX_TOTAL]
+    assert results_rows(page)[1] == ["00123", "DURAND Élise", "1,25", MAX_TOTAL]
 
 
 @pytest.mark.spec("RES-01")
 def test_no_results_before_the_end(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_results_session()
-    phones_joined(new_phone, live_server.url, session.code, ["00123"])
+    (phone,) = phones_joined(new_phone, live_server.url, session.code, ["00123"])
     page.goto(f"{live_server.url}/prof/sessions/")
     row = page.get_by_role("row").filter(has_text=session.code)
     expect(row).to_contain_text("En attente")
@@ -231,13 +244,19 @@ def test_no_results_before_the_end(teacher_page: Page, live_server, new_phone):
 
     open_board(page, live_server.url, session)
     start(page)
+    expect_slot(phone, 0)
+    choose(phone, "Paris")  # une note provisoire existe : 2 points
+    expect(save_status(phone)).to_have_text("Réponse enregistrée")
     page.goto(f"{live_server.url}/prof/sessions/")
     expect(row).to_contain_text("En cours")
     expect(row.get_by_role("link", name="Résultats")).to_have_count(0)
-    # Même par son adresse, la page n'affiche aucune note avant la fin.
+    # Même par son adresse, la page n'affiche ni étudiant ni note avant la fin.
     page.goto(f"{live_server.url}/prof/sessions/{session.code}/resultats/")
-    expect(page.get_by_role("main")).to_contain_text("à la fin de la session")
-    expect(page.get_by_role("table")).to_have_count(0)
+    main = page.get_by_role("main")
+    expect(main).to_contain_text("à la fin de la session")
+    for hidden in ("DURAND", "Élise", "Absent", "Note"):  # le code de session a des chiffres
+        expect(main).not_to_contain_text(hidden)
+    expect(page.get_by_role("link", name="Télécharger le CSV")).to_have_count(0)
 
 
 def download_csv(page: Page) -> tuple[str, bytes]:
@@ -265,10 +284,12 @@ def test_results_csv(teacher_page: Page, live_server, new_phone):
     assert rows == [
         ["numéro", "nom", "note", "note max", *questions],
         # Une colonne par question, dans l'ordre du QCM ; `-` : pas de réponse.
-        ["00123", "DURAND Élise", "1,75", "9", "B", "-0,5", "-", "0,25", "A", "2", "AC", "0"],
-        ["42", "MARTIN Léo", "2,75", "9", "A", "2", "C", "-0,5", "-", "0,25", "B", "1"],
-        ["7", "Ng Anh", "3", "9", "-", "0,25", "-", "0,25", "A", "2", "-", "0,5"],
+        # Les nombres ne sont pas neutralisés, même négatifs.
+        ["7", "Ng Anh", "1", "9", "-", "-0,25", "-", "-0,25", "A", "2", "-", "-0,5"],
+        ["00123", "DURAND Élise", "1,25", "9", "B", "-0,5", "-", "-0,25", "A", "2", "AC", "0"],
         ["0999", "ABSENT Zoé", "Absent", "9", "", "", "", "", "", "", "", ""],
+        ["42", "MARTIN Léo", "2,25", "9", "A", "2", "C", "-0,5", "-", "-0,25", "B", "1"],
+        ["555", "SILENCIEUX Paul", "-1,25", "9", *["-", "-0,25"] * 3, "-", "-0,5"],
     ]
 
 
