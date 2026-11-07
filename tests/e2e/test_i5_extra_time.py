@@ -7,6 +7,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from live.models import Answer
+from live.views import CLEARED, SAVED, TOO_LATE
 from tests.e2e.live_setup import (
     QUESTIONS,
     STUDENTS,
@@ -18,9 +19,11 @@ from tests.e2e.live_setup import (
 from tests.e2e.live_ui import (
     LIVE_MS,
     add_time,
+    add_time_button,
     card,
     choose,
     clear_answer,
+    clear_button,
     phone_choices,
     phones_joined,
     save_status,
@@ -29,11 +32,6 @@ from tests.e2e.live_ui import (
     timer_shows,
 )
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session
-
-SAVED = "Réponse enregistrée"
-CLEARED = "Réponse effacée"
-TOO_LATE = "Temps écoulé : réponse non enregistrée"
-ADD = "+10 s"
 
 
 @pytest.mark.spec("TPS-01")
@@ -71,7 +69,7 @@ def test_added_time_accumulates_and_shifts_next_slots(teacher_page: Page, live_s
     session = make_live(2, shown=1)  # deux créneaux de 30 s
     phones = phones_joined(new_phone, live_server.url, session.code, ["00123", "42"])
     open_board(page, live_server.url, session)
-    expect(page.get_by_role("button", name=ADD)).to_have_count(0)  # pas avant le démarrage
+    expect(add_time_button(page)).to_have_count(0)  # pas avant le démarrage
     start(page)
 
     jump_to(session, 20)  # 10 s restantes
@@ -106,7 +104,7 @@ def test_added_time_accumulates_and_shifts_next_slots(teacher_page: Page, live_s
     jump_to(session, 80.5)
     for screen in (page, *phones):
         expect(screen.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
-    expect(page.get_by_role("button", name=ADD)).to_have_count(0)  # pas après la fin
+    expect(add_time_button(page)).to_have_count(0)  # pas après la fin
 
 
 @pytest.mark.spec("TPS-01")
@@ -171,7 +169,7 @@ def test_multiple_question_cleared_by_unchecking_everything(
     (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
     expect(phone.get_by_role("group", name="Propositions")).to_be_visible(timeout=LIVE_MS)
 
-    expect(phone.get_by_role("button", name="Effacer ma réponse")).to_have_count(0)
+    expect(clear_button(phone)).to_have_count(0)
     choose(phone, "2")
     choose(phone, "4")
     expect(save_status(phone)).to_have_text(SAVED)

@@ -30,7 +30,7 @@
       <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
       <form method="post" action="{% url 'session-add-time' session.code %}">
         {% csrf_token %}
-        <input type="hidden" name="slot" value="{{ slot }}">
+        <input type="hidden" name="slot" value="{{ state.position.slot.index }}">
         <button type="submit">+10 s</button>
       </form>
     </div>

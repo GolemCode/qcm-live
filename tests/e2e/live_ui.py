@@ -130,14 +130,22 @@ def phones_joined(new_phone, base_url: str, code: str, numbers) -> list[Page]:
     return phones
 
 
+def add_time_button(page: Page) -> Locator:
+    """Bouton du tableau qui ajoute 10 secondes au créneau en cours (TPS-01)."""
+    return page.get_by_role("button", name="+10 s")
+
+
 def add_time(page: Page) -> None:
-    """L'enseignant ajoute 10 secondes au créneau en cours, depuis le tableau (TPS-01)."""
-    page.get_by_role("button", name="+10 s").click()
+    add_time_button(page).click()
+
+
+def clear_button(phone: Page) -> Locator:
+    """Bouton du téléphone qui efface la réponse à une question simple (ETU-09)."""
+    return phone.get_by_role("button", name="Effacer ma réponse")
 
 
 def clear_answer(phone: Page) -> None:
-    """L'étudiant efface sa réponse à une question simple (ETU-09)."""
-    phone.get_by_role("button", name="Effacer ma réponse").click()
+    clear_button(phone).click()
 
 
 def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> None:

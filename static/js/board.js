@@ -6,7 +6,7 @@
   if (!main) return;
   const slot = main.querySelector("input[name=slot]");
   window.qcm.follow(main, (state) => {
-    if (slot && state.slot !== undefined) slot.value = state.slot;
+    if (slot && state.slot !== null) slot.value = state.slot;
     if (!state.connected) return;
     document.getElementById("connected-n").textContent = state.connected.length;
     document.getElementById("connected").replaceChildren(

@@ -44,8 +44,10 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - De même, un participant garde **son propre exemplaire** du numéro et du nom de l'étudiant. Supprimer un groupe (GRP-03) ne doit effacer aucun résultat de session.
 - **Déroulement (I4).** `live/schedule.py` est un module pur : groupes de N, un créneau de t secondes par question, rotation (rang + étape) mod n, couleur = `Slot.color(rang)`, mélange stable des propositions.
   - `Session.state(now)` donne la phase (`waiting`, `running`, `ended`) et la position (créneau, temps restant), calculées à partir de `started_at`, sans worker.
-  - Le rang de rotation d'un participant vaut le maximum + 1 (0 pour le premier). `Answer` garde, par participant et par question figée, les indices **canoniques** des propositions choisies ; pas de ligne signifie pas de réponse (v).
-  - **I5 (+10 s).** Ne pas décaler `started_at`, ce qui ferait reculer le créneau en cours. Ajouter à `Schedule` les secondes ajoutées par créneau et faire marcher `position()` sur les échéances cumulées. L'ajout doit être atomique.
+  - Le rang de rotation d'un participant vaut le maximum + 1 (0 pour le premier). `Answer` garde, par participant et par question figée, les indices **canoniques** des propositions choisies ; pas de ligne signifie pas de réponse (v). « Effacer ma réponse » (ETU-09) envoie une réponse vide, qui supprime la ligne.
+  - **Temps additionnel (I5, TPS-01).** On ne décale jamais `started_at`, ce qui ferait reculer le créneau en cours. `Schedule.extra` donne les secondes ajoutées par créneau, et `position()` s'appuie sur `Schedule.deadlines`, les échéances cumulées.
+    - Chaque clic est une ligne `Extension` (session, créneau), créée par `Session.add_time(slot)`. Elle vise le créneau affiché, et un clic arrivé après l'échéance est annulé.
+    - Le tableau ne se recharge qu'au changement de groupe : son état JSON donne `slot`, que `board.js` reporte dans le formulaire « +10 s ».
 - **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` et `qcm.follow`.
   - Une page qui suit le direct porte `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
   - Le texte est toujours inséré avec `textContent`.

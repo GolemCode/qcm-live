@@ -46,8 +46,17 @@ def _page(state: State, *, board: bool) -> str:
 
 
 def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
-    remaining = _ms(state.position.remaining) if state.position else None
-    return JsonResponse({"page": _page(state, board=board), "remaining_ms": remaining, **extra})
+    """État d'une page en direct : son jeton, le temps restant et le rang du créneau en cours
+    (visé par « +10 s », car le tableau ne se recharge qu'au changement de groupe)."""
+    position = state.position
+    return JsonResponse(
+        {
+            "page": _page(state, board=board),
+            "remaining_ms": _ms(position.remaining) if position else None,
+            "slot": position.slot.index if position else None,
+            **extra,
+        }
+    )
 
 
 # --- Enseignant ---------------------------------------------------------------------------
@@ -87,7 +96,6 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
                 for color, index in enumerate(group, start=1)
             ],
             "remaining_ms": _ms(state.position.remaining),
-            "slot": state.position.slot.index,
         }
     return render(request, "live/board.html", context)
 
@@ -99,8 +107,6 @@ def board_state(request: HttpRequest, code: str) -> JsonResponse:
     state = session.state(timezone.now())
     if state.phase == "waiting":
         return _live_json(state, board=True, connected=_connected(session))
-    if state.position is not None:  # créneau visé par « +10 s » (TPS-01)
-        return _live_json(state, board=True, slot=state.position.slot.index)
     return _live_json(state, board=True)
 
 
@@ -118,11 +124,7 @@ def session_start(request: HttpRequest, code: str) -> HttpResponse:
 def session_add_time(request: HttpRequest, code: str) -> HttpResponse:
     """TPS-01 : +10 s au créneau affiché au tableau, s'il est toujours en cours."""
     session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
-    try:
-        slot = int(request.POST.get("slot", ""))
-    except ValueError:
-        slot = -1
-    if not session.add_time(slot):
+    if not session.add_time(request.POST.get("slot")):
         messages.error(request, SLOT_OVER)
     return redirect("board", code=code)
 

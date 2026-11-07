@@ -362,3 +362,40 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Aucune nouvelle dépendance.** Polling chaque seconde, avec des rechargements étalés au hasard sur 300 ms pour ne pas recevoir la classe entière dans la même milliseconde.
 - **Réponses stockées en indices canoniques** (A = 0) de la copie figée. Le reçu du QR code (lettres du tableau) et la notation AMC (I6) les liront directement.
 - **Six couleurs claires, numérotées**, avec un texte sombre lisible. Le numéro est le repère pour les étudiants daltoniens.
+
+---
+
+## I5 — Temps additionnel et effacement d'une réponse
+
+### Objectif
+- **+10 s (TPS-01).** Pendant un créneau, l'enseignant ajoute 10 secondes depuis le tableau. Le temps restant augmente partout, les créneaux suivants sont décalés d'autant, et les ajouts se cumulent.
+- **« Effacer ma réponse » (ETU-09).** Réponse du commanditaire à la question ouverte en I4 : sur une question simple, l'étudiant peut revenir à « pas de réponse ». C'est important pour la notation AMC, qui distingue une non-réponse (v) d'une mauvaise réponse (m).
+
+### Questions et décisions
+- **Réponse du commanditaire :** oui à « Effacer ma réponse » sur les questions simples. C'est la nouvelle exigence ETU-09, livrée dans cet incrément. Sur une question multiple, décocher toutes les cases suffisait déjà.
+- **Décisions dérivées, écrites dans SPEC.md :**
+  - le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ;
+  - un clic qui arrive après la fin du créneau n'ajoute rien : le temps n'est jamais ajouté à un créneau que l'enseignant n'a pas vu ;
+  - le téléphone confirme l'effacement par « Réponse effacée ».
+- **Correction de forme :** le commanditaire est désormais désigné au masculin dans tous les documents.
+
+### Problèmes rencontrés
+- **Ne pas faire reculer le temps.** Décaler l'heure de démarrage aurait fait revenir le déroulement en arrière, comme prévu dès I4. Le module pur reçoit désormais les secondes ajoutées à chaque créneau et calcule des échéances cumulées. L'heure de démarrage ne bouge jamais.
+- **Deux clics simultanés.** Un compteur lu puis réécrit en perd un. Chaque clic est donc une ligne en base : deux clics s'ajoutent toujours.
+- **Un clic au tout dernier moment.** Entre la vérification « le créneau est en cours » et l'écriture, le créneau peut se terminer, et l'ajout le rouvrirait : les téléphones repasseraient au créneau précédent. L'échéance est revérifiée juste avant de valider l'écriture, et l'ajout est annulé si elle est passée.
+- **Le tableau ne se recharge qu'au changement de groupe.** Avec N = 2, il reste sur la même page pendant deux créneaux. Le bouton doit pourtant viser le créneau en cours : l'état interrogé chaque seconde le donne, et le script du tableau le reporte dans le formulaire.
+- **Un test trop rapide.** Mon premier test cliquait sur « +10 s » aussitôt après avoir avancé l'horloge, avant que le tableau ne l'ait vu : le clic visait l'ancien créneau et était refusé, comme prévu. Le test attend désormais que le tableau affiche le nouveau créneau, comme l'enseignant le verrait.
+
+### Ce qui a bien marché
+- **La limite repérée dès I4 et consignée dans CLAUDE.md** a donné la bonne conception d'emblée : aucun détour par un décalage de l'heure de démarrage.
+- **Le module pur** : le temps ajouté se teste en quelques lignes (échéances, décalage des suivants, rotation inchangée), sans navigateur.
+- **Les aides de test du déroulement mises en commun** (`tests/e2e/live_setup.py`) : les tests I5 réutilisent les mêmes questions reconnaissables et les mêmes préconditions qu'en I4.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Une action de l'enseignant vise ce qu'il voit.** Elle doit transporter ce qu'elle vise (ici le créneau), sinon le serveur l'applique à ce qui est en cours à son arrivée, ce qui peut être autre chose.
+- **Un test doit attendre ce que l'utilisateur attendrait.** Avancer l'horloge en base ne met pas l'écran à jour instantanément.
+
+### Choix techniques et leur raison
+- **Aucune nouvelle dépendance.**
+- **Une ligne par ajout de temps**, plutôt qu'un compteur ou une liste en JSON : l'insertion est atomique sans verrou, et l'historique des ajouts est conservé.
+- **Bouton « +10 s » sans script dédié** : un simple formulaire qui recharge le tableau, lequel recalcule le temps restant. Les téléphones le reçoivent à leur interrogation suivante, en 1 s au plus.

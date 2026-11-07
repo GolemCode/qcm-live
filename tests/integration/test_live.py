@@ -61,7 +61,7 @@ def test_board_state_lists_names_in_join_order(admin_client, session):
     Participant.objects.create(session=session, number="2", name="B", rank=0)
     Participant.objects.create(session=session, number="1", name="A", rank=1)
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
-    assert state == {"page": "waiting", "remaining_ms": None, "connected": ["B", "A"]}
+    assert state == {"page": "waiting", "remaining_ms": None, "slot": None, "connected": ["B", "A"]}
 
 
 def test_snapshot_keeps_quiz_order_choices_and_scales(session):
@@ -312,7 +312,7 @@ def test_add_time_to_current_slot(admin_client, session):
     assert 34_000 < state["remaining_ms"] <= 35_000
 
 
-@pytest.mark.parametrize("slot", ["0", "2", "", "x", "-1", "1.0"])
+@pytest.mark.parametrize("slot", ["0", "2", "", "x", "-1", "1.0", "01"])
 def test_add_time_refused_for_another_slot(admin_client, session, slot):
     """Un clic parti avant le changement de créneau, ou une valeur invalide : rien n'est ajouté."""
     session.start(timezone.now())
@@ -336,7 +336,7 @@ def test_add_time_arriving_at_the_deadline_does_not_reopen_the_slot(session, mon
     times = iter([start + timedelta(seconds=19.99)])  # vérification : encore dans le créneau 0
     late = start + timedelta(seconds=20)  # écriture : le créneau 0 vient de finir
     monkeypatch.setattr("live.models.timezone.now", lambda: next(times, late))
-    assert not session.add_time(0)
+    assert not session.add_time("0")
     assert not Extension.objects.exists()
 
 
@@ -344,4 +344,4 @@ def test_board_state_has_no_slot_once_ended(admin_client, session):
     session.start(timezone.now())
     rewind(session, 40)
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
-    assert state == {"page": "ended", "remaining_ms": None}
+    assert state == {"page": "ended", "remaining_ms": None, "slot": None}
