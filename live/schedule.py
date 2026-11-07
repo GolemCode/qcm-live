@@ -6,12 +6,18 @@
   (rank + step) mod n du groupe. Sur n créneaux, il les voit toutes, une fois chacune, et deux
   rangs voisins n'ont jamais la même question au même moment.
 - La couleur d'une question est son rang dans le groupe (1 à n), au tableau comme au téléphone.
+- Temps additionnel (TPS-01) : des secondes ajoutées à un créneau l'allongent et décalent
+  d'autant les suivants. Le déroulement se calcule sur les échéances cumulées, sans jamais
+  toucher à l'heure de démarrage, ce qui ferait reculer le créneau en cours.
 """
 
 from __future__ import annotations
 
+import bisect
+import itertools
 import random
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from functools import cached_property
 
 
@@ -38,6 +44,7 @@ class Schedule:
     n_questions: int
     shown: int  # N : questions affichées en même temps
     seconds: int  # t : durée d'un créneau
+    extra: Mapping[int, int] = field(default_factory=dict)  # secondes ajoutées, par créneau
 
     @cached_property
     def groups(self) -> list[list[int]]:
@@ -52,17 +59,23 @@ class Schedule:
                 slots.append(Slot(len(slots), group, step, len(questions)))
         return slots
 
+    @cached_property
+    def deadlines(self) -> list[int]:
+        """Fin de chaque créneau, en secondes après le démarrage, temps ajouté compris."""
+        lengths = (self.seconds + self.extra.get(slot.index, 0) for slot in self.slots)
+        return list(itertools.accumulate(lengths))
+
     @property
     def duration(self) -> int:
-        return len(self.slots) * self.seconds
+        return self.deadlines[-1]
 
     def position(self, elapsed: float) -> Position | None:
         """Créneau en cours `elapsed` secondes après le démarrage ; None une fois terminé."""
         elapsed = max(elapsed, 0.0)
-        index = int(elapsed // self.seconds)
+        index = bisect.bisect_right(self.deadlines, elapsed)  # une échéance ouvre le suivant
         if index >= len(self.slots):
             return None
-        return Position(self.slots[index], (index + 1) * self.seconds - elapsed)
+        return Position(self.slots[index], self.deadlines[index] - elapsed)
 
     def question_for(self, slot: Slot, rank: int) -> int:
         """Indice, dans le QCM, de la question de l'étudiant de rang `rank` pendant ce créneau."""
