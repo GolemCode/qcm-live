@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
@@ -87,8 +87,8 @@ class Session(models.Model):
     def schedule(self) -> Schedule:
         return self._schedule(self.extensions.all())
 
-    def _schedule(self, extensions: Iterable[Extension]) -> Schedule:
-        clicks = Counter(extension.slot for extension in extensions)  # préchargées ou non
+    def _schedule(self, extensions: models.QuerySet[Extension]) -> Schedule:
+        clicks = Counter(extensions.values_list("slot", flat=True))
         extra = {slot: n * EXTRA_SECONDS for slot, n in clicks.items()}
         return Schedule(self.n_questions, self.shown, self.seconds, extra)
 

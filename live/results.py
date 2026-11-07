@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 ABSENT = "Absent"
 # Un tableur exécute une cellule qui commence ainsi : les noms viennent d'un fichier extérieur.
-FORMULA_PREFIXES = ("=", "+", "-", "@")
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")  # les deux derniers selon l'OWASP
 
 Answers = Mapping[int, Sequence[int]]  # indice de la question -> propositions choisies
 

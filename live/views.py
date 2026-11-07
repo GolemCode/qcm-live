@@ -21,6 +21,7 @@ from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from segno import DataOverflowError
 
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
@@ -34,6 +35,7 @@ CLEARED = "Réponse effacée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
 RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."
 SLOT_OVER = "Créneau terminé : aucun temps ajouté."
+QR_TOO_LARGE = "Trop de questions pour un QR code. Vos réponses sont bien enregistrées."
 
 
 def _ms(seconds: float) -> int:
@@ -69,8 +71,9 @@ def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
 @login_required
 def session_list(request: HttpRequest) -> HttpResponse:
     now = timezone.now()
-    # `content` et `roster` sont inutiles à la liste ; les ajouts de temps donnent la phase.
-    sessions = Session.objects.defer("content", "roster").prefetch_related("extensions")
+    # `content` et `roster` sont inutiles à la liste. La phase d'une session démarrée coûte une
+    # petite requête (ses ajouts de temps) : acceptable sur cette page de l'enseignant.
+    sessions = Session.objects.defer("content", "roster")
     rows = []
     for session in sessions:
         phase = session.state(now).phase
@@ -240,8 +243,11 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
         context["form"] = form
     elif participant is not None and state.phase == "ended":
         # FIN-01 : QR code des réponses, en texte UTF-8 lisible par toute application.
-        qr = segno.make(participant.receipt(), encoding="utf-8", micro=False)
-        context["qr_uri"] = qr.svg_data_uri(scale=1, border=4)
+        try:
+            qr = segno.make(participant.receipt(), encoding="utf-8", micro=False)
+            context["qr_uri"] = qr.svg_data_uri(scale=1, border=4)
+        except DataOverflowError:  # plus de 2 953 octets, soit quelque 300 questions
+            context["qr_error"] = QR_TOO_LARGE
     elif participant is not None and state.position is not None:
         # ETU-04, ETU-05 : couleur et propositions mélangées pour l'étudiant, jamais l'énoncé.
         slot = state.position.slot

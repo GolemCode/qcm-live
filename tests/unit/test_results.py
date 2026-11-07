@@ -87,6 +87,8 @@ def test_decimal_fr(value, text):
         ("+33", "'+33"),
         ("-2", "'-2"),
         ("@SUM(A1)", "'@SUM(A1)"),
+        ("\t=1", "'\t=1"),
+        ("\r=1", "'\r=1"),
         ("DUPONT=Jean", "DUPONT=Jean"),
         ("Ng Anh", "Ng Anh"),
         ("", ""),

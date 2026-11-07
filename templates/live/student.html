@@ -8,6 +8,7 @@
   {% if state.phase == "ended" %}
     <p class="identity">Session terminée.</p>
     {% if qr_uri %}<img class="qr" src="{{ qr_uri }}" alt="QR code de vos réponses">{% endif %}
+    {% if qr_error %}<p>{{ qr_error }}</p>{% endif %}
   {% elif not participant %}
     <form method="post" class="form" novalidate>
       {% csrf_token %}

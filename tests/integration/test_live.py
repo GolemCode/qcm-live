@@ -14,7 +14,7 @@ from live import forms as live_forms
 from live.forms import IdentifyForm
 from live.models import Answer, Extension, Participant, Session
 from live.schedule import Schedule
-from live.views import CLEARED, SAVED, SLOT_OVER
+from live.views import CLEARED, QR_TOO_LARGE, SAVED, SLOT_OVER
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
 
 pytestmark = pytest.mark.django_db
@@ -411,3 +411,13 @@ def test_receipt_follows_rotation_and_ignores_extra_time(client, running):
     Extension.objects.create(session=running, slot=0)
     running.refresh_from_db()
     assert participant.receipt() == f"Session {running.code}\nÉtudiant 1\nQ1 AB\nQ2 -"
+
+
+def test_receipt_too_large_for_a_qr_code_is_said_not_crashed(client, running, monkeypatch):
+    """Au-delà de la capacité d'un QR code (environ 300 questions), un message remplace le
+    QR code plutôt qu'une erreur serveur."""
+    monkeypatch.setattr(Participant, "receipt", lambda self: "Q1 A\n" * 1000)
+    rewind(running, running.schedule.duration)
+    content = client.get(reverse("student-session", args=[running.code])).content.decode()
+    assert QR_TOO_LARGE in content
+    assert "QR code de vos réponses" not in content
