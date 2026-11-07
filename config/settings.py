@@ -34,6 +34,11 @@ if not SECRET_KEY:
 DEBUG = env_bool("DJANGO_DEBUG")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
+# Adresse que les téléphones ouvrent, projetée au tableau (SES-01). Le mode classe
+# (config/classroom.py) y met celle du PC sur le réseau local ; à défaut, le tableau
+# affiche l'adresse par laquelle il a lui-même été ouvert.
+JOIN_URL = os.environ.get("QCM_JOIN_URL", "")
+
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -47,6 +52,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Fichiers statiques servis par l'application elle-même, hors mode debug (mode classe).
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -78,7 +85,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        # Changer de base sert aux tests du mode classe, lancé dans un autre processus.
+        "NAME": os.environ.get("DJANGO_DB_PATH") or BASE_DIR / "db.sqlite3",
         # Base de test dans un fichier, pas en mémoire : en mémoire partagée, SQLite refuse
         # aussitôt (« table is locked ») un accès concurrent entre le test et le serveur de
         # test, au lieu d'attendre. En fichier, il attend la fin de l'écriture, comme en usage.
@@ -104,7 +112,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+# whitenoise sert les fichiers là où ils sont, sans étape `collectstatic` : une poignée de
+# fichiers, lus une fois au démarrage.
+WHITENOISE_USE_FINDERS = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -116,4 +126,17 @@ SECURE_CSP = {
     "base-uri": [CSP.NONE],
     "form-action": [CSP.SELF],
     "frame-ancestors": [CSP.NONE],
+}
+
+# Hors mode debug, Django ne montre pas les erreurs des requêtes : en mode classe, elles
+# s'affichent dans le terminal. Les alertes de file d'attente de waitress, normales quand
+# toute la classe envoie au même instant, n'y figurent pas.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "waitress.queue": {"level": "ERROR"},
+    },
 }

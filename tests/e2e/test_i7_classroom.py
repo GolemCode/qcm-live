@@ -148,6 +148,7 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     missing = page.request.get(classroom.local_url + "/page-inexistante/")
     assert missing.status == 404
     assert "DEBUG = True" not in missing.text() and "URLconf" not in missing.text()
+    assert "Page introuvable" in missing.text()  # en français, comme toute l'interface
     # La politique de sécurité du contenu reste en place.
     assert "default-src 'self'" in response.headers.get("content-security-policy", "")
 
@@ -170,7 +171,7 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
 
     # Fin : le QR code sur le téléphone, la note sur le PC de l'enseignant.
     jump_to(session, 61)
-    assert qr_text(phone).splitlines()[1:] == ["Q1 A"]
+    assert qr_text(phone).splitlines() == [f"Session {session.code}", "Étudiant 00123", "Q1 A"]
     page.reload()
     open_results(page)
     assert results_rows(page)[0][:3] == ["00123", "DURAND Élise", "1"]

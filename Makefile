@@ -3,9 +3,10 @@
 
 RUN := uv run --env-file .env
 PYTEST := $(RUN) pytest
+PORT ?= 8000
 
 .DEFAULT_GOAL := help
-.PHONY: help setup run superuser lint test e2e check verify verify-tests accept
+.PHONY: help setup run classe superuser lint test e2e check verify verify-tests accept
 
 help: ## Liste des commandes
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -22,6 +23,9 @@ setup: .env ## Installe tout : dépendances, navigateur de test, hooks git, base
 run: .env ## Serveur de développement (http://localhost:8000)
 	$(RUN) python manage.py migrate
 	$(RUN) python manage.py runserver
+
+classe: .env ## Mode classe : serveur de production, ouvert aux téléphones du réseau local
+	$(RUN) python -m config.classroom --port $(PORT) $(if $(ADRESSE),--adresse $(ADRESSE))
 
 superuser: .env ## Crée un compte enseignant
 	$(RUN) python manage.py createsuperuser

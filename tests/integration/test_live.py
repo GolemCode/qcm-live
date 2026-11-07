@@ -7,6 +7,8 @@ from typing import cast
 import pytest
 from django.db import IntegrityError
 from django.forms import ModelChoiceField
+from django.template.loader import render_to_string
+from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
@@ -421,3 +423,25 @@ def test_receipt_too_large_for_a_qr_code_is_said_not_crashed(client, running, mo
     content = client.get(reverse("student-session", args=[running.code])).content.decode()
     assert QR_TOO_LARGE in content
     assert "QR code de vos réponses" not in content
+
+
+def test_board_projects_the_join_url_of_class_mode(admin_client, session, settings):
+    """CLA-01 : le PC ouvre le tableau en local, mais le tableau projette l'adresse du
+    réseau local ; sans mode classe, l'adresse par laquelle le tableau a été ouvert."""
+    board = reverse("board", args=[session.code])
+    assert "http://testserver/" in admin_client.get(board).content.decode()
+    settings.JOIN_URL = "http://192.168.1.23:8000/"
+    html = admin_client.get(board).content.decode()
+    assert "http://192.168.1.23:8000/" in html and "testserver" not in html
+
+
+def test_error_pages_are_in_french(client, session):
+    """Hors mode debug (mode classe), les pages d'erreur suivent l'interface : en français."""
+    missing = client.get("/page-inexistante/")
+    assert missing.status_code == 404 and "Page introuvable" in missing.content.decode()
+    csrf_client = Client(enforce_csrf_checks=True)
+    expired = csrf_client.post(reverse("student-session", args=[session.code]), {"number": "1"})
+    assert expired.status_code == 403 and "Formulaire expiré" in expired.content.decode()
+    assert "Erreur du serveur" in render_to_string("500.html")
+    unknown_host = client.get("/", headers={"host": "inconnu.example"})
+    assert unknown_host.status_code == 400 and "Requête refusée" in unknown_host.content.decode()
