@@ -406,3 +406,62 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Aucune nouvelle dépendance.**
 - **Une ligne par ajout de temps**, plutôt qu'un compteur ou une liste en JSON : l'insertion est atomique sans verrou, et l'historique des ajouts est conservé.
 - **Bouton « +10 s » sans script dédié** : un simple formulaire qui recharge le tableau, lequel recalcule le temps restant. Les téléphones le reçoivent à leur interrogation suivante, en 1 s au plus.
+
+---
+
+## I6 — Fin de session : QR code, résultats et export CSV
+
+### Objectif
+- **QR code (FIN-01).** À la fin, chaque téléphone identifié affiche un QR code de ses réponses : code de session, numéro, puis une ligne par question, dans l'ordre où l'étudiant l'a eue.
+- **Résultats (RES-01).** L'enseignant voit les notes calculées selon le barème AMC figé au lancement.
+- **Export (RES-02).** Il télécharge un CSV avec, pour chaque question, la réponse donnée et les points obtenus.
+
+### Questions et décisions
+- **Quatre questions posées au commanditaire avant le code, toutes tranchées selon ma recommandation :**
+  - la référence d'une question est son rang dans le QCM (Q1 à Qn). L'identifiant de banque prévu en I3 n'apparaissait nulle part dans l'interface ;
+  - les notes sont sur une page non projetée, disponible seulement une fois la session terminée ;
+  - les étudiants jamais connectés sont listés « Absent », sans note ;
+  - le CSV suit le format d'Excel en français : point-virgule, virgule décimale, UTF-8 avec BOM.
+- **Décisions dérivées, écrites dans SPEC.md :**
+  - le QR code est du texte brut, lisible par n'importe quelle application ;
+  - les créneaux manqués par un retardataire figurent dans le QR code, sans réponse ;
+  - dans le CSV, `-` signifie pas de réponse, et les cellules d'un absent sont vides ;
+  - la liste des sessions indique l'état de chacune ;
+  - au-delà de la capacité d'un QR code, un message remplace le QR code. Ce point est à confirmer.
+
+### Problèmes rencontrés
+- **Prouver ce que contient un QR code.** Une donnée cachée dans la page aurait permis un test facile, mais elle ne prouve pas que l'image est lisible. Le test fait une capture de l'image sur le téléphone émulé et la décode, comme le ferait un lecteur. Le texte est encodé en UTF-8 (« Étudiant »), et le décodage le confirme.
+- **Une lettre juste par hasard.** Avec un mélange aléatoire, une lettre calculée sur la position à l'écran plutôt que sur l'ordre du tableau tombe juste une fois sur six. Les tests forcent l'ordre inverse sur les téléphones, comme en I4.
+- **Un barème qui distingue chaque cas.** Avec le barème par défaut (b=1, m=0, v=0), une non-réponse et une mauvaise réponse valent pareil. Les tests utilisent donc un v non nul, un m négatif et un plancher, et chaque note attendue est calculée à la main dans un commentaire.
+- **Un test intermittent introduit par moi.** Le test « pas de QR code avant la fin » plaçait le déroulement à 1 s de l'échéance. Le téléphone, qui interroge l'état chaque seconde, sautait parfois le dernier créneau et passait directement à la fin : 3 échecs sur 5. Je l'ai repéré en relançant après `/simplify`. Le test laisse désormais 10 s de marge, puis avance à la fin. Résultat : 8 réussites sur 8, et le fichier entier 3 fois de suite sans échec. C'est consigné dans CLAUDE.md.
+- **Ce que les revues ont trouvé :**
+  - `/simplify` : la note affichée (« Absent » ou nombre) était décidée à trois endroits, et le barème relu à chaque question. J'ai aussi supprimé une requête par session dans la liste des sessions, en préchargeant les ajouts de temps ;
+  - `/code-review` : ce préchargement alourdissait les états interrogés chaque seconde et pouvait servir un cache périmé après un « +10 s ». J'ai annulé ce changement : une petite requête par session sur une page de l'enseignant coûte moins qu'un risque sur le chemin chaud. La revue a aussi relevé qu'un QCM d'environ 300 questions dépasse la capacité d'un QR code et provoquait une erreur 500. Un message la remplace désormais ;
+  - `/security-review` : aucune vulnérabilité. Notes protégées par la connexion et jamais projetées, QR code toujours celui de l'appareil identifié, CSV neutralisé.
+- **Ce que l'auditeur de spec a trouvé.** 31 contre-épreuves, dont 5 survivantes :
+  - l'ordre du fichier n'était pas prouvé, car l'ordre d'arrivée des téléphones était le même et l'absent était en dernier ;
+  - un étudiant connecté sans aucune réponse pouvait être marqué « Absent » ;
+  - avant la fin, des notes affichées en liste plutôt qu'en tableau passaient inaperçues ;
+  - un plancher appliqué à tort à v passait, parce que v était positif ;
+  - un total négatif neutralisé à tort dans le CSV passait, faute de total négatif.
+
+  Une seule modification des préconditions détecte les cinq : un fichier dans un autre ordre que l'arrivée, avec l'absent au milieu, un étudiant connecté qui ne répond jamais, et des v négatifs. Le test « avant la fin » fait aussi répondre un téléphone et vérifie qu'aucun nom n'apparaît. J'ai rejoué les 5 contre-épreuves : toutes détectées.
+  - Il a aussi soulevé une vraie question : Excel retire les zéros de tête d'un numéro à l'ouverture du CSV. Réponse du commanditaire : garder le numéro tel quel, la colonne se reformate en texte au besoin.
+- **Limite connue.** Le texte du QR code est encodé en UTF-8 sans marqueur ECI. zxing le lit correctement, mais un lecteur qui supposerait Latin-1 afficherait mal le « É » de « Étudiant ». Les chiffres et les lettres, qui portent l'information, restent justes.
+
+### Ce qui a bien marché
+- **Les modules purs** (`receipt.py`, `results.py`) se testent sans navigateur, avec les cas limites : nombres à la française, neutralisation, absent, plancher.
+- **La copie figée prévue dès I3.** Les résultats se calculent sans la banque ni le groupe. Le test le prouve en changeant le barème et en supprimant le groupe après le lancement.
+- **Les réponses en indices canoniques (I4)** donnent directement les lettres du tableau.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Une référence doit être visible là où on la lit.** L'identifiant de banque, figé dès I3 « pour le QR code », n'aurait servi à rien à l'enseignant. Il fallait poser la question plus tôt.
+- **Une optimisation sur une page rare peut coûter sur le chemin chaud.** Avant de précharger une relation, regarder qui d'autre lit le même code.
+- **Un test de temps doit laisser au téléphone le temps d'observer.** Une marge plus courte que la période d'interrogation rend le test aléatoire.
+- **Des préconditions trop régulières cachent des fautes.** Ordre d'arrivée identique à l'ordre du fichier, v positif, aucun total négatif : chaque coïncidence laisse passer une erreur. Choisir des données de test où chaque règle donne un résultat qu'aucune autre règle ne donnerait.
+
+### Choix techniques et leur raison
+- **segno**, prévu dès I0 : en pur Python, sans dépendance, il produit un SVG. Le SVG est servi en URI `data:` dans une balise `<img>`, ce que la CSP autorise déjà (`img-src data:`), et il ne peut exécuter aucun script.
+- **zxing-cpp et Pillow, en dépendances de test seulement** : décoder le QR code depuis une capture d'écran. Ce sont des paquets précompilés, sans bibliothèque système à installer, contrairement à pyzbar ; OpenCV aurait été beaucoup plus lourd.
+- **Pas de nouveau modèle.** Les résultats se recalculent à la demande, à partir de la copie figée et des réponses : rien à garder synchronisé.
+- **CSV écrit par le module standard `csv`**, qui gère les guillemets. Seuls les champs de texte venus de l'extérieur (numéro, nom) sont neutralisés, pas les nombres calculés.

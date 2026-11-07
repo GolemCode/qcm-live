@@ -92,14 +92,18 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   - La référence est le **rang de la question dans le QCM** figé (Q1 à Qn), comme dans les colonnes du CSV. *(décision I6)*
   - Le QR code contient du texte brut, lisible par toute application de lecture : une ligne `Session <code>`, une ligne `Étudiant <numéro>`, puis une ligne par question, par exemple `Q2 A`, `Q1 BD` (cases B et D cochées) ou `Q3 -`. *(dérivé)*
   - Les créneaux manqués par un retardataire (ETU-08) y figurent, sans réponse. Un téléphone rechargé réaffiche le QR code ; un téléphone non identifié n'en affiche pas. *(dérivé)*
+  - Au-delà de la capacité d'un QR code (environ 300 questions), le téléphone affiche « Trop de questions pour un QR code. Vos réponses sont bien enregistrées. » au lieu du QR code. *(dérivé, à confirmer)*
 - **[RES-01]** (I6) L'enseignant voit le tableau des résultats de la session : numéro, nom, note et note maximale. La note suit le barème AMC du QCM (§3).
-  - Les résultats sont sur une **page non projetée**, disponible une fois la session terminée. On l'ouvre depuis le tableau ou depuis la liste des sessions, qui indique l'état de chaque session (en attente, en cours, terminée). Avant la fin, la page n'affiche aucune note. *(décision I6)*
-  - Tous les étudiants du groupe figé sont listés, dans l'ordre du fichier importé. Ceux qui ne se sont jamais connectés sont marqués **« Absent »**, sans note. *(décision I6)*
+  - Les résultats sont sur une **page non projetée**, disponible une fois la session terminée. On l'ouvre depuis le tableau ou depuis la liste des sessions, qui indique l'état de chaque session (en attente, en cours, terminée). Avant la fin, la page n'affiche ni étudiant ni note. *(décision I6)*
+  - Le lien « Résultats » n'apparaît, au tableau comme dans la liste des sessions, qu'une fois la session terminée. *(dérivé)*
+  - Tous les étudiants du groupe figé sont listés, dans l'ordre du fichier importé. Ceux qui ne se sont jamais connectés sont marqués **« Absent »**, sans note. Un étudiant connecté qui n'a rien répondu n'est pas absent : chaque question lui vaut v. *(décision I6)*
   - Les nombres s'écrivent à la française, sans zéro inutile (1,75 ; 3 ; -0,5). *(dérivé)*
 - **[RES-02]** (I6) L'enseignant télécharge les résultats en CSV : une ligne par étudiant, avec la note et, pour chaque question, la réponse donnée et les points obtenus.
   - Format d'Excel en français : séparateur point-virgule, virgule décimale, UTF-8 avec BOM. Fichier `resultats-<code>.csv`. *(décision I6)*
+  - Le CSV n'est téléchargeable qu'une fois la session terminée. *(dérivé)*
+  - Le numéro est écrit tel quel. Excel, à l'ouverture, en retire les zéros de tête : on peut reformater la colonne en texte. *(décision I6)*
   - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres du tableau, `-` signifie aucune réponse. Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)*
-  - Un nom qui commence par `=`, `+`, `-` ou `@` est précédé d'une apostrophe, pour qu'un tableur n'exécute aucune formule. *(dérivé)*
+  - Un nom ou un numéro qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot est précédé d'une apostrophe, pour qu'un tableur n'exécute aucune formule. Les nombres calculés (notes, points) ne le sont jamais. *(dérivé)*
 
 ### Mode classe
 - **[CLA-01]** (I7) L'application se lance en mode classe sur le PC de l'enseignant : serveur de production local, sans mode debug. Elle fonctionne de bout en bout depuis les téléphones du réseau local, et l'adresse à ouvrir s'affiche.
@@ -177,3 +181,4 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Où et quand l'enseignant voit les notes (I6) | Page non projetée, une fois la session terminée |
 | Étudiants jamais connectés (I6) | Listés « Absent », sans note |
 | Format du CSV des résultats (I6) | Excel en français : « ; », virgule décimale, UTF-8 avec BOM |
+| Zéros de tête des numéros, perdus par Excel à l'ouverture du CSV (I6) | Numéro écrit tel quel ; colonne à reformater en texte au besoin |
