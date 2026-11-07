@@ -6,7 +6,7 @@ import time
 import pytest
 from playwright.sync_api import Page, expect
 
-from live.models import Answer
+from live.models import Answer, Extension
 from live.views import CLEARED, SAVED, TOO_LATE
 from tests.e2e.live_setup import (
     QUESTIONS,
@@ -125,6 +125,27 @@ def test_added_time_belongs_to_current_slot_only(teacher_page: Page, live_server
     expect_slot(phone, 2)
     timer_shows(phone, 28, 30)  # le troisième dure ses 30 s
     expect(card(page, 1).get_by_role("heading")).to_have_text("Deux plus deux ?")
+
+
+@pytest.mark.spec("TPS-01")
+def test_click_arriving_after_the_slot_adds_nothing(teacher_page: Page, live_server, new_phone):
+    """Le tableau n'a pas encore vu la fin du créneau quand l'enseignant clique : le clic vise
+    un créneau terminé et n'ajoute rien, ni à lui (pas de retour en arrière) ni au suivant."""
+    page = teacher_page
+    session = make_live(2, shown=1)
+    (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
+    timer_shows(page, 28, 30)
+    page.route(re.compile(r".*/etat/$"), lambda route: route.abort())  # tableau figé
+    jump_to(session, 30.5)
+    expect_slot(phone, 1)
+
+    add_time(page)
+    expect(page.get_by_role("status")).to_contain_text("Créneau terminé : aucun temps ajouté.")
+    expect(card(page, 1).get_by_role("heading")).to_have_text("Couleur du ciel ?")
+    timer_shows(page, 28, 29)
+    expect_slot(phone, 1)
+    timer_shows(phone, 28, 29)
+    assert not Extension.objects.exists()
 
 
 @pytest.mark.spec("ETU-09")
