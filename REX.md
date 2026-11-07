@@ -129,7 +129,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - Il compose des QCM : une sélection ordonnée de questions de la banque, une même question pouvant servir dans plusieurs QCM.
 - Il règle pour chaque QCM un barème à la manière d'Auto Multiple Choice (b, m, v, p).
 
-### Questions posées à la commanditaire
+### Questions posées au commanditaire
 - **Modifier et supprimer.** La spec dit « définir », sans plus. Réponse : créer, modifier et supprimer, d'où les nouvelles exigences BAN-05 à BAN-08.
 - **Plancher `p` et non-réponse.** `p` relève-t-il aussi `v` ? Réponse : non, `p` ne borne que la somme des cases.
 - **Décision prise sans poser la question.** Un QCM contient au moins une question : un QCM vide ne peut pas se lancer. C'est écrit dans BAN-03 et signalé dans la PR.
@@ -189,7 +189,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - L'enseignant importe un groupe nommé à partir d'un fichier CSV (numéro, nom), le consulte et le supprime.
 - Un fichier invalide est refusé en entier, avec un message qui désigne les lignes fautives.
 
-### Questions posées à la commanditaire
+### Questions posées au commanditaire
 - **Que faire d'un groupe après l'import ?** Réponse : importer, consulter, supprimer. Pour corriger une liste, on supprime le groupe puis on le réimporte (GRP-03).
 - **Format du numéro.** Réponse : chiffres uniquement, pour que le téléphone affiche le pavé numérique en I3.
 - **Format du CSV, choisi par moi** et décrit dans SPEC §2 bis, car c'est un détail technique :
@@ -247,13 +247,13 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - Le tableau projeté affiche l'adresse, le code et les noms des étudiants connectés, en direct. L'enseignant démarre la session.
 - Sur son téléphone, l'étudiant saisit le code puis son numéro et voit son nom. Son identité survit à un rechargement.
 
-### Questions posées à la commanditaire
+### Questions posées au commanditaire
 - **Recours quand un numéro est déjà pris** (téléphone en panne).
   - Ma première question, trop abstraite, a reçu une réponse à côté : « le numéro est fixe toute l'année ».
   - Reformulée sur un scénario concret (Alice, batterie vide, emprunte le téléphone d'un voisin), elle a reçu une réponse claire : aucun recours dans l'application, l'enseignant a des copies papier d'AMC.
   - Leçon : une question fonctionnelle se pose sur un scénario, pas sur une règle.
 - **Ce que projette la liste des connectés.** Les noms seulement, pas les numéros.
-- **Quand le contenu est figé.** Au lancement et non au démarrage. Cela modifie l'hypothèse H8, que la commanditaire avait validée : c'est dit explicitement dans SPEC.md.
+- **Quand le contenu est figé.** Au lancement et non au démarrage. Cela modifie l'hypothèse H8, que le commanditaire avait validée : c'est dit explicitement dans SPEC.md.
 - **Confirmation sur le téléphone.** Le nom de l'étudiant.
 
 ### Problèmes rencontrés
@@ -296,7 +296,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Identité dans la session Django** (base de données côté serveur, simple clé dans le cookie). Le client ne peut pas la forger.
 - **Polling JSON chaque seconde** par un script externe (CSP stricte), qui insère du texte et jamais du HTML. Il s'arrête une fois la session démarrée.
 - **Aucune nouvelle dépendance.**
-- **Point d'attention transmis à la commanditaire.** Quelqu'un qui connaît le code peut, par un script, essayer tous les numéros du groupe et les réserver avant les vrais étudiants. Ceux-ci n'ont alors aucun recours dans l'application. La parade actuelle, déjà prévue par la spec, est que le tableau affiche les connectés avant le départ. Une vraie protection demanderait un secret par étudiant, ce qui est une décision fonctionnelle.
+- **Point d'attention transmis au commanditaire.** Quelqu'un qui connaît le code peut, par un script, essayer tous les numéros du groupe et les réserver avant les vrais étudiants. Ceux-ci n'ont alors aucun recours dans l'application. La parade actuelle, déjà prévue par la spec, est que le tableau affiche les connectés avant le départ. Une vraie protection demanderait un secret par étudiant, ce qui est une décision fonctionnelle.
 
 ---
 
@@ -306,17 +306,17 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 - **Le cœur de l'application.** Au tableau, les questions défilent par groupes de N, chacune sur sa couleur et avec son numéro. Les créneaux de t secondes passent seuls.
 - **Sur le téléphone**, l'étudiant voit la couleur de sa question et les propositions mélangées pour lui, jamais l'énoncé. Il répond, peut changer d'avis jusqu'à l'échéance, et sa réponse est refusée ensuite.
 - **La rotation** fait répondre chacun à toutes les questions, dans des ordres différents.
-- **Ajouté à la demande de la commanditaire :** avant le démarrage, l'enseignant peut libérer un numéro usurpé (SES-04).
+- **Ajouté à la demande du commanditaire :** avant le démarrage, l'enseignant peut libérer un numéro usurpé (SES-04).
 
 ### Questions et décisions
-- **Validées par la commanditaire :**
+- **Validées par le commanditaire :**
   - le délai de 2 s pour le « direct » ;
   - le recours contre l'usurpation : libération d'un numéro avant le démarrage, depuis une page non projetée qui montre les numéros. Je l'ai placé en I4 parce qu'il touche au démarrage.
 - **Décisions dérivées, écrites dans SPEC.md :**
   - réponse enregistrée à chaque choix, sans bouton « Valider » ;
   - propositions sans lettres sur le téléphone ;
   - écran « Session terminée » au tableau et sur les téléphones.
-- **Question ouverte, posée à la commanditaire :** sur une question simple (boutons radio), l'étudiant ne peut pas revenir à « pas de réponse ». C'est important, car AMC peut noter différemment une non-réponse (v) et une mauvaise réponse (m).
+- **Question ouverte, posée au commanditaire :** sur une question simple (boutons radio), l'étudiant ne peut pas revenir à « pas de réponse ». C'est important, car AMC peut noter différemment une non-réponse (v) et une mauvaise réponse (m).
 
 ### Problèmes rencontrés
 - **Concevoir le temps sans tâche de fond.** Le créneau en cours se calcule à partir de l'heure de démarrage, par un module pur. Chaque page et chaque état JSON le recalculent, et une page se recharge dès que son « jeton » (phase, groupe ou créneau) change.

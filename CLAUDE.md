@@ -4,7 +4,7 @@ Ce fichier est chargé au début de chaque session Claude Code. Il prime sur les
 
 ## Le projet
 QCM d'évaluation en direct en Django : les questions sont projetées, les étudiants répondent sur téléphone.
-- **SPEC.md** est la référence fonctionnelle. Le fonctionnel appartient à la commanditaire : toute ambiguïté se pose en question, jamais par une invention silencieuse.
+- **SPEC.md** est la référence fonctionnelle. Le fonctionnel appartient au commanditaire : toute ambiguïté se pose en question, jamais par une invention silencieuse.
 - **REX.md** est le retour d'expérience, une section par incrément, sans code.
 - Le plan initial (architecture, incréments, environnement) est résumé dans REX.md, section I0.
 

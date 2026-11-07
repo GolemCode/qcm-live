@@ -128,3 +128,19 @@ def phones_joined(new_phone, base_url: str, code: str, numbers) -> list[Page]:
         expect(identity(phone)).to_be_visible()
         phones.append(phone)
     return phones
+
+
+def add_time(page: Page) -> None:
+    """L'enseignant ajoute 10 secondes au créneau en cours, depuis le tableau (TPS-01)."""
+    page.get_by_role("button", name="+10 s").click()
+
+
+def clear_answer(phone: Page) -> None:
+    """L'étudiant efface sa réponse à une question simple (ETU-09)."""
+    phone.get_by_role("button", name="Effacer ma réponse").click()
+
+
+def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> None:
+    """Le temps restant affiché atteint, dans le délai, une valeur entre `low` et `high` s."""
+    values = "|".join(str(s) for s in range(low, high + 1))
+    expect(timer(screen)).to_have_text(re.compile(rf"^({values}) s$"), timeout=timeout)

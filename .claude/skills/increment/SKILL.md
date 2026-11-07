@@ -9,7 +9,7 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 
 ## 1. Démarrer
 1. `git switch main && git pull`, puis `git switch -c inc/<n>-<slug>`.
-2. Relire dans SPEC.md les exigences `(In)`. S'il y a une ambiguïté fonctionnelle, **poser la question** à la commanditaire avant de coder.
+2. Relire dans SPEC.md les exigences `(In)`. S'il y a une ambiguïté fonctionnelle, **poser la question** au commanditaire avant de coder.
 3. Si l'incrément comporte un choix de conception, passer en plan mode.
 4. Passer `[tool.qcm] increment = n` dans `pyproject.toml`.
 
@@ -35,7 +35,7 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 3. Lancer l'agent **`spec-auditor`** avec l'incrément n. Il ne doit rester aucune réserve bloquante.
 
 ## 6. Documenter
-- **SPEC.md** : y reporter les réponses de la commanditaire et les nouvelles précisions, sans changer un identifiant existant.
+- **SPEC.md** : y reporter les réponses du commanditaire et les nouvelles précisions, sans changer un identifiant existant.
 - **REX.md**, nouvelle section `I<n>` : objectif, problèmes rencontrés, ce qui a bien marché, ce que j'aurais dû savoir dès le départ, choix techniques et leur raison. Sans code.
 - **README.md** et **CLAUDE.md** si les commandes ou les règles changent.
 
@@ -45,4 +45,4 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 3. `gh pr checks --watch` en arrière-plan. Si un check échoue, corriger et pousser.
 4. CI verte : `gh pr merge --merge`.
 5. `git switch main && git pull && git tag inc-<n> && git push origin inc-<n>`.
-6. Résumer à la commanditaire ce qui est livré, ce qui ne l'est pas et les questions ouvertes.
+6. Résumer au commanditaire ce qui est livré, ce qui ne l'est pas et les questions ouvertes.

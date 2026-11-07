@@ -52,6 +52,13 @@ def new_phone(browser: Browser, playwright: Playwright) -> Iterator[Callable[[],
 
 
 @pytest.fixture
+def reversed_choices(monkeypatch):
+    """Propositions affichées en ordre inverse : l'indice canonique (A = 0) envoyé par le
+    téléphone diffère toujours de la position à l'écran."""
+    monkeypatch.setattr("live.models.shuffled", lambda n, seed: list(reversed(range(n))))
+
+
+@pytest.fixture
 def teacher_page(page: Page, live_server, teacher) -> Page:
     """Le PC de l'enseignant, connecté à son espace."""
     login(page, live_server.url)
