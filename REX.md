@@ -119,7 +119,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 | I5 | +10 secondes |
 | I6 | Fin : QR code, résultats, export CSV |
 | I7 | Mode classe : serveur de production local, E2E contre ce serveur |
-| I8 | Hébergement en ligne (conditionnel, selon la décision du professeur) |
+| I8 | Hébergement en ligne (conditionnel, selon la décision du professeur). *Le numéro a ensuite servi au retour du test réel : voir la section I8. L'hébergement reste conditionnel et sera numéroté le moment venu ; les mentions « I8 » de l'hébergement dans les sections plus anciennes datent de ce plan.* |
 
 ---
 
