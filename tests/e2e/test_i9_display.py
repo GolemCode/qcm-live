@@ -8,7 +8,7 @@ faux positif, et couvre aussi ce qui serait envoyé sans être visible.
 from __future__ import annotations
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, ViewportSize, expect
 
 from tests.e2e.live_setup import STUDENTS, expect_slot, open_board
 from tests.e2e.live_ui import (
@@ -139,11 +139,15 @@ def test_four_questions_at_once_by_default(teacher_page: Page, live_server, new_
         expect(card(page, color).get_by_role("heading")).to_contain_text(f"{color} : ")
     expect(card(page, 5)).to_have_count(0)
     assert phone_color(phone) == 1
-    # Les 4 énoncés tiennent à l'écran, sans défilement, même assez longs.
-    overflow = page.evaluate(
-        "() => document.documentElement.scrollHeight - document.documentElement.clientHeight"
-    )
-    assert overflow <= 0, overflow
+    # Les 4 énoncés tiennent à l'écran, sans défilement, même assez longs, y compris sur un
+    # projecteur de 720 lignes.
+    for width, height in ((1920, 1080), (1280, 720)):
+        size = ViewportSize(width=width, height=height)
+        page.set_viewport_size(size)
+        overflow = page.evaluate(
+            "() => document.documentElement.scrollHeight - document.documentElement.clientHeight"
+        )
+        assert overflow <= 0, (size, overflow)
 
 
 @pytest.mark.spec("SES-06")

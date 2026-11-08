@@ -44,10 +44,7 @@
       {% for card in cards %}
         <article class="qcard color-{{ card.color }}" aria-label="Couleur {{ card.color }}">
           <p class="badge">{{ card.color }}</p>
-          <h2>{{ card.question.text }}</h2>
-          <ol type="A">
-            {% for choice in card.question.choices %}<li>{{ choice.text }}</li>{% endfor %}
-          </ol>
+          <h2>{{ card.text }}</h2>
         </article>
       {% endfor %}
     </div>

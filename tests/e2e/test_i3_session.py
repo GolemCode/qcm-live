@@ -15,6 +15,7 @@ from tests.e2e.live_ui import (
     join,
     launch_session,
     open_sessions,
+    timer,
 )
 from tests.factories import make_group, make_question, make_quiz
 
@@ -92,7 +93,7 @@ def test_board_waiting_room(teacher_page: Page, live_server, new_phone, quiz_and
     expect(board).not_to_contain_text("00123")  # noms seulement, pas les numéros
 
     page.get_by_role("button", name="Démarrer").click()
-    expect(board).to_contain_text("Session démarrée")
+    expect(timer(page)).to_be_visible()
     expect(page.get_by_role("button", name="Démarrer")).to_have_count(0)
 
 

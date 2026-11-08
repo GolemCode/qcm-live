@@ -4,9 +4,9 @@ Préconditions communes : quatre questions, N = 2 (deux groupes de deux), t = 30
 barème qui distingue chaque cas (v et m négatifs et distincts, plancher p = 0 au-dessus du v
 des multiples : appliqué à tort à v, il se verrait). Les propositions sont
 affichées en ordre inverse sur les téléphones (`reversed_choices`) : une lettre calculée sur
-la position à l'écran, et non sur l'ordre du tableau, serait fausse.
+la position à l'écran, et non sur l'ordre de la banque, serait fausse.
 
-Questions, dans l'ordre du QCM (lettres du tableau) :
+Questions, dans l'ordre du QCM (lettres dans l'ordre de la banque) :
 - Q1 « Capitale de la France ? » : A Paris (juste), B Lyon, C Nice ;
 - Q2 « Couleur du ciel ? » : A Bleu (juste), B Vert, C Rouge ;
 - Q3 « Deux plus deux ? » : A Quatre (juste), B Trois, C Cinq ;

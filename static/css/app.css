@@ -115,12 +115,12 @@ button.big { font-size: 1.5rem; padding: 0.8rem 2rem; }
 .color-5 { background: #ffb74d; }
 .color-6 { background: #b39ddb; }
 
-/* Tableau en déroulement : les N questions côte à côte. */
+/* Tableau en déroulement : les énoncés des N questions, sur deux colonnes. */
 .board .page { max-width: none; }
 .timer { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0.25rem 0; }
-.qcards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
-.qcard { border-radius: 0.75rem; padding: 1rem 1.5rem; font-size: 1.4rem; color: var(--fg); }
-.qcard h2 { font-size: 1.6rem; margin: 0.25rem 0 0.75rem; }
+.qcards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 40%), 1fr)); }
+.qcard { border-radius: 0.75rem; padding: 1rem 1.5rem; color: var(--fg); overflow-wrap: anywhere; }
+.qcard h2 { font-size: clamp(1.25rem, 3vh, 2rem); line-height: 1.25; margin: 0.25rem 0 0.75rem; }
 .badge { display: inline-block; margin: 0; font-weight: 700; font-size: 1.25rem; }
 .qcard .badge { font-size: 2rem; }
 

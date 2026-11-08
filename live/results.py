@@ -29,7 +29,7 @@ Answers = Mapping[int, Sequence[int]]  # indice de la question -> propositions c
 class Mark:
     """Réponse donnée à une question et points obtenus."""
 
-    letters: str  # lettres du tableau ; "" : pas de réponse
+    letters: str  # A = première proposition de la question figée ; "" : pas de réponse
     points: Decimal
 
 
