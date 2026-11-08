@@ -170,6 +170,11 @@ def test_stop_marker_lives_in_real_git_dir_for_worktrees(tmp_path):
         "FOO=1 cat .env",
         "timeout 5 cat .env",
         "env cat .env",
+        # git affiche ou indexe le fichier : seules quelques sous-commandes sont sûres.
+        "git diff --no-index /dev/null .env",
+        "git add -f .env",
+        "git show HEAD:.env",
+        "cat<.env",
     ],
 )
 def test_guard_denies_more_ways_to_read_env(command):
@@ -184,6 +189,9 @@ def test_guard_denies_more_ways_to_read_env(command):
         "git check-ignore .env",
         "make classe ENV_FILE=.env.test",
         "cat .env.test",
+        'git commit -m "docs: ENV_FILE=.env"',
+        # Écrire un script n'est pas l'exécuter : un heredoc reste du texte.
+        "cat > run.sh <<EOF\ngit push --force\nEOF",
         # Le corps d'un heredoc est du texte : un message de commit peut citer la commande.
         "git commit -F - <<'EOF'\ncat .env\nEOF",
     ],
@@ -201,6 +209,13 @@ def test_guard_allows_commands_that_do_not_read_env(command):
         "env git push -f",
         # Un heredoc donné à un shell, lui, contient des commandes.
         "bash <<EOF\ngit commit --no-verify -m x\nEOF",
+        # Trouvés par /code-review.
+        "timeout -k 5 60 git push --force",
+        "env -i git push --force",
+        "env -u FOO git commit --no-verify -m x",
+        # La suite de ligne ne sépare pas une option de sa commande.
+        "git push \\\n --force origin inc/1-x",
+        "git commit \\\n --no-verify -m x",
     ],
 )
 def test_guard_sees_through_prefixes_and_shell_heredocs(command):
@@ -210,8 +225,34 @@ def test_guard_sees_through_prefixes_and_shell_heredocs(command):
 @pytest.mark.parametrize(
     "command",
     [
+        # Trouvés par /security-review : « << » n'annonce pas toujours un heredoc,
+        # et bash exécute bien les lignes suivantes.
+        'grep x <<< "abc"\ngit push --force origin x',
+        'echo "voir a <<X"\ngit push --force origin x',
+        'echo "<<X"\ngit push origin HEAD:main',
+        'git add -A && git commit -m "doc de <<EOF"\ngit commit --no-verify -m b',
+        "echo $((1<<2))\ngit commit --no-verify -m b",
+        'echo "<<X"\nSKIP=gitleaks git commit -m a',
+        'echo "<<X"\ncat .env',
+        # Le corps est donné à un shell, avant ou après le « << ».
+        "cat <<EOF | bash\ngit push --force origin x\nEOF",
+        "source /dev/stdin <<EOF\ngit push --force origin x\nEOF",
+        # La fin d'un heredoc au délimiteur composé doit être trouvée.
+        "cat <<'E-F' > f\ntexte\nE-F\ngit push --force origin x",
+    ],
+)
+def test_guard_does_not_mistake_a_double_chevron_for_a_heredoc(command):
+    assert guard.decide(command, branch="inc/1-x") is not None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
         "python3 -c \"print(open('.env').read())\"",
         "uv run --env-file .env python -c 'import os; print(os.environ)'",
+        # Une commande cachée dans une chaîne n'est pas analysée non plus.
+        'echo "$(cat .env)"',
+        "bash -c 'cat .env'",
     ],
 )
 def test_guard_is_not_a_security_boundary(command):
@@ -289,6 +330,12 @@ def test_gaps_open_pull_request_must_still_be_merged():
     gaps = stop.increment_gaps("6", I6_REX, "OPEN")
     assert len(gaps) == 1
     assert "fusionn" in gaps[0]
+
+
+def test_gaps_closed_pull_request_delivers_nothing():
+    gaps = stop.increment_gaps("6", I6_REX, "CLOSED")
+    assert len(gaps) == 1
+    assert "fermée" in gaps[0]
 
 
 def test_gaps_merged_pull_request_leaves_the_tag():
@@ -384,6 +431,26 @@ def test_stop_hook_reports_a_failing_check_before_the_procedure(tmp_path):
         "make check || true",
         "make check || echo raté",
         "make check &> v.log; tail v.log",
+        # Trouvés par /code-review : le masquage plus loin dans la chaîne.
+        "make check && echo ok; echo fin",
+        "make check && echo ok || true",
+        "make check && echo a\necho b",
+        "set -o pipefail; make check | tail -3; echo fin",
+        "set -o pipefail; make check | tail -3 || true",
+        "make check &",
+        # Un `exit` final ne vaut que s'il rend un vrai code.
+        "make verify; exit 0",
+        "make verify; echo x; exit 0",
+        "make check || exit 0",
+        "make check; exit",
+        # `+o` désactive pipefail.
+        "set +o pipefail; make check | tail",
+        # Les préfixes ne cachent pas la vérification.
+        "timeout --signal=KILL 60 make check | tail",
+        "time make check | tail",
+        "! make check; echo x",
+        "uv run --package foo pytest | tail",
+        "uv run --with-editable . pytest | tail",
     ],
 )
 def test_guard_denies_masked_exit_codes(command):
@@ -401,7 +468,15 @@ def test_guard_denies_masked_exit_codes(command):
         "set -euo pipefail\nuv run pytest | tail -3",
         "make verify > v.log 2>&1; code=$?; tail -25 v.log; exit $code",
         "make check || exit 1",
+        # Un pipe plus loin ne touche pas au code de la vérification.
+        "make verify > v.log 2>&1; code=$?; grep x v.log | cut -c1-9; exit $code",
+        "make check && echo ok | tail -1",
         "if make check; then git commit -m x; fi",
+        # Trouvés par /code-review : honnêtes, mais refusés à tort.
+        "make check &&\n git commit -m x",
+        "(make check) && git commit -m x",
+        "set -o pipefail; make check |\n tail -3",
+        "uv run pytest tests/unit \\\n -q && git commit -m x",
         # Ce ne sont pas des vérifications.
         "make help | grep check",
         "make -n check | grep env-file",

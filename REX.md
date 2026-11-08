@@ -565,7 +565,7 @@ Résultat : **aucun constat n'est faux.** J'en nuance trois sur des détails, sa
 - *Correction.* Les vérifications n'utilisent plus la vraie clé : `make check`, `make verify`, la CI, les tests du mode classe et le shell de Claude Code chargent `.env.test`, versionné et sans valeur. Seuls `make run`, `make classe` et `make superuser` lisent `.env`.
 - *Ce que la protection garantit vraiment, aujourd'hui :*
   - **Réel :** la clé n'entre jamais dans le dépôt (`.gitignore`, gitleaks en pre-commit et en CI, secret scanning de GitHub). L'outil Read refuse le fichier, par une règle de permission appliquée par Claude Code. Le fichier est illisible par les autres comptes de la machine (droits 600). Les vérifications ne chargent plus la clé.
-  - **Anti-accident seulement :** le garde Bash refuse toute commande qui nomme `.env` en argument, sauf celles qui ne le lisent pas (`ls`, `test`, `git`, `make`, `uv`…). Il reste contournable : `python3 -c` qui ouvre le fichier passe, et un test épingle cette limite pour que personne ne la croie levée. Claude Code tourne avec mes droits sur la machine, donc **rien n'empêche techniquement un agent de lire `.env`** : l'interdiction tient à la consigne. De plus, `uv run` est autorisé sans confirmation.
+  - **Anti-accident seulement :** le garde Bash refuse toute commande qui nomme `.env` en argument, sauf celles qui ne le lisent pas (`ls`, `test`, `make`, `uv`, `git commit`, `git status`…). Il reste contournable : `python3 -c` qui ouvre le fichier passe, comme `bash -c` ou une substitution dans une chaîne, et un test épingle cette limite pour que personne ne la croie levée. Claude Code tourne avec mes droits sur la machine, donc **rien n'empêche techniquement un agent de lire `.env`** : l'interdiction tient à la consigne. De plus, `uv run` est autorisé sans confirmation.
   - **Enjeu.** La clé est locale et se régénère : elle signe les sessions de l'application sur un PC. La fuite serait à corriger, pas à réparer.
 
 **2. Sandbox de Claude Code : exact, et écarté après essai.**
@@ -588,7 +588,7 @@ Résultat : **aucun constat n'est faux.** J'en nuance trois sur des détails, sa
 **4. Codes de retour masqués : exact, une nuance sur le second.**
 - *Vérifié.* En I5, le commit `8dfdcda` est parti malgré « 1 failed ». En I6, l'`echo` écrivait fidèlement « exit 2 » dans le journal : c'est le statut de la commande entière qui était 0, et non le texte de l'`echo`. Le défaut est le même : le code de retour n'a pas survécu. J'ai rejoué le nouveau garde sur les 455 commandes shell des 4 sessions : 127 vérifications passées dans un pipe sans `pipefail`, dont 46 après l'incident de I5, et 49 suites qui auraient remplacé le code de retour. La leçon n'était consignée nulle part.
 - *Correction.* Une règle dans CLAUDE.md, et un garde qui refuse une vérification (`make check`, `pytest`, `pyright`, `ruff`…) suivie d'un pipe sans `pipefail`, d'un `;` ou d'un `|| true`. Ce refus s'applique à mes propres commandes depuis cette section.
-- *Limite.* C'est une analyse de la commande : un script écrit à part, ou une boucle `for`, y échappe.
+- *Limite.* C'est une analyse de la commande : un script écrit à part, une boucle `for` ou un `bash -c` y échappent. Elle accepte aussi `exit $code` sans vérifier que `$code` vient bien de la vérification.
 
 **5. Tests « rouges » de I0 : exact, une nuance sur la citation.**
 - *Vérifié.* Le journal montre `config/urls.py` copié de côté, vidé, 6 échecs constatés, puis le fichier rétabli. Les commits s'étalent bien sur 51 secondes.

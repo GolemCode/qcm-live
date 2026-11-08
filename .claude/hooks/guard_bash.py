@@ -26,7 +26,12 @@ import sys
 SEPARATOR_CHARS = set(";&|()\n")
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # Commandes qui peuvent nommer .env sans en afficher le contenu.
-ENV_FILE_ALLOWED = {"ls", "stat", "test", "[", "git", "make", "uv"}
+ENV_FILE_ALLOWED = {"ls", "stat", "test", "[", "make", "uv"}
+GIT_ENV_FILE_ALLOWED = {"commit", "log", "status", "check-ignore", "ls-files"}
+# Préfixes qui ne changent pas la commande exécutée.
+BARE_PREFIXES = {"!", "time", "command", "nohup", "exec"}
+ENV_VALUE_FLAGS = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
+TIMEOUT_VALUE_FLAGS = {"-k", "--kill-after", "-s", "--signal"}
 # Options courtes de `git commit` qui consomment l'argument suivant (ex. -m "message").
 COMMIT_VALUE_FLAGS = set("mFCct")
 COMMIT_LONG_VALUE_FLAGS = {"--message", "--file", "--reuse-message", "--reedit-message"}
@@ -35,8 +40,9 @@ GIT_GLOBAL_VALUE_FLAGS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 TAG_REF = re.compile(r"^(refs/tags/)?inc-(\d+|r)$")
 # Redirections qui contiennent « & » sans être un séparateur de commandes (2>&1, &>fichier).
 FD_REDIRECT = re.compile(r"\d*>&\d*-?|&>>?")
-HEREDOC = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?")
-SHELL = re.compile(r"\b(ba|z|da)?sh\b")
+HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(?:'([^']+)'|\"([^\"]+)\"|(\w+))")
+SHELL = re.compile(r"(?<![\w.-])(ba|z|da)?sh\b|/dev/stdin")
+PIPES = {"|", "|&"}
 VERIFY_TARGETS = {"lint", "test", "e2e", "check", "verify", "verify-tests", "accept"}
 VERIFY_TOOLS = {"pytest", "pyright", "ruff"}
 UV_RUN_VALUE_FLAGS = {
@@ -44,9 +50,14 @@ UV_RUN_VALUE_FLAGS = {
     "--env-file",
     "--extra",
     "--group",
+    "--index",
+    "--only-group",
+    "--package",
     "--project",
     "--python",
     "--with",
+    "--with-editable",
+    "--with-requirements",
     "-p",
 }
 PIPE_MASKS = (
@@ -74,8 +85,12 @@ def _segments(text: str) -> list[Segment]:
     current: list[str] = []
     for word in lexer:
         if all(char in SEPARATOR_CHARS for char in word):
+            # `&&\n` vaut `&&`, et `)` laisse la place au séparateur qui le suit : `(a) && b`.
+            separator = word.strip("()\n") or "\n"
             if current:
-                segments.append((current, word))
+                segments.append((current, separator))
+            elif segments and separator != "\n":
+                segments[-1] = (segments[-1][0], separator)
             current = []
         else:
             current.append(word)
@@ -86,7 +101,9 @@ def _segments(text: str) -> list[Segment]:
 
 def split_segments(command: str) -> list[Segment]:
     """Comme _segments ; si le tout n'est pas analysable (apostrophe dans une ligne…),
-    analyse ligne par ligne en ignorant les seules lignes illisibles."""
+    analyse ligne par ligne en ignorant les seules lignes illisibles.
+    Une suite de ligne (`\\` en fin de ligne) ne sépare pas les arguments d'une commande."""
+    command = command.replace("\\\n", " ")
     try:
         return _segments(command)
     except ValueError:
@@ -101,18 +118,23 @@ def split_segments(command: str) -> list[Segment]:
 
 def strip_heredocs(command: str) -> str:
     """Retire le corps des heredocs : du texte (un message de commit…), pas des commandes.
-    Il reste analysé s'il est donné à un shell (`bash <<EOF`)."""
+
+    Dans le doute, le texte reste analysé : si un shell figure sur la ligne (`cat <<EOF | bash`),
+    ou si aucune ligne de fin n'existe (`<<` dans une chaîne, `$((1<<2))`).
+    """
+    lines = command.split("\n")
     kept: list[str] = []
-    delimiter = None
-    for line in command.split("\n"):
-        if delimiter is not None:
-            if line.strip() == delimiter:
-                delimiter = None
-            continue
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         kept.append(line)
+        i += 1
         match = HEREDOC.search(line)
-        if match and not SHELL.search(line[: match.start()]):
-            delimiter = match.group(1)
+        if match and not SHELL.search(line):
+            delimiter = next(group for group in match.groups() if group)
+            end = next((j for j in range(i, len(lines)) if lines[j].strip() == delimiter), None)
+            if end is not None:
+                i = end + 1
     return "\n".join(kept)
 
 
@@ -125,13 +147,15 @@ def skip_options(tokens: list[str], start: int, value_flags: set[str]) -> int:
 
 
 def effective_command(tokens: list[str]) -> list[str]:
-    """La commande réelle, sans ses préfixes : `VAR=x`, `env`, `timeout n`, `uv run [options]`."""
+    """La commande réelle, sans ses préfixes : `VAR=x`, `time`, `env`, `timeout n`, `uv run`…"""
     i = 0
     while i < len(tokens):
-        if ASSIGNMENT.match(tokens[i]) or tokens[i] == "env":
+        if ASSIGNMENT.match(tokens[i]) or tokens[i] in BARE_PREFIXES:
             i += 1
+        elif tokens[i] == "env":
+            i = skip_options(tokens, i + 1, ENV_VALUE_FLAGS)
         elif tokens[i] == "timeout":
-            i += 2
+            i = skip_options(tokens, i + 1, TIMEOUT_VALUE_FLAGS) + 1
         elif tokens[i : i + 2] == ["uv", "run"]:
             i = skip_options(tokens, i + 2, UV_RUN_VALUE_FLAGS)
         else:
@@ -153,18 +177,28 @@ def is_verification(command: list[str]) -> bool:
 
 
 def masks_exit_code(segments: list[Segment]) -> str | None:
-    """Renvoie la raison si le code de retour d'une vérification ne survit pas à la commande."""
-    last = segments[-1][0] if segments else []
+    """Renvoie la raison si le code de retour d'une vérification ne survit pas à la commande.
+
+    Après la vérification, seul `&&` le conserve jusqu'au bout, ou un `|` sous pipefail, ou
+    un `exit` final qui rend un vrai code (`exit $code`, jamais `exit` seul ni `exit 0`).
+    """
+    if not segments:
+        return None
+    final = segments[-1][0]
+    honest_exit = len(final) == 2 and final[0] == "exit" and final[1] != "0"
     pipefail = False
-    for tokens, separator in segments:
-        if tokens[0] == "set" and any("pipefail" in token for token in tokens):
-            pipefail = True
+    for index, (tokens, _) in enumerate(segments):
+        if tokens[0] == "set" and "pipefail" in tokens:
+            pipefail = "+o" not in tokens
         if not is_verification(effective_command(tokens)):
             continue
-        if separator in {"|", "|&"}:
-            if not pipefail:
-                return PIPE_MASKS
-        elif tokens is not last and separator != "&&" and last[0] != "exit":
+        separators = [separator for _, separator in segments[index:-1]]
+        if segments[-1][1] == "&":
+            separators.append("&")
+        # Plus loin dans la chaîne, un pipe ne touche plus au code de la vérification.
+        if separators and separators[0] in PIPES and not pipefail:
+            return PIPE_MASKS
+        if not honest_exit and any(s != "&&" and s not in PIPES for s in separators):
             return SEQUENCE_MASKS
     return None
 
@@ -220,8 +254,15 @@ def check_push(args: list[str], branch: str) -> str | None:
 
 
 def names_env_file(token: str) -> bool:
-    value = token.rsplit("=", 1)[-1]  # dd if=.env
+    value = re.split(r"[=<>:]", token)[-1]  # dd if=.env, cat<.env, git show HEAD:.env
     return value == ".env" or value.endswith("/.env")
+
+
+def may_name_env_file(command: list[str]) -> bool:
+    if command[0] == "git":
+        sub = git_subcommand(command)
+        return sub is not None and sub[0] in GIT_ENV_FILE_ALLOWED
+    return command[0] in ENV_FILE_ALLOWED
 
 
 def decide(command: str, branch: str) -> str | None:
@@ -236,8 +277,8 @@ def decide(command: str, branch: str) -> str | None:
         effective = effective_command(tokens)
         if (
             effective
-            and effective[0] not in ENV_FILE_ALLOWED
-            and any(names_env_file(t) for t in effective[1:])
+            and not may_name_env_file(effective)
+            and any(names_env_file(t) for t in effective)
         ):
             return "Le fichier .env contient des secrets : ne pas le lire."
         sub = git_subcommand(effective)

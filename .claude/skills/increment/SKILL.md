@@ -26,7 +26,7 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 
 ## 4. Vérifier
 1. `make verify` vert : lint, types, tous les tests, couverture de la spec, couverture du code ≥ 90 %.
-2. `make accept INC=n` : toutes les exigences de l'incrément sont **OK**.
+2. `make accept INC=n` : toutes les exigences de l'incrément sont **OK**. Un incrément sans exigence (R) se vérifie avec le dernier numéro livré (`INC=7`).
 3. Contrôle visuel : écrire un script de capture Playwright dans le scratchpad, à 1920x1080 et en Pixel 7, puis lire les PNG avec Read. L'interface doit être sobre et lisible de loin.
 
 ## 5. Revues

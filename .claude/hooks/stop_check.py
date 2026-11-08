@@ -81,6 +81,8 @@ def increment_gaps(increment: str, rex: str, pr_state: str | None) -> list[str]:
         gaps.append("Aucune PR ouverte (ou gh indisponible) : pousser la branche et ouvrir la PR.")
     elif pr_state == "OPEN":
         gaps.append("La PR n'est pas fusionnée : attendre la CI verte, puis `gh pr merge --merge`.")
+    elif pr_state == "CLOSED":
+        gaps.append("La PR est fermée sans fusion : rien n'est livré dans main.")
     elif pr_state == "MERGED":
         gaps.append(f"PR fusionnée : revenir sur main, puis poser le tag inc-{increment}.")
     return gaps
