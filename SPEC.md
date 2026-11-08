@@ -59,6 +59,11 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   - les **noms** des étudiants connectés, sans leur numéro, avec le décompte « k / n connectés ». La liste se met à jour en direct, en 2 secondes au plus, sans recharger la page.
 
   L'enseignant clique sur « Démarrer ». *(dérivé)*
+- **[SES-05]** (I8) Avant le départ, le tableau affiche aussi un **QR code pour rejoindre la session**, pour que l'étudiant n'ait à taper ni l'adresse ni le code. Le lire ouvre directement l'écran de cette session sur le téléphone, où il ne reste à saisir que le numéro d'étudiant (ETU-01).
+  - L'adresse et le code restent affichés en texte, pour un téléphone qui ne lit pas le QR code. *(dérivé)*
+  - Le QR code disparaît au démarrage : le tableau en déroulement n'affiche que les questions. Un retardataire (ETU-08) passe par l'adresse et le code. *(décision I8)*
+  - En mode classe, il contient l'adresse du PC sur le réseau local (CLA-01), même si le tableau est ouvert en `localhost`. *(dérivé)*
+  - Un téléphone déjà identifié qui le lit retrouve son écran, sans nouvelle saisie (ETU-03). *(dérivé)*
 - **[SES-03]** (I3) Le QCM et la liste du groupe sont **figés au lancement**. Modifier ou supprimer ensuite le QCM, ses questions ou le groupe ne change pas la session.
 - **[ETU-01]** (I3) L'étudiant ouvre l'application sur son téléphone, à l'adresse projetée. Il saisit l'identifiant de session, puis son numéro d'étudiant, sur le pavé numérique. Son téléphone affiche alors son nom, pour confirmer son identité.
 - **[ETU-02]** (I3) Un identifiant de session inconnu est refusé. Un numéro absent du groupe de la session est refusé. Un numéro déjà utilisé dans la session, depuis un autre appareil, est refusé : il reste lié à ce premier appareil, sauf si l'enseignant le libère avant le démarrage (SES-04).
@@ -88,11 +93,8 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée. Le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ; un clic arrivé après la fin du créneau n'ajoute rien. *(emplacement et clic tardif : dérivé)*
 
 ### Fin de session et résultats
-- **[FIN-01]** (I6) À la fin de la session, chaque téléphone affiche un QR code. Il contient le code de session, le numéro de l'étudiant et, pour chaque question dans l'ordre où il l'a eue, la référence de la question et la réponse donnée. Les lettres sont celles du tableau, et `-` signifie aucune réponse.
-  - La référence est le **rang de la question dans le QCM** figé (Q1 à Qn), comme dans les colonnes du CSV. *(décision I6)*
-  - Le QR code contient du texte brut, lisible par toute application de lecture : une ligne `Session <code>`, une ligne `Étudiant <numéro>`, puis une ligne par question, par exemple `Q2 A`, `Q1 BD` (cases B et D cochées) ou `Q3 -`. *(dérivé)*
-  - Les créneaux manqués par un retardataire (ETU-08) y figurent, sans réponse. Un téléphone rechargé réaffiche le QR code ; un téléphone non identifié n'en affiche pas. *(dérivé)*
-  - Au-delà de la capacité d'un QR code (environ 300 questions), le téléphone affiche « Trop de questions pour un QR code. Vos réponses sont bien enregistrées. » au lieu du QR code. *(dérivé, à confirmer)*
+- *FIN-01 (livrée en I6, retirée en I8).* Le QR code des réponses, affiché en fin de session sur le téléphone, est retiré avec l'accord du professeur : son but n'avait jamais été établi. L'identifiant n'est pas réattribué.
+- **[FIN-02]** (I8) À la fin de la session, le téléphone indique seulement que la session est terminée : ni QR code, ni réponses, ni note.
 - **[RES-01]** (I6) L'enseignant voit le tableau des résultats de la session : numéro, nom, note et note maximale. La note suit le barème AMC du QCM (§3).
   - Les résultats sont sur une **page non projetée**, disponible une fois la session terminée. On l'ouvre depuis le tableau ou depuis la liste des sessions, qui indique l'état de chaque session (en attente, en cours, terminée). Avant la fin, la page n'affiche ni étudiant ni note. *(décision I6)*
   - Le lien « Résultats » n'apparaît, au tableau comme dans la liste des sessions, qu'une fois la session terminée. *(dérivé)*
@@ -108,9 +110,9 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 ### Mode classe
 - **[CLA-01]** (I7) L'application se lance en mode classe sur le PC de l'enseignant : serveur de production local, sans mode debug. Elle fonctionne de bout en bout depuis les téléphones du réseau local, et l'adresse à ouvrir s'affiche.
   - Une commande : `make classe` (port 8000 par défaut). Le mode debug est toujours désactivé, quel que soit le réglage de `.env`. *(dérivé)*
-  - L'adresse à ouvrir sur les téléphones est celle du PC sur le réseau local (par exemple `http://192.168.1.23:8000/`). Elle s'affiche dans le terminal, avec celle de l'espace enseignant, et le tableau la projette (SES-01) même s'il est ouvert en `localhost`. *(dérivé)*
+  - L'adresse à ouvrir sur les téléphones est celle du PC sur le réseau local (par exemple `http://192.168.1.23:8000/`). Elle s'affiche dans le terminal, avec celle de l'espace enseignant, et le tableau la projette (SES-02) même s'il est ouvert en `localhost`. *(dérivé)*
   - Si la détection choisit la mauvaise interface réseau, l'enseignant impose l'adresse (`ADRESSE=…`). *(dérivé)*
-  - En mode classe, l'espace enseignant (connexion, notes, pilotage) ne s'ouvre que sur le PC de l'enseignant ; depuis un autre appareil, il est refusé. Les étudiants partagent le réseau du serveur, et la connexion passe en clair (HTTP). *(dérivé, à confirmer)*
+  - En mode classe, l'espace enseignant (connexion, notes, pilotage) ne s'ouvre que sur le PC de l'enseignant ; depuis un autre appareil, il est refusé. *(décision du commanditaire, définitive)* Les étudiants partagent le réseau du serveur, et la connexion passe en clair (HTTP). *(dérivé)*
   - Toute une classe (40 téléphones) peut valider son numéro, puis répondre, au même instant, sans qu'aucune requête échoue. *(dérivé)*
   - Hors mode debug, les pages d'erreur (page introuvable, requête refusée, formulaire expiré, erreur du serveur) sont en français, comme le reste de l'interface. *(dérivé)*
 
@@ -153,7 +155,16 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. La parade actuelle : l'enseignant voit au tableau la liste des noms connectés avant le départ (SES-02). En cas de doute, il passe aux copies papier.
 - **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants. Le recours retenu (SES-04) : l'enseignant voit la liste des connectés au tableau et libère les numéros usurpés avant le démarrage.
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
-- **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel I8) devient nécessaire.
+- **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel, à numéroter le moment venu) devient nécessaire. Le parcours complet a réussi avec un vrai téléphone sur un Wi-Fi domestique, serveur lancé depuis Windows (hors WSL) ; le Wi-Fi de l'école **n'a pas encore été testé**.
+
+## 5 bis. Questions ouvertes, en attente du professeur
+
+Rien de ce qui suit n'est implémenté.
+
+- **Import en masse des questions.** Plusieurs centaines de questions, sur plusieurs matières, au format AMC probablement. Un fichier d'exemple est attendu.
+- **Organisation des banques et composition des QCM.** Un fichier AMC contient-il exactement les questions d'un QCM, ou un ensemble plus large dans lequel on tire ? Contrainte déjà posée : une question ne doit jamais retomber pour une même promo.
+- **Contenu des énoncés.** Images, formules et code (aujourd'hui, texte brut seulement : §4).
+- **Barème exact des questions à réponses multiples** (aujourd'hui, le §3).
 
 ## 6. Journal des décisions du commanditaire
 
@@ -189,3 +200,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 | Format du CSV des résultats (I6) | Excel en français : « ; », virgule décimale, UTF-8 avec BOM |
 | Zéros de tête des numéros, perdus par Excel à l'ouverture du CSV (I6) | Numéro écrit tel quel ; colonne à reformater en texte au besoin |
 | Lancement en classe (I7) | Aucune question fonctionnelle : décisions dérivées sous CLA-01, à valider |
+| Espace enseignant réservé au PC en mode classe (après I7) | Oui, de façon définitive |
+| QR code des réponses en fin de session, FIN-01 (après I7) | Retiré, avec l'accord du professeur : son but n'avait jamais été établi |
+| Rejoindre sans taper l'adresse ni le code (après I7) | QR code au tableau (SES-05) |
+| QR code de jonction pendant le déroulement (I8) | Non : avant le démarrage seulement |

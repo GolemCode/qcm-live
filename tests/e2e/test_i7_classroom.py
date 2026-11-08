@@ -43,6 +43,7 @@ from tests.e2e.live_ui import (
     choose,
     identity,
     join,
+    join_qr,
     open_results,
     qr_text,
     results_rows,
@@ -158,6 +159,12 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     hint = page.get_by_text(re.compile(r"^Sur votre téléphone, ouvrez "))
     projected = re.search(r"http://\S+", hint.inner_text())
     assert projected and projected.group(0) == classroom.phone_url
+    # Le QR code du tableau pointe lui aussi vers cette adresse, et un téléphone peut le suivre.
+    scanned = qr_text(join_qr(page))
+    assert scanned == f"{classroom.phone_url}s/{session.code}/"
+    reader = new_phone()
+    reader.goto(scanned)
+    expect(reader.get_by_label("Numéro d'étudiant")).to_be_visible()
 
     # Serveur de production local, sans mode debug.
     response = page.request.get(classroom.local_url + "/")
@@ -210,9 +217,9 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     expect(save_status(phone)).to_have_text("Réponse enregistrée")
     assert Answer.objects.filter(participant__number="00123").count() == 1
 
-    # Fin : le QR code sur le téléphone, la note sur le PC de l'enseignant.
+    # Fin : le téléphone l'indique, la note est sur le PC de l'enseignant.
     jump_to(session, 61)
-    assert qr_text(phone).splitlines() == [f"Session {session.code}", "Étudiant 00123", "Q1 A"]
+    expect(phone.get_by_role("main")).to_contain_text("Session terminée")
     page.reload()
     open_results(page)
     assert results_rows(page)[0][:3] == ["00123", "DURAND Élise", "1"]

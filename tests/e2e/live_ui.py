@@ -157,16 +157,16 @@ def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> 
     expect(timer(screen)).to_have_text(re.compile(rf"^({values}) s$"), timeout=timeout)
 
 
-def qr_code(phone: Page) -> Locator:
-    """QR code des réponses affiché sur le téléphone à la fin de la session (FIN-01)."""
-    return phone.get_by_role("img", name="QR code de vos réponses")
+def join_qr(page: Page) -> Locator:
+    """QR code affiché au tableau pour rejoindre la session (SES-05)."""
+    return page.get_by_role("img", name="QR code pour rejoindre la session")
 
 
-def qr_text(phone: Page) -> str:
-    """Contenu du QR code, décodé depuis une capture de l'écran du téléphone, comme le
-    ferait une application de lecture."""
-    expect(qr_code(phone)).to_be_visible()
-    image = Image.open(io.BytesIO(qr_code(phone).screenshot()))
+def qr_text(qr: Locator) -> str:
+    """Contenu du QR code, décodé depuis une capture de l'écran, comme le ferait le lecteur
+    d'un téléphone."""
+    expect(qr).to_be_visible()
+    image = Image.open(io.BytesIO(qr.screenshot()))
     codes = zxingcpp.read_barcodes(image)
     assert [code.format for code in codes] == [zxingcpp.BarcodeFormat.QRCode], codes
     return codes[0].text
