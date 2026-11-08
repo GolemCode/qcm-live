@@ -4,7 +4,8 @@ Refusé :
 - contourner les hooks git (`--no-verify`, `commit -n`, variable `SKIP=` de pre-commit) ;
 - pousser en force (`--force`, `-f`, refspec `+…`) ;
 - pousser ou committer sur main (seuls les tags d'incrément peuvent partir de main) ;
-- nommer le fichier .env dans une commande (secrets locaux), sauf celles qui ne le lisent pas ;
+- nommer le fichier .env dans une commande, ou le charger par `uv run --env-file` (secrets
+  locaux), sauf quelques commandes autorisées, dont certaines peuvent le lire (`git commit -F`) ;
 - masquer le code de retour d'une vérification (pipe sans pipefail, `;` ou `|| true` après elle).
 
 L'analyse se fait sur les arguments (shlex) et non sur le texte brut, pour ne pas confondre
@@ -25,7 +26,7 @@ import sys
 
 SEPARATOR_CHARS = set(";&|()\n")
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-# Commandes qui peuvent nommer .env sans en afficher le contenu.
+# Commandes autorisées à nommer .env : usages courants, mais pas une garantie (`make -f .env`).
 ENV_FILE_ALLOWED = {"ls", "stat", "test", "[", "make", "uv"}
 GIT_ENV_FILE_ALLOWED = {"commit", "log", "status", "check-ignore", "ls-files"}
 # Préfixes qui ne changent pas la commande exécutée.
@@ -278,7 +279,7 @@ def decide(command: str, branch: str) -> str | None:
         if (
             effective
             and not may_name_env_file(effective)
-            and any(names_env_file(t) for t in effective)
+            and any(names_env_file(t) for t in tokens)
         ):
             return "Le fichier .env contient des secrets : ne pas le lire."
         sub = git_subcommand(effective)

@@ -24,7 +24,7 @@ Tu n'es **pas** en lecture seule, et rien ne t'y oblige techniquement : tu n'as 
 5. **Contre-épreuves.**
    - Pour chaque exigence douteuse, casser le comportement dans ta copie : retirer une règle, la limiter à la création, inverser un tri, changer une valeur par défaut…
    - Vérifier qu'au moins un test échoue. Une mutation qui survit est une preuve de test faible.
-   - Annuler chaque mutation (`git checkout -- .`) avant la suivante, et finir avec une copie propre : elle est alors supprimée automatiquement.
+   - Annuler chaque mutation (`git checkout -- .`, seul dans sa commande : le harnais peut refuser git dans une commande composée) avant la suivante, et finir avec une copie propre : elle est alors supprimée automatiquement.
 6. Lancer `make accept INC=n` et vérifier que la sortie est cohérente avec ton analyse.
 7. Vérifier que SPEC.md et REX.md ont une section à jour pour l'incrément.
 

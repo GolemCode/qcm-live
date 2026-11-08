@@ -54,9 +54,14 @@ def test_added_time_in_real_time(teacher_page: Page, live_server, new_phone):
     expect(save_status(phone)).to_have_text(SAVED)
     assert Answer.objects.filter(participant__session=session, question=0).exists()
 
-    # Le second créneau commence 15 s après le départ, et non 10 s.
+    # Le second créneau commence 15 s après le départ, et non 10 s. On lit l'instant où le
+    # téléphone a rechargé sa page : l'attente de Playwright s'espace jusqu'à 1 s et fausserait
+    # la borne (échecs intermittents, à 17,1 s pour 17 s).
     expect_slot(phone, 1, timeout=15_000)
-    assert 13.5 <= time.monotonic() - t0 <= 15 + LIVE_MS / 1000
+    session.refresh_from_db()
+    assert session.started_at
+    reloaded_at = phone.evaluate("performance.timeOrigin") / 1000
+    assert 15 <= reloaded_at - session.started_at.timestamp() <= 15 + LIVE_MS / 1000
     expect(card(page, 1).get_by_role("heading")).to_have_text("Couleur du ciel ?", timeout=LIVE_MS)
     timer_shows(phone, 3, 5)  # attendu : le compte à rebours se remplit après le rechargement
     timer_shows(page, 3, 5)

@@ -114,6 +114,7 @@ def class_mode(*make_args: str) -> Iterator[Classroom]:
                 continue
             if match := PHONE_URL_RE.search(line):
                 phone_url = match.group(1)
+        assert any("--env-file .env.test" in line for line in output), "".join(output)
         yield Classroom(f"http://localhost:{port}", phone_url, output)
     finally:
         os.killpg(process.pid, signal.SIGTERM)

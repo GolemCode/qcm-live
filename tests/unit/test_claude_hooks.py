@@ -25,9 +25,16 @@ guard = load("guard_bash")
 
 
 def _run_hook(
-    name: str, payload: object = None, project: Path | None = None
+    name: str,
+    payload: object = None,
+    project: Path | None = None,
+    first_on_path: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project)} if project else None
+    env = dict(os.environ)
+    if project:
+        env["CLAUDE_PROJECT_DIR"] = str(project)
+    if first_on_path:
+        env["PATH"] = f"{first_on_path}{os.pathsep}{env['PATH']}"
     return subprocess.run(
         [sys.executable, HOOKS / f"{name}.py"],
         input=None if payload is None else json.dumps(payload),
@@ -70,7 +77,7 @@ def test_guard_denies(command):
         "git commit -m 'feat: x'",
         "git push -u origin inc/1-banque",
         "git push --force-with-lease origin inc/1-banque",
-        "uv run --env-file .env pytest",
+        "uv run --env-file .env.test pytest",
         "cat .env.example",
         "make verify",
         "git push origin inc-1",
@@ -170,6 +177,9 @@ def test_stop_marker_lives_in_real_git_dir_for_worktrees(tmp_path):
         "FOO=1 cat .env",
         "timeout 5 cat .env",
         "env cat .env",
+        # Charger la vraie clé dans un processus : plus aucune vérification n'en a besoin.
+        "uv run --env-file .env pytest",
+        "uv run --env-file=.env printenv DJANGO_SECRET_KEY",
         # git affiche ou indexe le fichier : seules quelques sous-commandes sont sûres.
         "git diff --no-index /dev/null .env",
         "git add -f .env",
@@ -237,6 +247,8 @@ def test_guard_sees_through_prefixes_and_shell_heredocs(command):
         # Le corps est donné à un shell, avant ou après le « << ».
         "cat <<EOF | bash\ngit push --force origin x\nEOF",
         "source /dev/stdin <<EOF\ngit push --force origin x\nEOF",
+        # Une ligne illisible n'empêche pas d'analyser les suivantes.
+        "bash <<EOF\nl'apostrophe\ngit push --force origin x\nEOF",
         # La fin d'un heredoc au délimiteur composé doit être trouvée.
         "cat <<'E-F' > f\ntexte\nE-F\ngit push --force origin x",
     ],
@@ -249,7 +261,8 @@ def test_guard_does_not_mistake_a_double_chevron_for_a_heredoc(command):
     "command",
     [
         "python3 -c \"print(open('.env').read())\"",
-        "uv run --env-file .env python -c 'import os; print(os.environ)'",
+        "git commit -F .env",
+        "cat .en?",
         # Une commande cachée dans une chaîne n'est pas analysée non plus.
         'echo "$(cat .env)"',
         "bash -c 'cat .env'",
@@ -272,7 +285,7 @@ def test_test_env_is_tracked_and_holds_no_secret():
     key = next(line for line in content.splitlines() if line.startswith("DJANGO_SECRET_KEY="))
     assert "pas-un-secret" in key
     tracked = subprocess.run(
-        ["git", "check-ignore", "-q", ".env.test"], cwd=REPO, check=False
+        ["git", "check-ignore", "--no-index", "-q", ".env.test"], cwd=REPO, check=False
     ).returncode
     assert tracked == 1  # 1 : le fichier n'est pas ignoré
 
@@ -294,6 +307,8 @@ def test_quality_targets_never_load_the_real_env(target):
 def test_class_mode_uses_the_real_env_unless_told_otherwise():
     assert "--env-file .env " in _make_dry_run("classe")
     assert "--env-file .env.test " in _make_dry_run("classe", "ENV_FILE=.env.test")
+    # -B : même si .env existe sur ce poste, le mode classe de test n'en dépend pas.
+    assert "gen_env" not in _make_dry_run("-B", "classe", "ENV_FILE=.env.test")
 
 
 # --- Audit externe (R), constat 3 : le hook Stop vérifie que la procédure est allée au bout.
@@ -317,6 +332,19 @@ def test_gaps_audit_of_another_increment_does_not_count():
 def test_gaps_mere_mention_of_the_auditor_does_not_count():
     """La section R citait l'agent dans un constat, sans qu'aucun audit ait eu lieu."""
     rex = "## R — x\n**6. Agent `spec-auditor` « en lecture seule » : exact.**\n"
+    assert "spec-auditor" in " ".join(stop.increment_gaps("r", rex, "OPEN"))
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Le hook cherche la ligne « Audit spec-auditor : abc1234 » dans le REX.",
+        "Audit spec-auditor : <commit>",
+        "Audit spec-auditor : ",
+    ],
+)
+def test_gaps_audit_line_must_start_the_line_and_name_a_commit(line):
+    rex = f"## R — x\n{line}\n"
     assert "spec-auditor" in " ".join(stop.increment_gaps("r", rex, "OPEN"))
 
 
@@ -364,19 +392,37 @@ def test_gaps_on_main_only_the_tag_can_be_missing(last_merge, tags, expected):
     assert len(stop.missing_tag(last_merge, tags)) == expected
 
 
-def _project(path: Path, branch: str) -> Path:
-    repo = _repo(path)
+def _project(
+    path: Path,
+    branch: str,
+    rex: str = "## I5 — x\n",
+    merge: str = "Incrément 5 : x (#6)",
+    tag: str = "inc-5",
+) -> Path:
+    repo = _repo(path / "repo")
     (repo / "Makefile").write_text("check:\n\t@true\n")
-    (repo / "REX.md").write_text("## I5 — x\n")
+    (repo / "REX.md").write_text(rex)
     _git(repo, "add", ".")
-    _git(repo, "commit", "-qm", "Incrément 5 : x (#6)")
-    _git(repo, "tag", "inc-5")
+    _git(repo, "commit", "-qm", merge)
+    _git(repo, "tag", tag)
     _git(repo, "branch", "-m", branch)
     return repo
 
 
-def _run_stop(repo: Path, active: bool = False) -> subprocess.CompletedProcess[str]:
-    return _run_hook("stop_check", {"stop_hook_active": active}, repo)
+def _fake_gh(path: Path, state: str) -> Path:
+    """Un faux `gh` qui annonce l'état de la PR, à placer en tête du PATH."""
+    folder = path / "bin"
+    folder.mkdir()
+    gh = folder / "gh"
+    gh.write_text(f"#!/bin/sh\necho {state}\n")
+    gh.chmod(0o755)
+    return folder
+
+
+def _run_stop(
+    repo: Path, active: bool = False, gh_folder: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    return _run_hook("stop_check", {"stop_hook_active": active}, repo, gh_folder)
 
 
 def test_stop_hook_ignores_other_branches(tmp_path):
@@ -392,6 +438,32 @@ def test_stop_hook_sends_back_to_work_when_the_procedure_is_unfinished(tmp_path)
     assert _run_stop(repo).returncode == 2
     # Une seule relance par arrêt : s'arrêter reste possible, pour poser une question.
     assert _run_stop(repo, active=True).returncode == 0
+
+
+def test_stop_hook_recognises_the_correction_branch(tmp_path):
+    result = _run_stop(_project(tmp_path, "inc/r-audit"))
+    assert result.returncode == 2
+    assert "REX.md" in result.stderr
+
+
+def test_stop_hook_reads_the_rex_and_the_pull_request(tmp_path):
+    """Section et ligne d'audit présentes : seul l'état réel de la PR reste signalé."""
+    rex = "## I6 — y\nAudit spec-auditor : abc1234\n"
+    repo = _project(tmp_path, "inc/6-resultats", rex=rex)
+    result = _run_stop(repo, gh_folder=_fake_gh(tmp_path, "OPEN"))
+    assert result.returncode == 2
+    assert "fusionn" in result.stderr
+    assert "REX.md" not in result.stderr
+    assert "L'audit" not in result.stderr
+
+
+def test_stop_hook_on_main_requires_the_tag_of_the_last_merge(tmp_path):
+    repo = _project(tmp_path, "main", merge="Incrément 6 : résultats (#7)")
+    result = _run_stop(repo)
+    assert result.returncode == 2
+    assert "inc-6" in result.stderr
+    _git(repo, "tag", "inc-6")
+    assert _run_stop(repo).returncode == 0
 
 
 def test_stop_hook_passes_on_main_once_tagged(tmp_path):

@@ -28,7 +28,7 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
    - Une branche `inc/<n>-<slug>` par incrément (`inc/r-<slug>` et tag `inc-r` pour la correction de l'audit externe).
    - Commits Conventional Commits en français (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`), avec le trailer Co-Authored-By.
    - Fusion par `gh pr merge --merge`, puis tag `inc-<n>`.
-   - Jamais de `--no-verify` ni de push forcé : un hook les refuse.
+   - Jamais de `--no-verify` ni de push forcé. Le hook `guard_bash.py` refuse les formes courantes, pas toutes (`git -c core.hooksPath=…`) : la règle s'applique quand même.
 7. **Langue.** Code et identifiants en anglais. Interface, docs, commits et PR en français.
    - **La conversation avec le commanditaire se tient en français, du premier au dernier message**, messages intermédiaires compris, même dans une très longue session (dérive constatée en I0-I4).
    - Les prompts de `/simplify`, `/code-review` et `/security-review` sont en anglais, comme les réponses d'outils : cela ne change pas la langue de mes messages.
@@ -82,8 +82,9 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 
 ## Pièges connus
 - **Secrets : ce qui protège vraiment `.env`** (audit externe, REX section R).
-  - Imposé : hors du dépôt (`.gitignore`, gitleaks), outil Read refusé (permission), illisible par les autres comptes (droits 600). Vérifications et CI utilisent `.env.test`, sans valeur.
-  - Consigne seulement : `guard_bash.py` refuse toute commande qui nomme `.env` en argument (sauf `ls`, `test`, `make`, `uv`, `git commit`, `git status`…), mais pas `python3 -c` ni `bash -c`. Claude Code tourne avec les droits de l'utilisateur.
+  - Imposé : `.gitignore`, outil Read refusé (permission), illisible par les autres comptes (droits 600). Vérifications et CI utilisent `.env.test`, sans valeur, et un test l'impose au mode classe.
+  - Détecté, pas empêché : gitleaks en pre-commit (une fois `make setup` fait) et en CI (après le push).
+  - Consigne seulement : `guard_bash.py` refuse toute commande qui nomme `.env` en argument ou la charge par `uv run --env-file` (sauf `ls`, `test`, `make`, `uv sync`, `git commit`, `git status`…, dont certaines peuvent le lire), mais pas `python3 -c` ni `bash -c`. Claude Code tourne avec les droits de l'utilisateur.
   - Sandbox de Claude Code évalué et **écarté** (raison et conditions de réévaluation dans le REX). Sans `socat`, il ne démarre pas ; sans `failIfUnavailable`, les commandes tournent alors hors sandbox, sans bloquer. Un test de CLA-01 ne peut pas passer dans un réseau isolé.
 - **Le hook Stop vérifie aussi la procédure.** Sur une branche d'incrément, il renvoie au travail une fois par arrêt tant que manquent la section du REX, sa ligne `Audit spec-auditor : <commit>`, la PR ou la fusion. Il revient à chaque arrêt, même sans nouveau commit : l'arrêt de I6 survenait justement après une revue sans commit. S'il se déclenche alors qu'on attend vraiment le commanditaire ou la CI, le redire clairement et s'arrêter. Un rapport de revue n'est jamais un message final.
 - **Agent `spec-auditor` : il n'est pas en lecture seule.** Il a Bash et modifie du code pour ses contre-épreuves, dans un worktree jetable (`isolation: worktree`, `worktree.baseRef: head`). Cette isolation fixe son dossier de départ, sans empêcher un chemin absolu : contrôler après son passage que le dépôt principal n'a pas bougé.
