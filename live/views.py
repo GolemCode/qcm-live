@@ -97,7 +97,7 @@ def _connected(session: Session) -> list[str]:
 
 def _join_qr(url: str) -> str:
     """SES-05 : QR code qui ouvre cette adresse sur le téléphone (image SVG en data URI)."""
-    return segno.make(url, micro=False).svg_data_uri(scale=1, border=4)
+    return segno.make_qr(url).svg_data_uri(omitsize=True)
 
 
 @login_required

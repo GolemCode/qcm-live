@@ -15,7 +15,6 @@ from live.results import (
     letters,
     max_total,
     neutralised,
-    question_ref,
     results,
 )
 from live.snapshot import FrozenQuestion, FrozenQuiz, FrozenStudent
@@ -119,8 +118,3 @@ def test_letters_follow_the_bank_order():
     assert letters([0]) == "A"
     assert letters([3, 1]) == "BD"
     assert letters(range(8)) == "ABCDEFGH"
-
-
-def test_question_ref_is_rank_in_quiz():
-    assert question_ref(0) == "Q1"
-    assert question_ref(11) == "Q12"

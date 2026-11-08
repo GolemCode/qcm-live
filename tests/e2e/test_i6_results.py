@@ -128,7 +128,7 @@ def wait_saved(phone: Page, session: Session, number: str, question: str, chosen
     raise AssertionError(f"{number} : réponse {chosen} non enregistrée")
 
 
-def play_session(page: Page, base_url: str, new_phone) -> tuple[Session, dict[str, Page]]:
+def play_session(page: Page, base_url: str, new_phone) -> Session:
     """Session jouée jusqu'au bout : 00123 et 42 dès le départ, 7 au troisième créneau, 555 au
     dernier sans répondre, 0999 jamais connecté."""
     session = make_results_session()
@@ -140,16 +140,16 @@ def play_session(page: Page, base_url: str, new_phone) -> tuple[Session, dict[st
     (phones["7"],) = phones_joined(new_phone, base_url, session.code, ["7"])
     answer_slot(phones, 2, session)
     answer_slot(phones, 3, session)
-    (phones["555"],) = phones_joined(new_phone, base_url, session.code, ["555"])
+    phones_joined(new_phone, base_url, session.code, ["555"])
     jump_to(session, 121)
-    return session, phones
+    return session
 
 
 @pytest.mark.spec("RES-01")
 @pytest.mark.usefixtures("reversed_choices")
 def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, new_phone):
     page = teacher_page
-    session, _ = play_session(page, live_server.url, new_phone)
+    session = play_session(page, live_server.url, new_phone)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     # Le tableau projeté n'affiche aucune note.
     expect(page.get_by_role("main")).not_to_contain_text("1,25")
@@ -222,7 +222,7 @@ def download_csv(page: Page) -> tuple[str, bytes]:
 @pytest.mark.usefixtures("reversed_choices")
 def test_results_csv(teacher_page: Page, live_server, new_phone):
     page = teacher_page
-    session, _ = play_session(page, live_server.url, new_phone)
+    session = play_session(page, live_server.url, new_phone)
     open_board(page, live_server.url, session)
     open_results(page)
     filename, content = download_csv(page)

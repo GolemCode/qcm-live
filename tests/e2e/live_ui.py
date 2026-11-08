@@ -56,11 +56,16 @@ def enter_code(phone: Page, base_url: str, code: str) -> None:
     phone.get_by_role("button", name="Rejoindre").click()
 
 
+def identify(phone: Page, number: str) -> None:
+    """Sur l'écran de la session, l'étudiant saisit son numéro."""
+    phone.get_by_label("Numéro d'étudiant").fill(number)
+    phone.get_by_role("button", name="Valider").click()
+
+
 def join(phone: Page, base_url: str, code: str, number: str) -> None:
     """L'étudiant ouvre l'adresse projetée, saisit le code puis son numéro."""
     enter_code(phone, base_url, code)
-    phone.get_by_label("Numéro d'étudiant").fill(number)
-    phone.get_by_role("button", name="Valider").click()
+    identify(phone, number)
 
 
 LIVE_MS = 2_000  # « en direct » : 2 s au plus (SPEC SES-02, DER-02)
@@ -155,6 +160,11 @@ def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> 
     """Le temps restant affiché atteint, dans le délai, une valeur entre `low` et `high` s."""
     values = "|".join(str(s) for s in range(low, high + 1))
     expect(timer(screen)).to_have_text(re.compile(rf"^({values}) s$"), timeout=timeout)
+
+
+def join_hint(page: Page) -> Locator:
+    """Consigne projetée au tableau : l'adresse à ouvrir et le code de session."""
+    return page.get_by_text(re.compile(r"^Sur votre téléphone, ouvrez "))
 
 
 def join_qr(page: Page) -> Locator:

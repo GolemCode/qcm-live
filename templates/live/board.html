@@ -10,7 +10,7 @@
     {% if state.phase == "ended" %}<a href="{% url 'results' session.code %}">Résultats</a>{% endif %}
   </div>
   {% if state.phase == "waiting" %}
-    <div class="waiting">
+    <div class="bar waiting">
       <div>
         <p class="join-hint">Sur votre téléphone, ouvrez <strong>{{ join_url }}</strong>
           puis saisissez le code <strong class="code">{{ session.code }}</strong></p>

@@ -92,7 +92,7 @@ pre { background: #f6f7f9; border: 1px solid var(--border); border-radius: 0.375
 .footer-link { margin-top: 2rem; }
 
 /* Tableau projeté : lisible du fond de la salle. */
-.board .waiting { display: flex; flex-wrap: wrap; gap: 2rem; justify-content: space-between; align-items: flex-start; }
+.board .waiting { gap: 2rem; align-items: flex-start; }
 .board .waiting > div { flex: 1 1 24rem; }
 .board .qr { flex: none; width: min(100%, 32rem); height: auto; background: #fff; }
 .board .join-hint { font-size: 1.5rem; }

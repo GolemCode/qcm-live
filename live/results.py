@@ -57,11 +57,6 @@ def letters(choices: Iterable[int]) -> str:
     return "".join(LETTERS[i] for i in sorted(choices))
 
 
-def question_ref(index: int) -> str:
-    """Référence de la question d'indice `index` du QCM figé : son rang (Q1 à Qn)."""
-    return f"Q{index + 1}"
-
-
 def _scales(quiz: FrozenQuiz) -> dict[str, Scale]:
     return {kind: Scale.from_json(scale) for kind, scale in quiz["scales"].items()}
 
@@ -131,8 +126,8 @@ def csv_rows(quiz: FrozenQuiz, rows: Sequence[StudentResult]) -> list[list[str]]
     n = len(quiz["questions"])
     maximum = decimal_fr(max_total(quiz))
     header = ["numéro", "nom", "note", "note max"]
-    for index in range(n):
-        header += [f"{question_ref(index)} réponse", f"{question_ref(index)} points"]
+    for rank in range(1, n + 1):  # référence d'une question : son rang dans le QCM figé
+        header += [f"Q{rank} réponse", f"Q{rank} points"]
     lines = [header]
     for row in rows:
         identity = [neutralised(row.number), neutralised(row.name)]

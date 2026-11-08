@@ -381,7 +381,7 @@ def test_board_state_has_no_slot_once_ended(admin_client, session):
     assert state == {"page": "ended", "remaining_ms": None, "slot": None}
 
 
-# --- Fin de session et résultats (FIN-01, RES-01, RES-02) ---------------------------------
+# --- Fin de session et résultats (RES-01, RES-02) ---------------------------------
 
 
 def test_results_only_once_the_session_is_over(admin_client, running):
