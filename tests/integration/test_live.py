@@ -405,6 +405,17 @@ def test_results_of_unknown_session_are_404(admin_client):
     assert admin_client.get(reverse("results-csv", args=["000000"])).status_code == 404
 
 
+def test_added_time_keeps_the_rotation(client, running):
+    """TPS-01 : un « +10 s » ne change pas la question attribuée à l'étudiant, à aucun créneau.
+    Le test du reçu (FIN-01, retiré) était le seul à le vérifier au niveau du participant."""
+    participant = running.participants.get()
+    slots = running.schedule.slots
+    before = [participant.question_at(slot)[0] for slot in slots]
+    Extension.objects.create(session=running, slot=0)
+    again = Participant.objects.get(pk=participant.pk)
+    assert [again.question_at(slot)[0] for slot in slots] == before
+
+
 def test_board_projects_the_join_url_of_class_mode(admin_client, session, settings):
     """CLA-01 : le PC ouvre le tableau en local, mais le tableau projette l'adresse du
     réseau local ; sans mode classe, l'adresse par laquelle le tableau a été ouvert."""

@@ -174,7 +174,7 @@ Rien de ce qui suit n'est implémenté.
 | Plusieurs questions à l'écran, une couleur par téléphone | Groupes de N et rotation synchronisée |
 | Nombre de bonnes réponses | Au choix par question : simple ou multiple |
 | Barème | Logique AMC, sous-ensemble b, m, v, p |
-| Contenu du QR code | Identifiant, questions et réponses données |
+| Contenu du QR code | Identifiant, questions et réponses données *(retiré en I8)* |
 | Format réutilisable | Banque de questions web |
 | Qui voit la note | L'enseignant : tableau de fin et export CSV |
 | Identification | Numéro pris dans une liste fournie : groupes importés en CSV |
@@ -195,12 +195,12 @@ Rien de ce qui suit n'est implémenté.
 | Délai du « direct » au tableau (I3) | 2 secondes au plus (SES-02), confirmé |
 | Recours contre la réservation de numéros (avant I4) | L'enseignant libère un numéro avant le démarrage (SES-04) |
 | Revenir à « pas de réponse » sur une question simple (I4) | Oui : bouton « Effacer ma réponse » (ETU-09, livré en I5) |
-| Référence d'une question dans le QR code et le CSV (I6) | Son rang dans le QCM (Q1 à Qn) |
+| Référence d'une question dans le QR code et le CSV (I6) | Son rang dans le QCM (Q1 à Qn) *(QR code retiré en I8 ; reste le CSV)* |
 | Où et quand l'enseignant voit les notes (I6) | Page non projetée, une fois la session terminée |
 | Étudiants jamais connectés (I6) | Listés « Absent », sans note |
 | Format du CSV des résultats (I6) | Excel en français : « ; », virgule décimale, UTF-8 avec BOM |
 | Zéros de tête des numéros, perdus par Excel à l'ouverture du CSV (I6) | Numéro écrit tel quel ; colonne à reformater en texte au besoin |
-| Lancement en classe (I7) | Aucune question fonctionnelle : décisions dérivées sous CLA-01, à valider |
+| Lancement en classe (I7) | Aucune question fonctionnelle : décisions dérivées sous CLA-01 *(réservation de l'espace enseignant validée après I7, voir ci-dessous)* |
 | Espace enseignant réservé au PC en mode classe (après I7) | Oui, de façon définitive |
 | QR code des réponses en fin de session, FIN-01 (après I7) | Retiré, avec l'accord du professeur : son but n'avait jamais été établi |
 | Rejoindre sans taper l'adresse ni le code (après I7) | QR code au tableau (SES-05) |

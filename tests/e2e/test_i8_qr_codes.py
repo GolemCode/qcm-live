@@ -10,24 +10,32 @@ from __future__ import annotations
 import re
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.live_setup import expect_slot, make_live, open_board
 from tests.e2e.live_ui import (
     LIVE_MS,
+    choose,
     connected_names,
     identify,
     identity,
     join_hint,
     join_qr,
+    phone_choices,
     phones_joined,
     qr_text,
+    save_status,
     start,
     timer,
 )
 from tests.factories import jump_to
 
 MIN_QR_PX = 300  # sur un écran de 1080 lignes : assez grand pour se lire depuis la salle
+
+
+def images(page: Page) -> Locator:
+    """Toute image de la page, même sans texte de remplacement (`get_by_role` l'ignorerait)."""
+    return page.locator("main img, main svg, main canvas")
 
 
 @pytest.mark.spec("SES-05")
@@ -78,14 +86,14 @@ def test_join_qr_code_is_gone_once_started(teacher_page: Page, live_server):
     expect(join_qr(page)).to_be_visible()
 
     start(page)
-    expect(page.get_by_role("img")).to_have_count(0)
+    expect(images(page)).to_have_count(0)
     page.reload()
     expect(timer(page)).to_be_visible()
-    expect(page.get_by_role("img")).to_have_count(0)
+    expect(images(page)).to_have_count(0)
 
     jump_to(session, 61)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
-    expect(page.get_by_role("img")).to_have_count(0)
+    expect(images(page)).to_have_count(0)
 
 
 @pytest.mark.spec("FIN-02")
@@ -96,13 +104,15 @@ def test_phone_only_says_the_session_is_over(teacher_page: Page, live_server, ne
     open_board(page, live_server.url, session)
     start(page)
     expect_slot(phone, 0)
+    choose(phone, phone_choices(phone)[0])  # une réponse existe : elle ne doit pas réapparaître
+    expect(save_status(phone)).to_have_text("Réponse enregistrée")
     jump_to(session, 61)  # la fin arrive seule, sans recharger à la main
 
     def says_only_over(screen: Page, timeout: float = LIVE_MS) -> None:
         # Ni QR code, ni réponses, ni note : le code de la session et la fin, rien d'autre.
         over = re.compile(rf"^\s*Session {session.code}\s+Session terminée\.\s*$")
         expect(screen.get_by_role("main")).to_have_text(over, timeout=timeout)
-        expect(screen.get_by_role("img")).to_have_count(0)
+        expect(images(screen)).to_have_count(0)
 
     says_only_over(phone)
     phone.reload()  # téléphone rechargé, ou sorti de veille
