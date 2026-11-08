@@ -16,7 +16,7 @@ from live import forms as live_forms
 from live.forms import IdentifyForm
 from live.models import Answer, Extension, Participant, Session
 from live.schedule import Schedule
-from live.views import CLEARED, QR_TOO_LARGE, SAVED, SLOT_OVER
+from live.views import CLEARED, SAVED, SLOT_OVER
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
 
 pytestmark = pytest.mark.django_db
@@ -403,35 +403,6 @@ def test_results_only_once_the_session_is_over(admin_client, running):
 def test_results_of_unknown_session_are_404(admin_client):
     assert admin_client.get(reverse("results", args=["000000"])).status_code == 404
     assert admin_client.get(reverse("results-csv", args=["000000"])).status_code == 404
-
-
-def test_qr_code_only_for_an_identified_phone_once_over(client, running):
-    from django.test import Client
-
-    url = reverse("student-session", args=[running.code])
-    assert "QR code" not in client.get(url).content.decode()
-    rewind(running, running.schedule.duration)
-    assert 'alt="QR code de vos réponses"' in client.get(url).content.decode()
-    assert "QR code" not in Client().get(url).content.decode()
-
-
-def test_receipt_follows_rotation_and_ignores_extra_time(client, running):
-    """Rang 0, N = 2 : Q1 puis Q2 ; le temps ajouté ne change pas l'ordre."""
-    participant = running.participants.get()
-    answer(client, running, 0, 1)  # question multiple, en premier dans le QCM
-    Extension.objects.create(session=running, slot=0)
-    running.refresh_from_db()
-    assert participant.receipt() == f"Session {running.code}\nÉtudiant 1\nQ1 AB\nQ2 -"
-
-
-def test_receipt_too_large_for_a_qr_code_is_said_not_crashed(client, running, monkeypatch):
-    """Au-delà de la capacité d'un QR code (environ 300 questions), un message remplace le
-    QR code plutôt qu'une erreur serveur."""
-    monkeypatch.setattr(Participant, "receipt", lambda self: "Q1 A\n" * 1000)
-    rewind(running, running.schedule.duration)
-    content = client.get(reverse("student-session", args=[running.code])).content.decode()
-    assert QR_TOO_LARGE in content
-    assert "QR code de vos réponses" not in content
 
 
 def test_board_projects_the_join_url_of_class_mode(admin_client, session, settings):

@@ -12,8 +12,10 @@ from live.results import (
     csv_rows,
     decimal_fr,
     grade,
+    letters,
     max_total,
     neutralised,
+    question_ref,
     results,
 )
 from live.snapshot import FrozenQuestion, FrozenQuiz, FrozenStudent
@@ -110,3 +112,15 @@ def test_csv_rows():
 def test_csv_rows_mark_no_answer_with_a_dash():
     rows = csv_rows(QUIZ, results(QUIZ, STUDENTS[:1], {"00123": {}}))
     assert rows[1] == ["00123", "DURAND Élise", "0,75", "5", "-", "0,25", "-", "0,5"]
+
+
+def test_letters_follow_the_bank_order():
+    assert letters([]) == ""
+    assert letters([0]) == "A"
+    assert letters([3, 1]) == "BD"
+    assert letters(range(8)) == "ABCDEFGH"
+
+
+def test_question_ref_is_rank_in_quiz():
+    assert question_ref(0) == "Q1"
+    assert question_ref(11) == "Q12"

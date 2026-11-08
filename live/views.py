@@ -12,6 +12,7 @@ JSON annonce un autre jeton.
 from __future__ import annotations
 
 import csv
+from urllib.parse import urljoin
 
 import segno
 from django.conf import settings
@@ -20,9 +21,9 @@ from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from segno import DataOverflowError
 
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
@@ -36,7 +37,6 @@ CLEARED = "Réponse effacée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
 RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."
 SLOT_OVER = "Créneau terminé : aucun temps ajouté."
-QR_TOO_LARGE = "Trop de questions pour un QR code. Vos réponses sont bien enregistrées."
 
 
 def _ms(seconds: float) -> int:
@@ -95,6 +95,11 @@ def _connected(session: Session) -> list[str]:
     return list(session.participants.values_list("name", flat=True))
 
 
+def _join_qr(url: str) -> str:
+    """SES-05 : QR code qui ouvre cette adresse sur le téléphone (image SVG en data URI)."""
+    return segno.make(url, micro=False).svg_data_uri(scale=1, border=4)
+
+
 @login_required
 def board(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session, code=code)
@@ -102,7 +107,11 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
     context: dict = {"session": session, "state": state, "page": _page(state, board=True)}
     if state.phase == "waiting":
         join_url = settings.JOIN_URL or request.build_absolute_uri("/")  # CLA-01 : réseau local
-        context |= {"join_url": join_url, "connected": _connected(session)}
+        context |= {
+            "join_url": join_url,
+            "join_qr": _join_qr(urljoin(join_url, reverse("student-session", args=[code]))),
+            "connected": _connected(session),
+        }
     elif state.position is not None:
         group = session.schedule.groups[state.position.slot.group]
         context |= {  # DER-01 : les questions du groupe, avec leur couleur (1 à n)
@@ -243,13 +252,6 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             }
             return redirect("student-session", code=code)
         context["form"] = form
-    elif participant is not None and state.phase == "ended":
-        # FIN-01 : QR code des réponses, en texte UTF-8 lisible par toute application.
-        try:
-            qr = segno.make(participant.receipt(), encoding="utf-8", micro=False)
-            context["qr_uri"] = qr.svg_data_uri(scale=1, border=4)
-        except DataOverflowError:  # plus de 2 953 octets, soit quelque 300 questions
-            context["qr_error"] = QR_TOO_LARGE
     elif participant is not None and state.position is not None:
         # ETU-04, ETU-05 : couleur et propositions mélangées pour l'étudiant, jamais l'énoncé.
         slot = state.position.slot
