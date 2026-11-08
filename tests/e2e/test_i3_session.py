@@ -41,7 +41,7 @@ def test_launch_session(teacher_page: Page, quiz_and_group):
     page.get_by_role("link", name="Lancer une session").click()
     expect(page.get_by_label("QCM").locator("option")).to_have_text(["Contrôle 1"])
     expect(page.get_by_label("Groupe").locator("option")).to_have_text(["TD1", "TD2"])
-    expect(page.get_by_label("Questions affichées en même temps")).to_have_value("1")
+    expect(page.get_by_label("Questions affichées en même temps")).to_have_value("4")
     expect(page.get_by_label("Temps par question (secondes)")).to_have_value("30")
 
     for shown, seconds, field in [

@@ -46,12 +46,10 @@ def test_board_shows_groups_with_colours(teacher_page: Page, live_server):
     start(page)
 
     expect(card(page, 1).get_by_role("heading")).to_have_text("Capitale de la France ?")
-    expect(card(page, 1).get_by_role("listitem")).to_have_text(["Paris", "Lyon", "Nice"])
     expect(card(page, 1)).to_contain_text("1")
     expect(card(page, 2).get_by_role("heading")).to_have_text("Couleur du ciel ?")
     expect(card(page, 3)).to_have_count(0)
     assert background(card(page, 1)) != background(card(page, 2))
-    assert card(page, 1).locator("ol").get_attribute("type") == "A"
 
     rewind(session, 60)  # deux créneaux : le groupe suivant, plus court
     expect(card(page, 1).get_by_role("heading")).to_have_text("Deux plus deux ?", timeout=LIVE_MS)
@@ -129,7 +127,6 @@ def test_choices_shuffled_per_student_and_stable(teacher_page: Page, live_server
     quiz = make_quiz("Ordre", [make_question("Six propositions", six)])
     session = make_session(quiz, make_group("TD1", STUDENTS), shown=1)
     phones = started(page, live_server.url, new_phone, session, ["00123", "42", "7"])
-    expect(card(page, 1).get_by_role("listitem")).to_have_text([label for label, _ in six])
 
     orders = []
     for phone in phones:
@@ -259,8 +256,7 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
     # Liste blanche (hors barre de navigation) : le titre, le temps restant, les questions.
     allowed = {f"Session {session.code}", "Gérer les connectés", "Session démarrée.", "1", "2"}
     allowed.add("+10 s")  # bouton de l'enseignant (TPS-01)
-    for text in list(QUESTIONS)[:2]:
-        allowed |= {text, *(label for label, _ in QUESTIONS[text])}
+    allowed |= set(list(QUESTIONS)[:2])
     shown = page.locator("main").evaluate(
         """main => {
             const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
@@ -275,23 +271,6 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
     )
     extra = [t for t in shown if t not in allowed and not re.fullmatch(r"\d+ s", t)]
     assert extra == []
-    # Aucune proposition mise en valeur : ni balise, ni attribut (classe…), ni contenu ajouté
-    # par CSS (::before, ::after), et toutes les propriétés de style calculées identiques.
-    for color in (1, 2):
-        looks = set()
-        for item in card(page, color).get_by_role("listitem").all():
-            assert item.evaluate("li => li.innerHTML.trim() === li.textContent.trim()")
-            assert item.evaluate("li => li.attributes.length") == 0
-            for pseudo in ("::before", "::after"):
-                content = item.evaluate(f"li => getComputedStyle(li, '{pseudo}').content")
-                assert content in ("none", "normal"), content
-            looks.add(
-                item.evaluate(
-                    "li => { const s = getComputedStyle(li);"
-                    " return Array.from(s).map(p => p + ':' + s.getPropertyValue(p)).join(';'); }"
-                )
-            )
-        assert len(looks) == 1
 
 
 @pytest.mark.spec("SES-04")

@@ -49,10 +49,11 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[SES-01]** (I3) L'enseignant lance une session. Il choisit :
   - un QCM, parmi ceux qui ont au moins une question ;
   - un groupe ;
-  - le nombre N de questions affichées en même temps, de 1 à 6 (1 par défaut) ;
+  - le nombre N de questions affichées en même temps, de 1 à 6 (SES-06) ;
   - le temps t par question, de 5 à 600 secondes (30 par défaut).
 
   Un identifiant de session de 6 chiffres est généré, distinct de ceux des autres sessions. Les sessions lancées sont listées dans l'espace enseignant. *(liste : dérivé)*
+- **[SES-06]** (I9) Par défaut, 4 questions s'affichent à la fois. L'enseignant peut choisir une autre valeur au lancement, de 1 à 6 ; elle reste fixe pendant toute la session. *(précision du commanditaire)*
 - **[SES-02]** (I3) Avant le départ, le tableau affiche :
   - l'adresse à ouvrir et l'identifiant de session ;
   - le QCM et le groupe ;
@@ -71,11 +72,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[ETU-03]** (I3) Un téléphone rechargé ou sorti de veille retrouve l'identité de l'étudiant, sans nouvelle saisie. Ressaisir l'identifiant de la session mène aussi directement à son écran.
 
 ### Session : déroulement
-- **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche, sur sa **couleur de fond** et avec son **numéro de couleur** (1 à N) :
-  - son énoncé ;
-  - ses propositions (A, B, C…), dans l'ordre de la banque.
-
-  Le contenu affiché est celui qui a été figé au lancement (SES-03). À la fin du dernier créneau, le tableau indique que la session est terminée.
+- **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche, sur sa **couleur de fond** et avec son **numéro de couleur** (1 à N), son énoncé seul (AFF-01). Le contenu affiché est celui qui a été figé au lancement (SES-03). À la fin du dernier créneau, le tableau indique que la session est terminée.
 - **[DER-02]** (I4) Un groupe de n questions se déroule en n **créneaux** synchronisés de t secondes, identiques pour tous. À la fin du temps, on passe automatiquement au créneau suivant, sans recharger à la main : le tableau et les téléphones suivent en 2 secondes au plus. Il n'y a ni pause ni saut. Le temps restant s'affiche au tableau et sur les téléphones. Après le dernier créneau, les téléphones indiquent que la session est terminée.
 - **[ETU-04]** (I4) Pendant un créneau, le fond du téléphone prend la couleur de la question à laquelle l'étudiant doit répondre, avec son numéro de couleur. Seules les propositions s'affichent, sans lettre et **jamais l'énoncé** :
   - question simple : on en choisit une ;
@@ -88,6 +85,9 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[ETU-08]** (I4) Un étudiant peut rejoindre une session déjà commencée. Les créneaux qu'il a manqués comptent comme non-réponse.
 - **[ETU-09]** (I5) Sur une question simple, l'étudiant peut **effacer sa réponse** jusqu'à la fin du créneau, avec le bouton « Effacer ma réponse » : plus aucune proposition n'est choisie, le téléphone confirme l'effacement et la question compte comme non-réponse (v). Sur une question multiple, décocher toutes les cases revient au même. Après la fin du créneau, l'effacement est refusé comme toute réponse (ETU-07). *(dérivé : le téléphone affiche « Réponse effacée » ; le bouton est inactif quand aucune proposition n'est choisie)*
 - **[DER-03]** (I4) Le tableau n'affiche ni la correction ni de statistiques pendant la session.
+
+- **[AFF-01]** (I9) **Une capture d'écran ou une photo ne contient jamais à la fois une question et ses réponses.** À aucun moment de la session, le tableau n'affiche ni ne reçoit une proposition de réponse, et le téléphone n'affiche ni ne reçoit un énoncé (ETU-04). Les pages des résultats et le CSV ne contiennent ni énoncé ni proposition.
+  - Les pages de la banque de questions et des QCM, réservées à l'enseignant et sans rapport avec le déroulement, montrent encore l'un et l'autre, puisqu'elles servent à les rédiger. L'enseignant ne les projette pas pendant une évaluation. *(dérivé)*
 
 ### Session : temps additionnel
 - **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée. Le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ; un clic arrivé après la fin du créneau n'ajoute rien. *(emplacement et clic tardif : dérivé)*
@@ -104,7 +104,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   - Format d'Excel en français : séparateur point-virgule, virgule décimale, UTF-8 avec BOM. Fichier `resultats-<code>.csv`. *(décision I6)*
   - Le CSV n'est téléchargeable qu'une fois la session terminée. *(dérivé)*
   - Le numéro est écrit tel quel. Excel, à l'ouverture, en retire les zéros de tête : on peut reformater la colonne en texte. *(décision I6)*
-  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres du tableau, `-` signifie aucune réponse. Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)*
+  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres des propositions dans l'ordre de la banque au moment du lancement (A pour la première, comme dans la liste des questions), `-` signifie aucune réponse. *(précisé en I9 : le tableau n'affiche plus ces lettres)* Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)*
   - Un nom ou un numéro qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot est précédé d'une apostrophe, pour qu'un tableur n'exécute aucune formule. Les nombres calculés (notes, points) ne le sont jamais. *(dérivé)*
 
 ### Mode classe
@@ -205,3 +205,5 @@ Rien de ce qui suit n'est implémenté.
 | QR code des réponses en fin de session, FIN-01 (après I7) | Retiré, avec l'accord du professeur : son but n'avait jamais été établi |
 | Rejoindre sans taper l'adresse ni le code (après I7) | QR code au tableau (SES-05) |
 | QR code de jonction pendant le déroulement (I8) | Non : avant le démarrage seulement |
+| Contenu du tableau et du téléphone (après I7) | Tableau : énoncés seuls. Téléphone : propositions seules. Une photo ne doit jamais contenir une question et ses réponses (AFF-01) |
+| Nombre de questions affichées à la fois (après I7) | 4 par défaut, modifiable au lancement, de 1 à 6 (SES-06) |
