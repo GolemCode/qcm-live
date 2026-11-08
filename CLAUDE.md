@@ -9,28 +9,35 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 - Le plan initial (architecture, incréments, environnement) est résumé dans REX.md, section I0.
 
 ## Commandes (toujours via make ou uv, jamais pip)
-- `make setup` : installation complète. Elle crée `.env`, qui contient des secrets : **ne jamais le lire**.
+- `make setup` : installation complète. Elle crée `.env`, qui contient la vraie clé : **ne jamais le lire**. Rien ne l'empêche techniquement (voir « Secrets » dans les pièges) : cette règle tient à la consigne.
 - `make run` : serveur de développement. `make superuser` : crée un compte enseignant.
 - `make classe` : mode classe (CLA-01), serveur de production ouvert au réseau local (`PORT=`, `ADRESSE=`).
 - `make check` : vérification rapide (lint, types, unitaires, intégration). Le hook Stop la lance.
 - `make verify` : vérification complète, identique à la CI (y compris E2E, couverture de la spec et couverture du code).
 - `make accept INC=n` : tableau des exigences de l'incrément n et des tests qui les vérifient.
-- Lancer un test précis : `uv run pytest tests/e2e/test_x.py -k nom`. `UV_ENV_FILE=.env` est fourni par `.claude/settings.json`.
+- Lancer un test précis : `uv run pytest tests/e2e/test_x.py -k nom`. `UV_ENV_FILE=.env.test` est fourni par `.claude/settings.json` : une clé de test, sans valeur, et jamais la vraie.
 
 ## Règles non négociables
 1. **Spec d'abord.** Chaque comportement a un identifiant `[XXX-nn] (In)` dans SPEC.md. Chaque identifiant a au moins un test E2E Playwright marqué `@pytest.mark.spec("XXX-nn")` qui échouerait si le comportement était cassé.
-2. **Tests d'abord.** Le premier commit d'un incrément contient les tests d'acceptation, rouges.
+2. **Tests d'abord.** Le premier commit d'un incrément contient les tests d'acceptation, rouges. Ils sont écrits avant le code, et l'échec est observé à ce moment-là : on ne le reconstitue jamais après coup (I0, voir REX). L'historique git prouve l'ordre des commits, pas l'ordre d'écriture : ne pas le présenter comme une preuve.
 3. **Terminé**, c'est seulement : `make verify` vert, PR à la CI verte, fusionnée dans main, agent `spec-auditor` sans réserve bloquante, SPEC.md et REX.md à jour. Ne jamais l'affirmer avant.
 4. **Aucun secret, aucune donnée réelle** dans le dépôt : configuration par variables d'environnement, données de test fictives. gitleaks tourne en pre-commit et en CI.
 5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django, de segno (QR code, I6), de waitress et de whitenoise (mode classe, I7). En test seulement : zxing-cpp et Pillow décodent le QR code.
 6. **Git.**
    - Jamais de commit ni de push sur `main`, qui est protégée : on passe par une PR.
-   - Une branche `inc/<n>-<slug>` par incrément.
+   - Une branche `inc/<n>-<slug>` par incrément (`inc/r-<slug>` et tag `inc-r` pour la correction de l'audit externe).
    - Commits Conventional Commits en français (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`), avec le trailer Co-Authored-By.
    - Fusion par `gh pr merge --merge`, puis tag `inc-<n>`.
    - Jamais de `--no-verify` ni de push forcé : un hook les refuse.
 7. **Langue.** Code et identifiants en anglais. Interface, docs, commits et PR en français.
+   - **La conversation avec le commanditaire se tient en français, du premier au dernier message**, messages intermédiaires compris, même dans une très longue session (dérive constatée en I0-I4).
+   - Les prompts de `/simplify`, `/code-review` et `/security-review` sont en anglais, comme les réponses d'outils : cela ne change pas la langue de mes messages.
 8. **Mémoire.** Le savoir durable va dans ce fichier, dans SPEC.md ou dans REX.md, versionnés, jamais dans la mémoire locale de Claude.
+9. **Codes de retour.** Le code de retour d'une vérification (`make check`, `pytest`, `pyright`, `ruff`…) doit rester celui de la commande entière. Un pipe vers `tail`, un `;` puis `echo` ou `|| true` l'effacent : deux incidents (I5, un commit parti avec un test en échec ; I6, `exit 0` annoncé sur 16 erreurs pyright).
+   - Enchaîner avec `&&`, ou écrire `set -o pipefail` avant le pipe.
+   - Pour relire un journal long : `make verify > log 2>&1; code=$?; tail -25 log; exit $code`.
+   - Le hook `guard_bash.py` refuse les formes courantes. Un script à part ou une boucle lui échappe : la règle s'applique quand même.
+10. **Dire ce qui garantit quoi.** Dans les docs, distinguer ce qu'un mécanisme impose techniquement de ce qui ne tient qu'à la consigne. Ne jamais écrire « prouve », « garantit » ou « en lecture seule » sans l'avoir vérifié. Un incident rattrapé sur le moment se consigne quand même dans REX.md.
 
 ## Procédure d'un incrément
 Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
@@ -74,6 +81,12 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Temps : `tests.factories.rewind(session, s)` avance le déroulement sans attendre, en reculant `started_at` ; `jump_to(session, s)` le place à s secondes du démarrage, pour tester une échéance à la demi-seconde près. Au moins un test par exigence de temps tourne en temps réel (DER-02). Pour attendre qu'un téléphone affiche un créneau, attendre son jeton `data-page`, jamais un délai fixe.
 
 ## Pièges connus
+- **Secrets : ce qui protège vraiment `.env`** (audit externe, REX section R).
+  - Imposé : hors du dépôt (`.gitignore`, gitleaks), outil Read refusé (permission), illisible par les autres comptes (droits 600). Vérifications et CI utilisent `.env.test`, sans valeur.
+  - Consigne seulement : `guard_bash.py` refuse les lectures courantes mais pas `python3 -c`. Claude Code tourne avec les droits de l'utilisateur.
+  - Sandbox de Claude Code évalué et **écarté** (raison et conditions de réévaluation dans le REX). Sans `socat`, il ne démarre pas ; sans `failIfUnavailable`, les commandes tournent alors hors sandbox, sans bloquer. Un test de CLA-01 ne peut pas passer dans un réseau isolé.
+- **Le hook Stop vérifie aussi la procédure.** Sur une branche d'incrément, il renvoie au travail une fois par arrêt tant que REX, audit, PR ou fusion manquent. S'il se déclenche alors qu'on attend vraiment le commanditaire ou la CI, le redire clairement et s'arrêter. Un rapport de revue n'est jamais un message final.
+- **Agent `spec-auditor` : il n'est pas en lecture seule.** Il a Bash et modifie du code pour ses contre-épreuves, dans un worktree jetable (`isolation: worktree`, `worktree.baseRef: head`). Cette isolation fixe son dossier de départ, sans empêcher un chemin absolu : contrôler après son passage que le dépôt principal n'a pas bougé.
 - **SQLite sous la charge d'une classe.** Une transaction ordinaire lit puis demande le verrou d'écriture : si une autre écrit déjà, SQLite refuse aussitôt (« database is locked »), sans attendre. 40 téléphones qui valident leur numéro au même instant donnaient des erreurs 500. D'où `transaction_mode: IMMEDIATE` dans `DATABASES` : ne pas le retirer.
 - **Ne jamais rendre la main pendant un `make verify` en arrière-plan** : le hook Stop lance `make check`, donc un second pytest sur la même base de test (I7 : 8 tests en erreur, « no such table »). Lancer `make verify` au premier plan.
 - **Tests du mode classe** (`tests/e2e/test_i7_classroom.py`).

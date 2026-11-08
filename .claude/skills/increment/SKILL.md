@@ -15,7 +15,7 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 
 ## 2. Tests d'acceptation, rouges
 1. Écrire dans `tests/e2e/test_i<n>_<slug>.py` au moins un test par exigence, marqué `@pytest.mark.spec("XXX-nn")`. Le test reproduit l'usage réel : le tableau sur `page`, les téléphones sur `new_phone()`, de vrais délais courts.
-2. Vérifier qu'ils **échouent pour la bonne raison** : `uv run pytest tests/e2e/test_i<n>_*.py`.
+2. Vérifier qu'ils **échouent pour la bonne raison** : `uv run pytest tests/e2e/test_i<n>_*.py`. Ils sont écrits avant le code, et cet échec s'observe à ce moment-là : ne jamais le reconstituer en retirant du code déjà écrit.
 3. Commit : `test: tests d'acceptation I<n> (rouges)`.
 
 ## 3. Implémenter
@@ -30,14 +30,19 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 3. Contrôle visuel : écrire un script de capture Playwright dans le scratchpad, à 1920x1080 et en Pixel 7, puis lire les PNG avec Read. L'interface doit être sobre et lisible de loin.
 
 ## 5. Revues
+**Le rapport d'un skill de revue n'est jamais un message final** : le traiter, puis enchaîner aussitôt l'étape suivante. En I6, je me suis arrêté sur le rapport de `/security-review`, et le commanditaire a dû me relancer.
+
 1. `/simplify` sur le diff de la branche.
 2. `/code-review` sur le diff. Si l'incrément touche aux entrées, à l'authentification, aux sessions ou aux réglages : `/security-review`.
-3. Lancer l'agent **`spec-auditor`** avec l'incrément n. Il ne doit rester aucune réserve bloquante.
+3. Lancer l'agent **`spec-auditor`** avec l'incrément n et le commit à auditer. Il travaille dans un worktree jetable. Il ne doit rester aucune réserve bloquante.
+4. Contrôler ensuite que le dépôt principal n'a pas bougé : `git status --short` vide, même `HEAD` qu'avant, et `git worktree list` sans copie oubliée.
 
 ## 6. Documenter
 - **SPEC.md** : y reporter les réponses du commanditaire et les nouvelles précisions, sans changer un identifiant existant.
 - **REX.md**, nouvelle section `I<n>` : objectif, problèmes rencontrés, ce qui a bien marché, ce que j'aurais dû savoir dès le départ, choix techniques et leur raison. Sans code.
 - **README.md** et **CLAUDE.md** si les commandes ou les règles changent.
+- **Ce qui a dérapé va dans le REX**, même rattrapé aussitôt : un commit raté, un arrêt prématuré, une relance du commanditaire.
+- **Ne pas surestimer une preuve** : écrire ce qu'un mécanisme garantit et ce qui ne tient qu'à la consigne (CLAUDE.md, règle 10).
 
 ## 7. Livrer
 1. `git push -u origin inc/<n>-<slug>`.
