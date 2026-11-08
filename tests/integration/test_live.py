@@ -405,15 +405,27 @@ def test_results_of_unknown_session_are_404(admin_client):
     assert admin_client.get(reverse("results-csv", args=["000000"])).status_code == 404
 
 
-def test_added_time_keeps_the_rotation(client, running):
-    """TPS-01 : un « +10 s » ne change pas la question attribuée à l'étudiant, à aucun créneau.
-    Le test du reçu (FIN-01, retiré) était le seul à le vérifier au niveau du participant."""
-    participant = running.participants.get()
-    slots = running.schedule.slots
-    before = [participant.question_at(slot)[0] for slot in slots]
-    Extension.objects.create(session=running, slot=0)
-    again = Participant.objects.get(pk=participant.pk)
-    assert [again.question_at(slot)[0] for slot in slots] == before
+def test_added_time_keeps_the_rotation(admin_client):
+    """TPS-01 : un « +10 s » ne change la question d'aucun étudiant, à aucun créneau. Groupe de
+    3 : 10 n'en est pas un multiple, et deux rangs : le rang 0 masquerait un produit."""
+    questions = [make_question(f"Q{i}", [("a", True), ("b", False)]) for i in range(3)]
+    group = make_group("TD", [("1", "A"), ("2", "B")])
+    session = make_session(make_quiz("QCM", questions), group, shown=3, seconds=20)
+    for number in ("1", "2"):
+        Client().post(reverse("student-session", args=[session.code]), {"number": number})
+    admin_client.post(reverse("session-start", args=[session.code]))
+
+    def rotation() -> dict[str, list[int]]:
+        fresh = Session.objects.get(pk=session.pk)
+        return {
+            p.number: [p.question_at(slot)[0] for slot in fresh.schedule.slots]
+            for p in fresh.participants.all()
+        }
+
+    assert rotation() == {"1": [0, 1, 2], "2": [1, 2, 0]}
+    Extension.objects.create(session=session, slot=0)
+    Extension.objects.create(session=session, slot=1)
+    assert rotation() == {"1": [0, 1, 2], "2": [1, 2, 0]}
 
 
 def test_board_projects_the_join_url_of_class_mode(admin_client, session, settings):

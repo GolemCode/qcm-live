@@ -35,7 +35,7 @@ MIN_QR_PX = 300  # sur un écran de 1080 lignes : assez grand pour se lire depui
 
 def images(page: Page) -> Locator:
     """Toute image de la page, même sans texte de remplacement (`get_by_role` l'ignorerait)."""
-    return page.locator("main img, main svg, main canvas")
+    return page.locator("img, svg, canvas")
 
 
 @pytest.mark.spec("SES-05")
@@ -111,7 +111,7 @@ def test_phone_only_says_the_session_is_over(teacher_page: Page, live_server, ne
     def says_only_over(screen: Page, timeout: float = LIVE_MS) -> None:
         # Ni QR code, ni réponses, ni note : le code de la session et la fin, rien d'autre.
         over = re.compile(rf"^\s*Session {session.code}\s+Session terminée\.\s*$")
-        expect(screen.get_by_role("main")).to_have_text(over, timeout=timeout)
+        expect(screen.locator("body")).to_have_text(over, timeout=timeout)
         expect(images(screen)).to_have_count(0)
 
     says_only_over(phone)
