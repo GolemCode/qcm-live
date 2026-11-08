@@ -406,7 +406,8 @@ def test_spec_auditor_description_matches_what_it_can_do():
     front = text.split("---")[1]
     assert "isolation: worktree" in front
     assert "Bash" in front
-    assert "lecture seule" not in text
+    assert "lecture seule" not in front  # la description ne promet plus ce que Bash permet
+    assert "Bash peut tout écrire" in text
 
 
 # --- Audit externe (R), constat 7 : la langue de la conversation.

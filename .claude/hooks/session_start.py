@@ -36,6 +36,7 @@ def main() -> int:
         "- PR ouvertes :",
         run(project, "gh", "pr", "list", "--limit", "5") or "(aucune ou gh indisponible)",
         "Rappel : procédure d'incrément = skill `increment` ; dernière section de REX.md.",
+        "Rappel : avec le commanditaire, la conversation se tient en français (CLAUDE.md, règle 7).",  # noqa: E501
     ]
     if not (project / ".env").exists():
         lines.append("ATTENTION : .env absent — lancer `make setup`.")
