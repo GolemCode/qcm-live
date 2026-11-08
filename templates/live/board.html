@@ -10,22 +10,27 @@
     {% if state.phase == "ended" %}<a href="{% url 'results' session.code %}">Résultats</a>{% endif %}
   </div>
   {% if state.phase == "waiting" %}
-    <p class="join-hint">Sur votre téléphone, ouvrez <strong>{{ join_url }}</strong>
-      puis saisissez le code <strong class="code">{{ session.code }}</strong></p>
-    <p class="muted">
-      {{ session.quiz_title }} ({{ session.n_questions }} question{{ session.n_questions|pluralize }})
-      · Groupe {{ session.group_name }}
-      · {{ session.shown }} question{{ session.shown|pluralize }} à la fois
-      · {{ session.seconds }} s par question
-    </p>
-    <p class="count">Connectés : <span id="connected-n">{{ connected|length }}</span> / {{ session.students|length }}</p>
-    <ul id="connected" class="connected" aria-label="Étudiants connectés">
-      {% for name in connected %}<li>{{ name }}</li>{% endfor %}
-    </ul>
-    <form method="post" action="{% url 'session-start' session.code %}">
-      {% csrf_token %}
-      <button type="submit" class="big">Démarrer</button>
-    </form>
+    <div class="bar waiting">
+      <div>
+        <p class="join-hint">Sur votre téléphone, ouvrez <strong>{{ join_url }}</strong>
+          puis saisissez le code <strong class="code">{{ session.code }}</strong></p>
+        <p class="muted">
+          {{ session.quiz_title }} ({{ session.n_questions }} question{{ session.n_questions|pluralize }})
+          · Groupe {{ session.group_name }}
+          · {{ session.shown }} question{{ session.shown|pluralize }} à la fois
+          · {{ session.seconds }} s par question
+        </p>
+        <p class="count">Connectés : <span id="connected-n">{{ connected|length }}</span> / {{ session.students|length }}</p>
+        <ul id="connected" class="connected" aria-label="Étudiants connectés">
+          {% for name in connected %}<li>{{ name }}</li>{% endfor %}
+        </ul>
+        <form method="post" action="{% url 'session-start' session.code %}">
+          {% csrf_token %}
+          <button type="submit" class="big">Démarrer</button>
+        </form>
+      </div>
+      <img class="qr" src="{{ join_qr }}" alt="QR code pour rejoindre la session">
+    </div>
   {% elif state.phase == "running" %}
     <div class="bar">
       <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>

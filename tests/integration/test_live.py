@@ -16,7 +16,7 @@ from live import forms as live_forms
 from live.forms import IdentifyForm
 from live.models import Answer, Extension, Participant, Session
 from live.schedule import Schedule
-from live.views import CLEARED, QR_TOO_LARGE, SAVED, SLOT_OVER
+from live.views import CLEARED, SAVED, SLOT_OVER
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session, rewind
 
 pytestmark = pytest.mark.django_db
@@ -381,7 +381,7 @@ def test_board_state_has_no_slot_once_ended(admin_client, session):
     assert state == {"page": "ended", "remaining_ms": None, "slot": None}
 
 
-# --- Fin de session et résultats (FIN-01, RES-01, RES-02) ---------------------------------
+# --- Fin de session et résultats (RES-01, RES-02) ---------------------------------
 
 
 def test_results_only_once_the_session_is_over(admin_client, running):
@@ -405,33 +405,27 @@ def test_results_of_unknown_session_are_404(admin_client):
     assert admin_client.get(reverse("results-csv", args=["000000"])).status_code == 404
 
 
-def test_qr_code_only_for_an_identified_phone_once_over(client, running):
-    from django.test import Client
+def test_added_time_keeps_the_rotation(admin_client):
+    """TPS-01 : un « +10 s » ne change la question d'aucun étudiant, à aucun créneau. Groupe de
+    3 : 10 n'en est pas un multiple, et deux rangs : le rang 0 masquerait un produit."""
+    questions = [make_question(f"Q{i}", [("a", True), ("b", False)]) for i in range(3)]
+    group = make_group("TD", [("1", "A"), ("2", "B")])
+    session = make_session(make_quiz("QCM", questions), group, shown=3, seconds=20)
+    for number in ("1", "2"):
+        Client().post(reverse("student-session", args=[session.code]), {"number": number})
+    admin_client.post(reverse("session-start", args=[session.code]))
 
-    url = reverse("student-session", args=[running.code])
-    assert "QR code" not in client.get(url).content.decode()
-    rewind(running, running.schedule.duration)
-    assert 'alt="QR code de vos réponses"' in client.get(url).content.decode()
-    assert "QR code" not in Client().get(url).content.decode()
+    def rotation() -> dict[str, list[int]]:
+        fresh = Session.objects.get(pk=session.pk)
+        return {
+            p.number: [p.question_at(slot)[0] for slot in fresh.schedule.slots]
+            for p in fresh.participants.all()
+        }
 
-
-def test_receipt_follows_rotation_and_ignores_extra_time(client, running):
-    """Rang 0, N = 2 : Q1 puis Q2 ; le temps ajouté ne change pas l'ordre."""
-    participant = running.participants.get()
-    answer(client, running, 0, 1)  # question multiple, en premier dans le QCM
-    Extension.objects.create(session=running, slot=0)
-    running.refresh_from_db()
-    assert participant.receipt() == f"Session {running.code}\nÉtudiant 1\nQ1 AB\nQ2 -"
-
-
-def test_receipt_too_large_for_a_qr_code_is_said_not_crashed(client, running, monkeypatch):
-    """Au-delà de la capacité d'un QR code (environ 300 questions), un message remplace le
-    QR code plutôt qu'une erreur serveur."""
-    monkeypatch.setattr(Participant, "receipt", lambda self: "Q1 A\n" * 1000)
-    rewind(running, running.schedule.duration)
-    content = client.get(reverse("student-session", args=[running.code])).content.decode()
-    assert QR_TOO_LARGE in content
-    assert "QR code de vos réponses" not in content
+    assert rotation() == {"1": [0, 1, 2], "2": [1, 2, 0]}
+    Extension.objects.create(session=session, slot=0)
+    Extension.objects.create(session=session, slot=1)
+    assert rotation() == {"1": [0, 1, 2], "2": [1, 2, 0]}
 
 
 def test_board_projects_the_join_url_of_class_mode(admin_client, session, settings):

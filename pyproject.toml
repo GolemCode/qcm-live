@@ -30,7 +30,7 @@ package = false
 # Incrément en cours : toutes les exigences de SPEC.md marquées (I0)..(I<n>)
 # doivent avoir au moins un test E2E passé (voir tests/spec_trace.py).
 [tool.qcm]
-increment = 7
+increment = 8
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"

@@ -7,18 +7,18 @@ réponse enregistrée vaut `v`, y compris celles qu'un retardataire a manquées 
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from bank.scoring import Scale, max_score, score
-from live.receipt import NO_ANSWER, letters, question_ref
+from bank.scoring import LETTERS, Scale, max_score, score
 
 if TYPE_CHECKING:
     from live.snapshot import FrozenQuestion, FrozenQuiz, FrozenStudent
 
 ABSENT = "Absent"
+NO_ANSWER = "-"
 # Un tableur exécute une cellule qui commence ainsi : les noms viennent d'un fichier extérieur.
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")  # les deux derniers selon l'OWASP
 
@@ -50,6 +50,11 @@ class StudentResult:
         """Note affichée, sur la page comme dans le CSV : « Absent » ou nombre à la française."""
         total = self.total
         return ABSENT if total is None else decimal_fr(total)
+
+
+def letters(choices: Iterable[int]) -> str:
+    """Lettres des propositions choisies, dans l'ordre ; "" si aucune."""
+    return "".join(LETTERS[i] for i in sorted(choices))
 
 
 def _scales(quiz: FrozenQuiz) -> dict[str, Scale]:
@@ -121,8 +126,8 @@ def csv_rows(quiz: FrozenQuiz, rows: Sequence[StudentResult]) -> list[list[str]]
     n = len(quiz["questions"])
     maximum = decimal_fr(max_total(quiz))
     header = ["numéro", "nom", "note", "note max"]
-    for index in range(n):
-        header += [f"{question_ref(index)} réponse", f"{question_ref(index)} points"]
+    for rank in range(1, n + 1):  # référence d'une question : son rang dans le QCM figé
+        header += [f"Q{rank} réponse", f"Q{rank} points"]
     lines = [header]
     for row in rows:
         identity = [neutralised(row.number), neutralised(row.name)]

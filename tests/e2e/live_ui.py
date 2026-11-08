@@ -56,11 +56,16 @@ def enter_code(phone: Page, base_url: str, code: str) -> None:
     phone.get_by_role("button", name="Rejoindre").click()
 
 
+def identify(phone: Page, number: str) -> None:
+    """Sur l'écran de la session, l'étudiant saisit son numéro."""
+    phone.get_by_label("Numéro d'étudiant").fill(number)
+    phone.get_by_role("button", name="Valider").click()
+
+
 def join(phone: Page, base_url: str, code: str, number: str) -> None:
     """L'étudiant ouvre l'adresse projetée, saisit le code puis son numéro."""
     enter_code(phone, base_url, code)
-    phone.get_by_label("Numéro d'étudiant").fill(number)
-    phone.get_by_role("button", name="Valider").click()
+    identify(phone, number)
 
 
 LIVE_MS = 2_000  # « en direct » : 2 s au plus (SPEC SES-02, DER-02)
@@ -157,16 +162,21 @@ def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> 
     expect(timer(screen)).to_have_text(re.compile(rf"^({values}) s$"), timeout=timeout)
 
 
-def qr_code(phone: Page) -> Locator:
-    """QR code des réponses affiché sur le téléphone à la fin de la session (FIN-01)."""
-    return phone.get_by_role("img", name="QR code de vos réponses")
+def join_hint(page: Page) -> Locator:
+    """Consigne projetée au tableau : l'adresse à ouvrir et le code de session."""
+    return page.get_by_text(re.compile(r"^Sur votre téléphone, ouvrez "))
 
 
-def qr_text(phone: Page) -> str:
-    """Contenu du QR code, décodé depuis une capture de l'écran du téléphone, comme le
-    ferait une application de lecture."""
-    expect(qr_code(phone)).to_be_visible()
-    image = Image.open(io.BytesIO(qr_code(phone).screenshot()))
+def join_qr(page: Page) -> Locator:
+    """QR code affiché au tableau pour rejoindre la session (SES-05)."""
+    return page.get_by_role("img", name="QR code pour rejoindre la session")
+
+
+def qr_text(qr: Locator) -> str:
+    """Contenu du QR code, décodé depuis une capture de l'écran, comme le ferait le lecteur
+    d'un téléphone."""
+    expect(qr).to_be_visible()
+    image = Image.open(io.BytesIO(qr.screenshot()))
     codes = zxingcpp.read_barcodes(image)
     assert [code.format for code in codes] == [zxingcpp.BarcodeFormat.QRCode], codes
     return codes[0].text

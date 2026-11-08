@@ -79,7 +79,7 @@ La CI GitHub Actions lance les mêmes commandes à chaque PR. Elle analyse aussi
 config/     réglages (lus depuis l'environnement), routes, vues transverses, mode classe (classroom.py)
 bank/       banque de questions, QCM, barème AMC (scoring.py : calcul pur)
 roster/     groupes d'étudiants, import CSV
-live/       sessions en direct : déroulement, réponses, QR code, résultats
+live/       sessions en direct : QR code de jonction, déroulement, réponses, résultats
 templates/  gabarits HTML          static/  CSS et JS, sans script ni style inline
 tests/      unit/ · integration/ · e2e/ (Playwright) · spec_trace.py (traçabilité SPEC.md)
             factories.py (données de test fictives, créées via les formulaires)

@@ -146,6 +146,8 @@ def test_added_time_belongs_to_current_slot_only(teacher_page: Page, live_server
     add_time(page)
     timer_shows(page, 28, 30)
     timer_shows(phone, 28, 30)
+    phone.reload()  # la couleur reste celle de sa question : rang 0, créneau 1, groupe de 2
+    expect(phone.get_by_text("Couleur 2", exact=True)).to_be_visible()
     jump_to(session, 69.5)  # le second créneau finit à 70 s
     expect_slot(phone, 1)
     jump_to(session, 70.5)

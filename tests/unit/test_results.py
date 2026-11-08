@@ -12,6 +12,7 @@ from live.results import (
     csv_rows,
     decimal_fr,
     grade,
+    letters,
     max_total,
     neutralised,
     results,
@@ -110,3 +111,10 @@ def test_csv_rows():
 def test_csv_rows_mark_no_answer_with_a_dash():
     rows = csv_rows(QUIZ, results(QUIZ, STUDENTS[:1], {"00123": {}}))
     assert rows[1] == ["00123", "DURAND Élise", "0,75", "5", "-", "0,25", "-", "0,5"]
+
+
+def test_letters_follow_the_bank_order():
+    assert letters([]) == ""
+    assert letters([0]) == "A"
+    assert letters([3, 1]) == "BD"
+    assert letters(range(8)) == "ABCDEFGH"

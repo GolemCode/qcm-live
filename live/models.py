@@ -14,7 +14,6 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
-from live.receipt import receipt
 from live.results import StudentResult, results
 from live.schedule import Position, Schedule, Slot, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
@@ -190,13 +189,6 @@ class Participant(models.Model):
         """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05)."""
         n_choices = len(self.session.questions[question]["choices"])
         return shuffled(n_choices, f"{self.session.code}:{self.pk}:{question}")
-
-    def receipt(self) -> str:
-        """FIN-01 : contenu du QR code ; les questions dans l'ordre où l'étudiant les a eues,
-        y compris celles des créneaux manqués par un retardataire (ETU-08)."""
-        answers = self.answer_map()
-        received = [self.question_at(slot)[0] for slot in self.session.schedule.slots]
-        return receipt(self.session.code, self.number, [(q, answers.get(q, [])) for q in received])
 
     def answer_map(self) -> dict[int, list[int]]:
         """Propositions choisies, par indice de question ; une question absente : pas de réponse."""

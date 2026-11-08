@@ -119,7 +119,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 | I5 | +10 secondes |
 | I6 | Fin : QR code, résultats, export CSV |
 | I7 | Mode classe : serveur de production local, E2E contre ce serveur |
-| I8 | Hébergement en ligne (conditionnel, selon la décision du professeur) |
+| I8 | Hébergement en ligne (conditionnel, selon la décision du professeur). *Le numéro a ensuite servi au retour du test réel : voir la section I8. L'hébergement reste conditionnel et sera numéroté le moment venu ; les mentions « I8 » de l'hébergement dans les sections plus anciennes datent de ce plan.* |
 
 ---
 
@@ -685,3 +685,54 @@ Audit spec-auditor : d62fda7c8b46680e8756e68db29bee09ea6d0890
 - **Aucune nouvelle dépendance.**
 - **`.env.test` versionné plutôt qu'une clé éphémère en CI** : le même fichier sert partout, en local, en CI et dans les copies jetables, et un clone neuf peut tout vérifier sans générer de clé. Sa valeur ne protège rien, et son nom le dit.
 - **Un incrément « R » sans exigence** : pas de test E2E marqué `spec`, car rien ne change pour l'utilisateur. Les comportements ajoutés sont des hooks, testés comme du code. Branche `inc/r-…`, tag `inc-r`, reconnus par le garde et le hook Stop.
+
+---
+
+## I8 — Retour du test réel : QR codes
+
+### Objectif
+Traiter la première moitié du retour du commanditaire après un test réel : retirer le QR code de fin (FIN-01), ajouter un QR code au tableau pour rejoindre la session (SES-05), et consigner dans SPEC.md ses réponses et les questions ouvertes. Le numéro I8 était réservé à l'hébergement en ligne, resté conditionnel : il sera numéroté le moment venu.
+
+**Découpage.** Deux incréments : I8 pour les QR codes, I9 pour l'affichage (énoncés au tableau seulement, N = 4 par défaut). Les deux QR codes vont ensemble : les séparer aurait obligé à retirer `segno`, zxing-cpp et Pillow, puis à les remettre.
+
+**Réponses du commanditaire, reportées dans SPEC.md.**
+- Espace enseignant réservé au PC en mode classe : oui, définitivement.
+- Parcours complet réussi avec un vrai téléphone sur un Wi-Fi domestique, serveur lancé depuis Windows, hors WSL. C'est sa déclaration, je ne l'ai pas observé. Le Wi-Fi de l'école reste à tester.
+- Questions restées ouvertes à ma connaissance : l'horloge du PC de classe et le compte à rebours qui peut remonter (section R). Son essai ne les tranche pas.
+
+### Problèmes rencontrés
+- **Le QR code de fin n'avait pas de but établi, et j'en suis en partie responsable.** Je l'ai livré en I6 en détaillant son contenu, sans jamais demander à quoi il servirait ni qui le lirait. Il a fallu un test réel et une discussion avec le professeur pour le retirer. Une exigence dont personne ne sait dire l'usage mérite une question, même si elle figure dans la spec.
+- **Retirer des tests retire aussi ce qu'ils protégeaient : réserve bloquante de `spec-auditor`.** Le test du reçu était le seul à vérifier, au niveau du participant, qu'un « +10 s » ne change pas la question attribuée. En le supprimant avec FIN-01, j'ai perdu cette protection sans le voir, alors que `make verify` restait vert. Un nouveau test la rétablit (`test_added_time_keeps_the_rotation`).
+- **Mon test de FIN-02 ne vérifiait pas tout son énoncé : autre réserve bloquante.** « Ni réponses » était écrit dans la spec, mais le téléphone du test ne répondait jamais, si bien qu'afficher ses réponses à la fin ne faisait rien échouer. Il répond désormais. Autre faiblesse, non bloquante : `get_by_role("img")` ignore une image à `alt` vide. Les tests de disparition regardent maintenant toute image de la page.
+- **Ma correction d'une faiblesse non bloquante a créé une réserve bloquante : deuxième passage de `spec-auditor`.** Pour voir les images à `alt` vide, j'avais limité la recherche à `<main>`. Une image placée hors de `main`, détectée avant, ne l'était plus. Une régression de test, introduite en corrigeant un test. Le correctif, proposé par l'auditeur et relu avant application, cherche dans toute la page, et le texte exact se vérifie sur `body`.
+- **Mon test de rotation promettait plus qu'il ne vérifiait : autre réserve de ce passage.** Avec deux questions et le seul rang 0, il laissait passer un décalage par les secondes ajoutées (10 est multiple de 2) ou un produit (rang 0). Ce trou existait déjà sur main, l'ancien test du reçu ayant les mêmes données : ce n'est pas une régression. L'auditeur l'a classé bloquant parce que ce test venait lever une réserve. Le test passe à 3 questions, 2 participants et 2 ajouts, avec des valeurs attendues écrites en dur. Il a aussi signalé, sans le juger bloquant, que rien ne vérifiait la couleur du téléphone après un ajout, angle mort lui aussi antérieur à I8 : c'est corrigé au passage.
+- **Une reprise de l'auditeur n'a rien pu vérifier.** Sa copie jetable est supprimée à sa remise, et le commit n'était pas encore poussé. Il a refusé de rendre un verdict, à juste titre. Pour un nouveau passage, il faut relancer l'agent dans une copie neuve, pas le reprendre.
+- **La spec promettait au retardataire ce que l'écran ne donne pas.** J'avais écrit qu'il « passe par l'adresse et le code », or le tableau en déroulement n'affiche que le code (`/code-review`). Corrigé dans la spec. C'est la conséquence, acceptée par le commanditaire, de sa décision de n'afficher le QR code qu'avant le démarrage : l'option qu'il a retenue le disait.
+- **Le réseau du PC a de nouveau faussé une lecture.** Au moment des tests rouges, le test de CLA-01 a échoué sur `127.0.0.1`, et non sur le QR code attendu. Le piège était documenté : la route était revenue quand j'ai vérifié, et le relancer a donné l'échec attendu. Le test de l'adresse du réseau local existe désormais aussi sans dépendre du réseau (`settings.JOIN_URL` fixé).
+- **Le garde a refusé deux de mes commandes** (`;` puis pipe après un pytest, sans `pipefail`). Il a joué son rôle : rien n'est parti avec un code de retour effacé.
+
+- **Un auditeur a tenté de nommer `.env`.** Au troisième passage, une commande composée de `spec-auditor` contenait `ls .env .env.test`, pour en vérifier l'existence. Le garde l'a refusée, et il dit ne pas avoir lu le fichier ni retenté. C'est sa déclaration, et je n'ai rien observé qui la contredise. La règle ne tient toujours qu'à la consigne et au garde, qui ne couvre pas toutes les formes.
+- **Verdict final de `spec-auditor`, après trois passages :** aucune réserve bloquante au commit 4136116. Le premier a rendu 2 réserves bloquantes, le deuxième 2 autres, et le troisième a confirmé le correctif et les contre-épreuves (`make verify` compris). Il a limité ce dernier passage à ces points, sans refaire les autres exigences ni relire SPEC.md, couverts par le premier. Depuis ce commit, seule cette section a changé.
+
+Audit spec-auditor : 4136116b5de16bfccd98773409596d86bcd4ba54
+
+### Ce qui a bien marché
+- **Poser deux questions avant d'écrire les tests** : quand le QR code est visible, et ce que recouvre « modifiable ». Les réponses ont évité de construire un QR code permanent et une modification en cours de session.
+- **Lire le QR code comme un vrai lecteur** (capture, décodage, ouverture de l'adresse sur un autre appareil), y compris en vrai mode classe. Le QR code et le texte projeté ne peuvent pas diverger : ils partent de la même adresse.
+- **Les passages successifs de `spec-auditor`.** Les contre-épreuves que j'avais rejouées moi-même sur ma première correction étaient toutes détectées, et le passage suivant a pourtant trouvé deux réserves. Rejouer ses propres cas ne suffit pas à déclarer un sujet réglé.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Avant de supprimer un test, se demander ce qu'il est le seul à vérifier.** Une couverture de code à 98 % ne le dit pas : la ligne restait couverte par d'autres tests, sans que ce comportement y soit contrôlé.
+- **Chaque mot d'une exigence négative demande une précondition qui pourrait le contredire** : pour « ni réponses », il faut une réponse.
+- **Une donnée de test trop petite vide un test de son sens** : un rang 0 annule un produit, et n = 2 divise 10. Choisir des valeurs qui distinguent les erreurs plausibles.
+
+### Choix techniques et leur raison
+- **Aucune nouvelle dépendance.** `segno` change de rôle (QR code de jonction), et zxing-cpp et Pillow restent en test pour le lire.
+- **Le QR code mène à `/s/<code>/`**, l'écran de session existant : aucune nouvelle route, et un téléphone déjà identifié y retrouve son écran (ETU-03).
+- **L'image est intégrée à la page (SVG en data URI)**, déjà permise par la CSP. Elle n'est calculée qu'au rendu de la page en attente, jamais à l'interrogation de l'état chaque seconde.
+- **Le QR code se limite à la moitié de la hauteur d'écran**, pour laisser sa place à la liste des connectés sur un projecteur 1024x768.
+
+### Ce qui n'est garanti que par la consigne ou reste à vérifier
+- **Lecteurs à navigateur intégré (SPEC §5).** L'identité vit dans le cookie du navigateur qui a validé le numéro. Une application qui ouvre le lien dans son propre navigateur pourrait la perdre, avec un numéro resté lié à ce premier « appareil ». Non observé, et les tests ne peuvent pas le voir : à essayer sur de vrais téléphones.
+- **La lecture depuis la salle.** Un test impose une taille minimale et décode une capture nette. Il ne dit rien d'une photo prise à 10 mètres d'un projecteur.
+- **Sans réseau, ou en mode développement ouvert en `localhost`,** le QR code contient une adresse que le téléphone ne peut pas joindre, comme le texte projeté. Écarté : le mode classe l'annonce dans le terminal.

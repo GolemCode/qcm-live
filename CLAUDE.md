@@ -22,7 +22,7 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 2. **Tests d'abord.** Le premier commit d'un incrément contient les tests d'acceptation, rouges. Ils sont écrits avant le code, et l'échec est observé à ce moment-là : on ne le reconstitue jamais après coup (I0, voir REX). L'historique git prouve l'ordre des commits, pas l'ordre d'écriture : ne pas le présenter comme une preuve.
 3. **Terminé**, c'est seulement : `make verify` vert, PR à la CI verte, fusionnée dans main, agent `spec-auditor` sans réserve bloquante, SPEC.md et REX.md à jour. Ne jamais l'affirmer avant.
 4. **Aucun secret, aucune donnée réelle** dans le dépôt : configuration par variables d'environnement, données de test fictives. gitleaks tourne en pre-commit et en CI.
-5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django, de segno (QR code, I6), de waitress et de whitenoise (mode classe, I7). En test seulement : zxing-cpp et Pillow décodent le QR code.
+5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django, de segno (QR code de jonction, I8), de waitress et de whitenoise (mode classe, I7). En test seulement : zxing-cpp et Pillow décodent le QR code.
 6. **Git.**
    - Jamais de commit ni de push sur `main`, qui est protégée : on passe par une PR.
    - Une branche `inc/<n>-<slug>` par incrément (`inc/r-<slug>` et tag `inc-r` pour la correction de l'audit externe).
@@ -46,7 +46,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
 - `config/` : réglages lus depuis l'environnement, urls, vues transverses (accueil, espace enseignant). On y trouve aussi `forms.py`, les briques communes des formulaires enseignant (`TeacherForm`, `table_field`).
 - `bank/` : questions, QCM et barème AMC. Le barème se calcule dans `bank/scoring.py`, un module pur à côté de sa définition, qui porte aussi `LETTERS` (A = indice 0).
 - `roster/` : groupes d'étudiants. L'import CSV est lu par `roster/csv_import.py`, un module pur qui porte aussi les limites de longueur, reprises par les modèles.
-- `live/` : sessions, créneaux, participants et réponses, avec les modules purs `schedule.py` (rotation), `receipt.py` (contenu du QR) et `results.py` (notation et lignes du CSV).
+- `live/` : sessions, créneaux, participants et réponses, avec les modules purs `schedule.py` (rotation) et `results.py` (notation et lignes du CSV).
   - **Au lancement, une session fige une copie du QCM et de la liste du groupe** (SES-03, décision I3). Cette copie est faite par `live/snapshot.py` et décrite par des `TypedDict` (`FrozenQuiz`, `FrozenQuestion`, `FrozenStudent`). On la lit par `session.questions` et `session.students`. Le barème figé est sérialisé par `Scale.to_json` et relu par `Scale.from_json`.
   - Les réponses désignent cette copie, jamais les lignes `Choice` ou `QuizItem`. Modifier une question supprime et recrée ses propositions (BAN-05), et la supprimer la retire des QCM (BAN-07).
   - De même, un participant garde **son propre exemplaire** du numéro et du nom de l'étudiant. Supprimer un groupe (GRP-03) ne doit effacer aucun résultat de session.
@@ -57,14 +57,14 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
     - Chaque clic est une ligne `Extension` (session, créneau), créée par `Session.add_time(slot)`. Elle vise le créneau affiché, et un clic arrivé après l'échéance est annulé.
     - Le tableau ne se recharge qu'au changement de groupe : son état JSON donne `slot`, que `board.js` reporte dans le formulaire « +10 s ».
 - **Fin et résultats (I6).**
-  - La référence d'une question, dans le QR code comme dans le CSV, est son rang dans le QCM figé (`Q1`…). Le reçu suit l'ordre de la rotation (`Participant.receipt`), le CSV l'ordre du QCM.
+  - La référence d'une question, dans le CSV, est son rang dans le QCM figé (`Q1`…), dans l'ordre du QCM.
   - Les notes ne sont jamais projetées : page « Résultats » à part, disponible seulement une fois la session terminée. Les absents viennent de la liste figée, sans ligne `Participant`.
-  - Un test E2E lit le QR code comme un vrai lecteur : capture de l'image, puis décodage (`qr_text` dans `tests/e2e/live_ui.py`).
 - **Mode classe (I7).** `config/classroom.py`, lancé par `make classe`.
   - Il fixe l'environnement *avant* de charger les réglages : `DJANGO_DEBUG=0`, `QCM_JOIN_URL` (l'adresse du réseau local) et `QCM_TEACHER_LOCAL_ONLY=1`. Le tableau projette `settings.JOIN_URL` (sinon l'adresse de la requête), et son hôte est ajouté à `ALLOWED_HOSTS`.
   - Puis il applique les migrations et sert l'application avec waitress sur toutes les interfaces. whitenoise sert les fichiers statiques depuis leurs dossiers (`WHITENOISE_USE_FINDERS`), sans `collectstatic`.
   - `config/middleware.py` réserve alors tout `/prof/` (connexion comprise) aux requêtes venues du PC lui-même (`REMOTE_ADDR` de boucle locale ; waitress n'est derrière aucun mandataire).
   - Hors debug, les erreurs des requêtes s'affichent dans le terminal (`LOGGING`). Les pages d'erreur `400`, `403_csrf`, `404` et `500` sont en français.
+- **Jonction (I8, SES-05).** Le tableau en attente projette un QR code vers l'écran de la session (`/s/<code>/`), bâti sur la même adresse que le texte projeté (`settings.JOIN_URL`, sinon l'adresse de la requête). Un test E2E le lit comme un vrai lecteur : capture de l'image, puis décodage (`qr_text` dans `tests/e2e/live_ui.py`).
 - **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` et `qcm.follow`.
   - Une page qui suit le direct porte `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
   - Le texte est toujours inséré avec `textContent`.
