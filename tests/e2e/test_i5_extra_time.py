@@ -70,7 +70,10 @@ def test_added_time_in_real_time(teacher_page: Page, live_server, new_phone):
 
 
 def test_countdown_ignores_a_step_of_the_wall_clock(teacher_page: Page, live_server, new_phone):
-    """Une horloge système corrigée en arrière ne fait pas remonter le compte à rebours."""
+    """Entre deux interrogations de l'état, le décompte ignore l'horloge du navigateur.
+
+    Les interrogations sont coupées : ce test porte sur `qcm.countdown`, pas sur l'écran, qui se
+    recale chaque seconde sur le serveur et remonte si l'horloge du serveur recule (REX, R)."""
     page = teacher_page
     session = make_live(2, shown=1)
     (phone,) = started(page, live_server.url, new_phone, session, ["00123"])

@@ -290,7 +290,7 @@ def decide(command: str, branch: str) -> str | None:
         if (
             effective
             and not may_name_env_file(effective)
-            and any(names_env_file(t) for t in effective)
+            and any(names_env_file(t) for t in tokens)
         ):
             return "Le fichier .env contient des secrets : ne pas le lire."
         sub = git_subcommand(effective)

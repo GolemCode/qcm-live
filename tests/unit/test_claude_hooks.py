@@ -180,6 +180,7 @@ def test_stop_marker_lives_in_real_git_dir_for_worktrees(tmp_path):
         # Charger la vraie clé dans un processus : plus aucune vérification n'en a besoin.
         "uv run --env-file .env pytest",
         "uv run --env-file=.env printenv DJANGO_SECRET_KEY",
+        "UV_ENV_FILE=.env uv run printenv DJANGO_SECRET_KEY",
         "uv run --env-file .env make check",
         "uv run --env-file .env ls",
         "uv run --env-file .env",

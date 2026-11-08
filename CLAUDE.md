@@ -65,7 +65,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Puis il applique les migrations et sert l'application avec waitress sur toutes les interfaces. whitenoise sert les fichiers statiques depuis leurs dossiers (`WHITENOISE_USE_FINDERS`), sans `collectstatic`.
   - `config/middleware.py` réserve alors tout `/prof/` (connexion comprise) aux requêtes venues du PC lui-même (`REMOTE_ADDR` de boucle locale ; waitress n'est derrière aucun mandataire).
   - Hors debug, les erreurs des requêtes s'affichent dans le terminal (`LOGGING`). Les pages d'erreur `400`, `403_csrf`, `404` et `500` sont en français.
-- **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` (monotone) et `qcm.follow`.
+- **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` et `qcm.follow`.
   - Une page qui suit le direct porte `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
   - Le texte est toujours inséré avec `textContent`.
   - CSP stricte : aucun script ni style inline.
@@ -88,10 +88,11 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Sandbox de Claude Code évalué et **écarté** (raison et conditions de réévaluation dans le REX). Sans `socat`, il ne démarre pas ; sans `failIfUnavailable`, les commandes tournent alors hors sandbox, sans bloquer. Un test de CLA-01 ne peut pas passer dans un réseau isolé.
 - **Le hook Stop vérifie aussi la procédure.** Sur une branche d'incrément, il renvoie au travail une fois par arrêt tant que manquent la section du REX, sa ligne `Audit spec-auditor : <commit>`, la PR ou la fusion. Il revient à chaque arrêt, même sans nouveau commit : l'arrêt de I6 survenait justement après une revue sans commit. S'il se déclenche alors qu'on attend vraiment le commanditaire ou la CI, le redire clairement et s'arrêter. Un rapport de revue n'est jamais un message final.
 - **Agent `spec-auditor` : il n'est pas en lecture seule.** Il a Bash et modifie du code pour ses contre-épreuves, dans un worktree jetable (`isolation: worktree`, `worktree.baseRef: head`). Cette isolation fixe son dossier de départ, sans empêcher un chemin absolu : contrôler après son passage que le dépôt principal n'a pas bougé.
-- **Horloge système : elle peut reculer** (REX section R). Sur le PC de développement sous WSL2, elle recule de 1,9 s toutes les 32 s (`systemd-timesyncd`). Un test à moins de 2 s de marge y échoue au hasard.
+- **Horloge système : elle peut reculer** (REX section R). Sur le PC de développement sous WSL2, elle recule d'environ 1,4 à 2 s toutes les 32 s, parfois davantage (`systemd-timesyncd`). Un test à moins de 2 s de marge y échoue au hasard.
   - `tests/conftest.py::_steady_clock` donne au serveur de test une horloge sans saut. Les tests du mode classe la désactivent : leur serveur, lancé à part, lit l'horloge système, et `jump_to` doit lire la même.
-  - Le navigateur compte avec `performance.now()`, jamais `Date.now()`. Le serveur de l'application lit toujours l'horloge système : c'est une question ouverte.
-  - Avant d'expliquer un test intermittent, mesurer (sonde horloge murale contre monotone). La CI ne voit pas ce défaut.
+  - Le navigateur décompte avec `performance.now()`, jamais `Date.now()`, mais seulement entre deux interrogations : `qcm.follow` le recale chaque seconde sur le serveur. Le serveur de l'application lit l'horloge système, donc le compteur affiché peut remonter : c'est une question ouverte.
+  - Avant d'expliquer un test intermittent, mesurer (sonde horloge murale contre monotone). Une CI verte ne dit rien de ce défaut.
+- **Le test de CLA-01 dépend du réseau du PC.** Sans route, le mode classe annonce `127.0.0.1`, et le test échoue sur cette adresse. Vérifier le réseau avant de chercher ailleurs.
 - **SQLite sous la charge d'une classe.** Une transaction ordinaire lit puis demande le verrou d'écriture : si une autre écrit déjà, SQLite refuse aussitôt (« database is locked »), sans attendre. 40 téléphones qui valident leur numéro au même instant donnaient des erreurs 500. D'où `transaction_mode: IMMEDIATE` dans `DATABASES` : ne pas le retirer.
 - **Ne jamais rendre la main pendant un `make verify` en arrière-plan** : le hook Stop lance `make check`, donc un second pytest sur la même base de test (I7 : 8 tests en erreur, « no such table »). Lancer `make verify` au premier plan.
 - **Tests du mode classe** (`tests/e2e/test_i7_classroom.py`).

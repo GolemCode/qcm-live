@@ -41,7 +41,7 @@ def _fast_password_hasher(settings) -> None:
 @pytest.fixture(autouse=True)
 def _steady_clock(monkeypatch) -> None:
     """Le serveur de test lit une horloge sans saut. L'horloge système peut être corrigée en
-    arrière (sur un PC sous WSL2 : -1,9 s toutes les 32 s), ce qui fait échouer au hasard tout
+    arrière (sur un PC sous WSL2 : environ -2 s toutes les 30 s), ce qui fait échouer au hasard tout
     test à faible marge. L'application, elle, garde l'horloge système : voir REX.md, section R."""
     wall, monotonic = timezone.now(), time.monotonic()
     monkeypatch.setattr(
