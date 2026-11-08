@@ -128,6 +128,12 @@ def classroom(transactional_db) -> Iterator[Classroom]:
 
 
 @pytest.fixture(autouse=True)
+def _steady_clock() -> None:
+    """Remplace celui de tests/conftest.py : le serveur du mode classe, lancé à part, lit
+    l'horloge système. Les tests doivent lire la même pour placer le déroulement (`jump_to`)."""
+
+
+@pytest.fixture(autouse=True)
 def _fast_password_hasher(settings) -> None:
     """Remplace celui de tests/conftest.py : le serveur du mode classe, lancé à part, ne
     connaît pas le hachage MD5 rapide des tests. Les comptes sont hachés comme en production."""

@@ -18,11 +18,13 @@ window.qcm = {
   },
 
   // Affiche « N s » dans `element` jusqu'à l'échéance ; un nouvel appel la recale.
+  // performance.now() est monotone : une correction de l'horloge système ne fait pas remonter
+  // le compte à rebours.
   countdown(element, remainingMs) {
-    const deadline = Date.now() + remainingMs;
+    const deadline = performance.now() + remainingMs;
     clearInterval(element.qcmTimer);
     const render = () => {
-      const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      const seconds = Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
       element.textContent = `${seconds} s`;
     };
     render();

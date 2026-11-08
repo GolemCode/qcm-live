@@ -4,6 +4,7 @@ import re
 import time
 
 import pytest
+from django.utils import timezone
 from playwright.sync_api import Page, expect
 
 from live.models import Answer, Extension
@@ -27,6 +28,7 @@ from tests.e2e.live_ui import (
     phone_choices,
     phones_joined,
     save_status,
+    seconds_left,
     start,
     timer_shows,
 )
@@ -54,17 +56,34 @@ def test_added_time_in_real_time(teacher_page: Page, live_server, new_phone):
     expect(save_status(phone)).to_have_text(SAVED)
     assert Answer.objects.filter(participant__session=session, question=0).exists()
 
-    # Le second créneau commence 15 s après le départ, et non 10 s. On lit l'instant où le
-    # téléphone a rechargé sa page : l'attente de Playwright s'espace jusqu'à 1 s et fausserait
-    # la borne (échecs intermittents, à 17,1 s pour 17 s).
+    # Le second créneau commence 15 s après le départ, et non 10 s. On date le rechargement de
+    # la page du téléphone par son horloge monotone, sans l'attente de Playwright (jusqu'à 1 s).
     expect_slot(phone, 1, timeout=15_000)
     session.refresh_from_db()
     assert session.started_at
-    reloaded_at = phone.evaluate("performance.timeOrigin") / 1000
-    assert 15 <= reloaded_at - session.started_at.timestamp() <= 15 + LIVE_MS / 1000
+    loaded_for = phone.evaluate("performance.now()") / 1000
+    reloaded_after = (timezone.now() - session.started_at).total_seconds() - loaded_for
+    assert 15 <= reloaded_after <= 15 + LIVE_MS / 1000
     expect(card(page, 1).get_by_role("heading")).to_have_text("Couleur du ciel ?", timeout=LIVE_MS)
     timer_shows(phone, 3, 5)  # attendu : le compte à rebours se remplit après le rechargement
     timer_shows(page, 3, 5)
+
+
+def test_countdown_ignores_a_step_of_the_wall_clock(teacher_page: Page, live_server, new_phone):
+    """Une horloge système corrigée en arrière ne fait pas remonter le compte à rebours."""
+    page = teacher_page
+    session = make_live(2, shown=1)
+    (phone,) = started(page, live_server.url, new_phone, session, ["00123"])
+    timer_shows(phone, 25, 30)
+    # Sans interrogation de l'état : elle recalerait le compte à rebours et masquerait le saut.
+    state_url = phone.locator("[data-state-url]").get_attribute("data-state-url")
+    phone.route(f"**{state_url}", lambda route: route.abort())
+    phone.wait_for_timeout(1100)  # le temps qu'une interrogation en cours se termine
+    before = seconds_left(phone)
+    phone.evaluate("() => { const real = Date.now.bind(Date); Date.now = () => real() - 5000; }")
+    for _ in range(6):
+        phone.wait_for_timeout(100)
+        assert seconds_left(phone) <= before
 
 
 @pytest.mark.spec("TPS-01")

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import functools
+import time
+from datetime import timedelta
 
 import pytest
+from django.utils import timezone
 
 from tests import spec_trace
 
@@ -33,6 +36,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def _fast_password_hasher(settings) -> None:
     """PBKDF2 (≈ 1 M itérations) coûte ~0,3 s par création ou connexion : inutile en test."""
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
+@pytest.fixture(autouse=True)
+def _steady_clock(monkeypatch) -> None:
+    """Le serveur de test lit une horloge sans saut. L'horloge système peut être corrigée en
+    arrière (sur un PC sous WSL2 : -1,9 s toutes les 32 s), ce qui fait échouer au hasard tout
+    test à faible marge. L'application, elle, garde l'horloge système : voir REX.md, section R."""
+    wall, monotonic = timezone.now(), time.monotonic()
+    monkeypatch.setattr(
+        timezone, "now", lambda: wall + timedelta(seconds=time.monotonic() - monotonic)
+    )
 
 
 @functools.cache

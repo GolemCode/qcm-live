@@ -552,7 +552,7 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 ## R — Corrections issues d'un audit externe
 
 ### Objectif
-En fin de projet, un relecteur **extérieur à mes sessions** a analysé le dépôt et mes journaux de session. Ses 7 constats portent sur ma méthode et mon environnement de travail, pas sur l'application : aucune exigence de SPEC.md ne change, et le numéro d'incrément de `pyproject.toml` reste 7. Le commanditaire m'a demandé de vérifier chaque constat avant de le corriger, de contester ceux qui me semblaient faux et de tout consigner ici.
+En fin de projet, un relecteur **extérieur à mes sessions** a analysé le dépôt et mes journaux de session. Ses 7 constats portent sur ma méthode et mon environnement de travail, pas sur l'application : aucune exigence de SPEC.md ne change, et le numéro d'incrément de `pyproject.toml` reste 7. La seule retouche de l'application vient de l'audit interne qui a suivi : le compte à rebours ne suit plus l'horloge système (voir plus bas). Le commanditaire m'a demandé de vérifier chaque constat avant de le corriger, de contester ceux qui me semblaient faux et de tout consigner ici.
 
 Résultat : **aucun constat n'est faux.** J'en nuance trois sur des détails, sans en contester le fond. Tous décrivent des défauts que mes propres revues n'avaient pas vus. Le constat 5 contredit directement ce document, le constat 6 contredit le fichier de l'agent, et le constat 1 nuance ce que ce document laissait entendre.
 
@@ -615,6 +615,9 @@ Le message de l'audit prévoyait les réponses à mes deux questions de l'incré
 - **Espace enseignant réservé au PC en mode classe.** Rien ne change, et SPEC.md le garde « à confirmer ».
 - **Essai réel avec un téléphone sur le Wi-Fi.** Considéré comme non fait. Les tests E2E de CLA-01 tournent sur une seule machine, avec des téléphones émulés : ils ne disent rien de l'isolation d'un vrai Wi-Fi d'école, qui reste le principal risque en classe.
 
+Une question nouvelle, née de cet audit :
+- **L'horloge du PC de classe.** Le déroulement d'une session se calcule à partir de l'horloge système du serveur. Si elle recule de 2 s, comme sur ce PC de développement, le créneau précédent peut revenir brièvement sur les téléphones, et une réponse donnée juste après un changement de créneau peut être refusée. C'est déduit du code et des échecs de tests, pas essayé sous `make classe`. Je ne sais pas si un PC sous Windows, sans WSL2, a ce défaut : à contrôler sur le vrai PC de classe avant une évaluation notée.
+
 ### Problèmes rencontrés
 - **Le garde a analysé `2>&1` comme un séparateur de commandes.** Le `&` coupait la commande en deux : le test de pipe aurait regardé un « 1 » à la place de `make verify`. Ces redirections sont retirées avant l'analyse.
 - **Mon propre test était trop strict.** Il interdisait « lecture seule » dans tout le fichier de l'agent, alors que celui-ci doit justement écrire qu'il ne l'est pas. Il porte maintenant sur la description, seule promesse faite à l'extérieur.
@@ -639,8 +642,15 @@ Même sur un incrément de correction, les revues ont trouvé de vrais défauts,
 - **Le garde m'a refusé trois fois** pendant ces corrections. Une fois à raison (un `; echo` après pytest), deux fois à tort, parce que ma généralisation traitait tout pipe de la chaîne comme un masquage, alors que la forme recommandée par CLAUDE.md en contient un plus loin. Corrigé, avec ce cas en test.
 - **Le hook Stop s'est déclenché en conditions réelles**, à chaque attente de sous-agent. Il coûte un tour de plus par attente. C'est le prix du rappel, et je le garde.
 - **Le skill `/security-review` demande que la réponse finale soit son rapport « et rien d'autre ».** C'est la cause probable de l'arrêt de I6, et cette consigne s'est représentée ici. Je n'ai pas clos mon travail sur ce rapport.
+- **Contre-audit de `spec-auditor` : l'horloge de cette machine recule.** Après mes corrections, `make accept` échouait encore 3 fois sur 4, sur 3 tests différents.
+  - *Mesuré, et reproduit par ma propre sonde :* l'horloge système recule de 1,9 s toutes les 32 s (sauts à 31 s, 63 s et 95 s). `systemd-timesyncd` corrige à chaque interrogation un écart d'environ 1,88 s, sous WSL2. Il corrige sans cesse, et l'écart revient.
+  - *Conséquence :* tout test à moins de 2 s de marge échoue au hasard. Le compte à rebours remontait de 30 à 32 s, une réponse était refusée juste après `jump_to(61)`, et deux noms s'inversaient. Mes `make verify` verts tenaient donc en partie à la chance, et la CI, sur une autre machine, n'en voyait rien.
+  - *Ma cause écrite (le délai de Playwright) était fausse :* je l'avais déduite d'un seul test, sans mesurer. Les échecs intermittents de I5 et I6 (« le téléphone saute le créneau ») ont peut-être la même origine ; je ne peux plus le vérifier.
+  - *Corrigé dans le dépôt :* le serveur de test lit une horloge sans saut, ce qui rend la suite indépendante de cette machine. Les tests du mode classe gardent la vraie horloge, car leur serveur est un processus à part. Le compte à rebours du navigateur passe à une horloge monotone : c'est un vrai gain, il ne peut plus remonter.
+  - *Ce que cela ne corrige pas :* le serveur de l'application lit toujours l'horloge système. Voir les questions ouvertes.
+- **Un test du compte à rebours ne savait pas échouer.** Mon premier essai passait sur le code non corrigé : l'interrogation de l'état recalait le minuteur avant ma lecture. Le test coupe maintenant ces interrogations, et il est rouge 5 fois sur 5 sur l'ancien code.
 - **Agent `spec-auditor`.** Première exécution dans sa copie jetable : le dossier et le commit étaient bons, et le dépôt principal n'a pas bougé. Plus de 80 contre-épreuves, avec 4 réserves bloquantes :
-  - **Un test intermittent, antérieur à R.** `test_added_time_in_real_time` échouait 4 fois sur 8 chez lui, au commit de base comme sur la branche, alors que la CI et mes `make verify` passaient. Le test mesurait aussi le délai de Playwright, dont l'attente s'espace jusqu'à 1 s. Il lit désormais l'instant où le téléphone a rechargé sa page, et sa borne basse passe de 13,5 s à 15 s exactes.
+  - **Un test intermittent, antérieur à R.** `test_added_time_in_real_time` échouait 4 fois sur 8 chez lui, au commit de base comme sur la branche, alors que la CI et mes `make verify` passaient. J'ai d'abord accusé le délai de Playwright, et c'était faux : voir le paragraphe sur l'horloge, ci-dessous. La mesure du test date désormais le rechargement de la page, et sa borne basse passe de 13,5 s à 15 s exactes.
   - **Rien ne protégeait la correction du constat 1 en mode classe.** Retirer `ENV_FILE=.env.test` du test ne faisait rien échouer : le Makefile générait sans bruit un `.env`. Sur un poste de développement, le test aurait chargé la vraie clé.
   - **Le câblage du hook Stop n'était testé qu'à moitié.** Ne plus lire le REX, ne plus interroger `gh`, ne plus traiter main ou ne plus reconnaître `inc/r-…` : aucun test ne tombait. La ligne d'audit acceptait aussi une mention en milieu de phrase, soit le défaut même que `/simplify` venait de signaler. Ajout de tests de bout en bout du hook, avec un faux `gh`.
   - **Des surestimations dans ce document** : « la clé n'entre jamais dans le dépôt », le secret scanning cité comme protection, `uv` présenté comme ne lisant pas `.env`, et `make setup` oublié. Elles sont corrigées, et le garde refuse maintenant `uv run --env-file .env`, qu'aucune vérification n'utilise plus.
@@ -656,6 +666,8 @@ Même sur un incrément de correction, les revues ont trouvé de vrais défauts,
 - **Un incident rattrapé reste à consigner.** Les deux codes de retour et l'arrêt de I6 ont été vus sur le moment, puis jamais écrits : c'est ainsi qu'une vérification a pu repasser 43 fois dans un pipe après le premier incident.
 - **Une consigne ne suffit pas à une règle qui compte.** Pour chaque règle, se demander ce qui la fait respecter, puis dire honnêtement si rien ne le fait.
 - **Un inventaire se confronte à la liste des fonctions de l'outil,** pas à ce dont on se souvient.
+- **Un test intermittent se mesure avant de s'expliquer.** J'ai réparé une cause plausible, sans sonde, et elle était fausse. Une explication qui tient sur un seul test ne vaut rien tant qu'elle n'a pas été confrontée aux échecs des autres.
+- **L'horloge d'une machine n'est pas une donnée fiable.** Une application qui calcule des échéances doit le prévoir, et sa suite de tests aussi.
 - **Un relecteur extérieur voit ce que mes revues ne peuvent pas voir.** Elles portent sur le diff. Aucune ne lit mes journaux, ni ne confronte ma méthode à ce que j'en dis.
 
 ### Choix techniques et leur raison

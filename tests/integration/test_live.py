@@ -343,6 +343,15 @@ def test_add_time_arriving_at_the_deadline_does_not_reopen_the_slot(session):
     assert not Extension.objects.exists()
 
 
+def test_add_time_reads_the_clock_when_called(session, monkeypatch):
+    """L'horloge n'est pas figée à la définition de la méthode : l'horloge stable des tests
+    doit s'appliquer ici comme ailleurs, sinon le créneau serait jugé sur une autre heure."""
+    start = timezone.now()
+    session.start(start)
+    monkeypatch.setattr(timezone, "now", lambda: start + timedelta(hours=1))
+    assert not session.add_time("0")
+
+
 def test_concurrent_click_near_the_deadline_is_not_lost(session):
     """Deux clics à 0,01 s de l'échéance : le second vérifie l'échéance avant que le premier
     ne soit validé, puis écrit après elle. Il tient compte du premier ajout et passe."""

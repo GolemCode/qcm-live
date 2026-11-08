@@ -259,6 +259,15 @@ def names_env_file(token: str) -> bool:
     return value == ".env" or value.endswith("/.env")
 
 
+def loads_env_file(tokens: list[str]) -> bool:
+    """`--env-file .env`, ou `--env-file=.env`, quelle que soit la commande lancée ensuite."""
+    return any(
+        (word == "--env-file" and names_env_file(following))
+        or (word.startswith("--env-file=") and names_env_file(word))
+        for word, following in zip(tokens, [*tokens[1:], ""], strict=True)
+    )
+
+
 def may_name_env_file(command: list[str]) -> bool:
     if command[0] == "git":
         sub = git_subcommand(command)
@@ -275,11 +284,13 @@ def decide(command: str, branch: str) -> str | None:
     for tokens, _ in segments:
         if any(t.startswith("SKIP=") for t in tokens):
             return "Ne pas désactiver les hooks pre-commit (SKIP=…)."
+        if loads_env_file(tokens):
+            return "Le fichier .env contient des secrets : ne pas le charger (--env-file)."
         effective = effective_command(tokens)
         if (
             effective
             and not may_name_env_file(effective)
-            and any(names_env_file(t) for t in tokens)
+            and any(names_env_file(t) for t in effective)
         ):
             return "Le fichier .env contient des secrets : ne pas le lire."
         sub = git_subcommand(effective)
