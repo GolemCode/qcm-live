@@ -60,6 +60,17 @@ def test_board_qr_code_opens_the_session_on_a_phone(teacher_page: Page, live_ser
 
 
 @pytest.mark.spec("SES-05")
+def test_join_qr_code_uses_the_class_mode_address(teacher_page: Page, live_server, settings):
+    """Le tableau ouvert en local projette l'adresse du réseau local, dans le QR code comme dans
+    le texte. Sans dépendre du réseau du PC, contrairement au test de bout en bout de CLA-01."""
+    settings.JOIN_URL = "http://192.168.1.23:8000/"
+    session = make_live(1, shown=1)
+    open_board(teacher_page, live_server.url, session)
+    assert qr_text(join_qr(teacher_page)) == f"http://192.168.1.23:8000/s/{session.code}/"
+    expect(join_hint(teacher_page)).to_contain_text("http://192.168.1.23:8000/")
+
+
+@pytest.mark.spec("SES-05")
 def test_join_qr_code_is_gone_once_started(teacher_page: Page, live_server):
     page = teacher_page
     session = make_live(2, shown=1)

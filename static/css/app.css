@@ -94,7 +94,7 @@ pre { background: #f6f7f9; border: 1px solid var(--border); border-radius: 0.375
 /* Tableau projeté : lisible du fond de la salle. */
 .board .waiting { gap: 2rem; align-items: flex-start; }
 .board .waiting > div { flex: 1 1 24rem; }
-.board .qr { flex: none; width: min(100%, 32rem); height: auto; background: #fff; }
+.board .qr { flex: none; width: min(100%, 32rem, 50vh); height: auto; background: #fff; }
 .board .join-hint { font-size: 1.5rem; }
 .board .code { font-size: 2.5rem; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; }
 .board .count { font-size: 1.5rem; font-weight: 600; }

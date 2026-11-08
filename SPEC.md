@@ -61,7 +61,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   L'enseignant clique sur « Démarrer ». *(dérivé)*
 - **[SES-05]** (I8) Avant le départ, le tableau affiche aussi un **QR code pour rejoindre la session**, pour que l'étudiant n'ait à taper ni l'adresse ni le code. Le lire ouvre directement l'écran de cette session sur le téléphone, où il ne reste à saisir que le numéro d'étudiant (ETU-01).
   - L'adresse et le code restent affichés en texte, pour un téléphone qui ne lit pas le QR code. *(dérivé)*
-  - Le QR code disparaît au démarrage : le tableau en déroulement n'affiche que les questions. Un retardataire (ETU-08) passe par l'adresse et le code. *(décision I8)*
+  - Le QR code disparaît au démarrage. *(décision I8)* Le tableau en déroulement n'affiche ni le QR code ni l'adresse, seulement le code de session dans son titre : un retardataire (ETU-08) doit obtenir l'adresse autrement, auprès d'un camarade ou de l'enseignant. *(conséquence acceptée, décision I8)*
   - En mode classe, il contient l'adresse du PC sur le réseau local (CLA-01), même si le tableau est ouvert en `localhost`. *(dérivé)*
   - Un téléphone déjà identifié qui le lit retrouve son écran, sans nouvelle saisie (ETU-03). *(dérivé)*
 - **[SES-03]** (I3) Le QCM et la liste du groupe sont **figés au lancement**. Modifier ou supprimer ensuite le QCM, ses questions ou le groupe ne change pas la session.
@@ -155,6 +155,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. La parade actuelle : l'enseignant voit au tableau la liste des noms connectés avant le départ (SES-02). En cas de doute, il passe aux copies papier.
 - **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants. Le recours retenu (SES-04) : l'enseignant voit la liste des connectés au tableau et libère les numéros usurpés avant le démarrage.
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
+- **Lecteurs de QR code à navigateur intégré.** L'identité de l'étudiant vit dans le cookie du navigateur qui a validé le numéro. Une application qui ouvre le lien dans son propre navigateur peut perdre ce cookie à la fermeture : le numéro reste alors lié à ce premier « appareil » (ETU-02) et, après le démarrage, il n'y a pas de recours (§4). Non observé : à vérifier avec de vrais téléphones, l'appareil photo du téléphone ouvrant en principe le navigateur habituel.
 - **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel, à numéroter le moment venu) devient nécessaire. Le parcours complet a réussi avec un vrai téléphone sur un Wi-Fi domestique, serveur lancé depuis Windows (hors WSL) ; le Wi-Fi de l'école **n'a pas encore été testé**.
 
 ## 5 bis. Questions ouvertes, en attente du professeur
