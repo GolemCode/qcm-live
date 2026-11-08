@@ -586,7 +586,7 @@ Résultat : **aucun constat n'est faux.** J'en nuance trois sur des détails, sa
 - *Limite.* Le hook relance **une seule fois par arrêt**, et c'est voulu : sinon il deviendrait impossible de poser une question ou d'attendre la CI. C'est un rappel fort, pas un blocage. Il ne voit pas non plus les revues elles-mêmes : pour l'audit, il cherche la ligne « Audit spec-auditor : <commit> » dans la section du REX, que j'écris moi-même. C'est une déclaration, pas une preuve.
 
 **4. Codes de retour masqués : exact, une nuance sur le second.**
-- *Vérifié.* En I5, le commit `8dfdcda` est parti malgré « 1 failed ». En I6, l'`echo` écrivait fidèlement « exit 2 » dans le journal : c'est le statut de la commande entière qui était 0, et non le texte de l'`echo`. Le défaut est le même : le code de retour n'a pas survécu. J'ai rejoué le nouveau garde sur les 455 commandes shell des 4 sessions : 127 vérifications passées dans un pipe sans `pipefail`, dont 46 après l'incident de I5, et 49 suites qui auraient remplacé le code de retour. La leçon n'était consignée nulle part.
+- *Vérifié.* En I5, le commit `8dfdcda` est parti malgré « 1 failed ». En I6, l'`echo` écrivait fidèlement « exit 2 » dans le journal : c'est le statut de la commande entière qui était 0, et non le texte de l'`echo`. Le défaut est le même : le code de retour n'a pas survécu. J'ai rejoué le nouveau garde sur les 455 commandes shell des 4 sessions : 124 vérifications passées dans un pipe sans `pipefail`, dont 43 après l'incident de I5, et 55 suites qui auraient remplacé le code de retour. La leçon n'était consignée nulle part.
 - *Correction.* Une règle dans CLAUDE.md, et un garde qui refuse une vérification (`make check`, `pytest`, `pyright`, `ruff`…) suivie d'un pipe sans `pipefail`, d'un `;` ou d'un `|| true`. Ce refus s'applique à mes propres commandes depuis cette section.
 - *Limite.* C'est une analyse de la commande : un script écrit à part, une boucle `for` ou un `bash -c` y échappent. Elle accepte aussi `exit $code` sans vérifier que `$code` vient bien de la vérification.
 
@@ -617,7 +617,27 @@ Le message de l'audit prévoyait les réponses à mes deux questions de l'incré
 ### Problèmes rencontrés
 - **Le garde a analysé `2>&1` comme un séparateur de commandes.** Le `&` coupait la commande en deux : le test de pipe aurait regardé un « 1 » à la place de `make verify`. Ces redirections sont retirées avant l'analyse.
 - **Mon propre test était trop strict.** Il interdisait « lecture seule » dans tout le fichier de l'agent, alors que celui-ci doit justement écrire qu'il ne l'est pas. Il porte maintenant sur la description, seule promesse faite à l'extérieur.
-- **Mon premier comptage était faux, à 100 près.** J'ai d'abord annoncé 29 pipes, dont 5 après I5. Mon expression régulière s'arrêtait sur le `&` de `2>&1`, et donnait 0 pour la session même de l'incident, ce qui m'a alerté. Le chiffre juste vient du garde rejoué sur l'historique : 127, dont 46. Un outil de mesure se vérifie sur un cas dont on connaît la réponse.
+- **Mon premier comptage était faux, à 100 près.** J'ai d'abord annoncé 29 pipes, dont 5 après I5. Mon expression régulière s'arrêtait sur le `&` de `2>&1`, et donnait 0 pour la session même de l'incident, ce qui m'a alerté. Le chiffre juste vient du garde rejoué sur l'historique : 124, dont 43. Un outil de mesure se vérifie sur un cas dont on connaît la réponse.
+
+### Ce que les revues ont trouvé
+Même sur un incrément de correction, les revues ont trouvé de vrais défauts, dont un que j'avais introduit en appliquant la revue précédente.
+- **`/simplify`** (quatre angles).
+  - Retenu : une seule analyse de la commande, les préfixes retirés pour toutes les règles (`timeout 5 git push --force` et `uv run cat .env` passaient), la règle sur `.env` inversée au lieu d'une liste de lecteurs, le hook Stop découpé, `gh` limité à 5 s.
+  - Retenu, le plus utile : l'audit était « vérifié » par la présence du mot `spec-auditor`, qui figurait déjà dans le titre de mon constat 6. Le contrôle n'aurait rien vu ici. Il exige maintenant une ligne dédiée.
+  - Écarté : **un rappel par état plutôt que par arrêt**, qui économiserait des tours. L'arrêt de I6 survenait après une revue sans commit : il repasserait sans rappel.
+  - Écarté : **`pipefail` pour toute la session** par `CLAUDE_ENV_FILE`, qui traiterait la cause plus à la racine. Je ne peux pas l'essayer dans une session déjà ouverte, et `git log | head` échouerait.
+  - Écarté : le tag posé par la CI (hors périmètre, droits d'écriture à donner au workflow), et un module commun aux hooks (quelques lignes dupliquées coûtent moins qu'un import de plus entre scripts autonomes).
+- **`/security-review`.** Une régression, que j'avais introduite en appliquant `/simplify` : un `<<` dans une chaîne, ou un here-string `<<<`, était pris pour un heredoc et masquait les lignes suivantes. `echo "<<X"` puis `git push --force` passait, alors que `main` le refuse. J'ai reproduit les 10 cas en tests rouges avant de corriger. Aucune vulnérabilité sur le reste. `.env.test` n'atteint ni `make classe` ni `make run`. Seul un `uv run python -m config.classroom` lancé depuis le shell de Claude Code la chargerait, avec très peu d'effet : les sessions sont stockées en base, leur cookie n'est pas signé par cette clé.
+- **`/code-review`.** 10 constats, 31 cas reproduits en tests rouges :
+  - masquage plus loin dans la chaîne (`make check && echo ok; echo fin`), `make check &`, `exit 0` accepté comme un code honnête, `set +o pipefail` pris pour une activation ;
+  - suite de ligne (`git push \` puis `--force` à la ligne) : l'option échappait au garde, et cela existait déjà sur `main` ;
+  - préfixes `env -i`, `timeout -k`, `time`, `!` ;
+  - `git diff --no-index /dev/null .env` passait, et aurait affiché la clé sans confirmation ;
+  - une PR fermée sans fusion ne laissait aucun manque ;
+  - `make accept INC=r` est impossible (`--spec-inc` attend un entier) : un incrément sans exigence se vérifie avec le dernier numéro.
+- **Le garde m'a refusé trois fois** pendant ces corrections. Une fois à raison (un `; echo` après pytest), deux fois à tort, parce que ma généralisation traitait tout pipe de la chaîne comme un masquage, alors que la forme recommandée par CLAUDE.md en contient un plus loin. Corrigé, avec ce cas en test.
+- **Le hook Stop s'est déclenché en conditions réelles**, à chaque attente de sous-agent. Il coûte un tour de plus par attente. C'est le prix du rappel, et je le garde.
+- **Le skill `/security-review` demande que la réponse finale soit son rapport « et rien d'autre ».** C'est la cause directe de l'arrêt de I6, et cette consigne s'est représentée ici à l'identique. Je n'ai pas clos mon travail sur ce rapport.
 
 ### Ce qui a bien marché
 - **Vérifier sur pièces avant de corriger.** Les journaux ont apporté des précisions que le seul énoncé des constats ne donnait pas : l'origine exacte du `exit 0`, et l'écart entre la citation et la phrase du REX.
@@ -626,7 +646,7 @@ Le message de l'audit prévoyait les réponses à mes deux questions de l'incré
 
 ### Ce que j'aurais dû savoir dès le départ
 - **Une affirmation de preuve se relit comme une exigence.** « L'historique prouve » et « en lecture seule » étaient plus forts que les faits. Écrire ce qu'un mécanisme garantit, ce qu'il ne garantit pas, et ce qui ne tient qu'à la consigne.
-- **Un incident rattrapé reste à consigner.** Les deux codes de retour et l'arrêt de I6 ont été vus sur le moment, puis jamais écrits : c'est ainsi qu'une vérification a pu repasser 46 fois dans un pipe après le premier incident.
+- **Un incident rattrapé reste à consigner.** Les deux codes de retour et l'arrêt de I6 ont été vus sur le moment, puis jamais écrits : c'est ainsi qu'une vérification a pu repasser 43 fois dans un pipe après le premier incident.
 - **Une consigne ne suffit pas à une règle qui compte.** Pour chaque règle, se demander ce qui la fait respecter, puis dire honnêtement si rien ne le fait.
 - **Un inventaire se confronte à la liste des fonctions de l'outil,** pas à ce dont on se souvient.
 - **Un relecteur extérieur voit ce que mes revues ne peuvent pas voir.** Elles portent sur le diff. Aucune ne lit mes journaux, ni ne confronte ma méthode à ce que j'en dis.
