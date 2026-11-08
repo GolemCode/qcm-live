@@ -18,11 +18,14 @@ window.qcm = {
   },
 
   // Affiche « N s » dans `element` jusqu'à l'échéance ; un nouvel appel la recale.
+  // Entre deux appels, le décompte est monotone (performance.now()) : il ignore une correction
+  // de l'horloge du navigateur. Mais follow() le recale chaque seconde sur le temps calculé par
+  // le serveur : si l'horloge du serveur recule, le nombre affiché remonte (REX, section R).
   countdown(element, remainingMs) {
-    const deadline = Date.now() + remainingMs;
+    const deadline = performance.now() + remainingMs;
     clearInterval(element.qcmTimer);
     const render = () => {
-      const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      const seconds = Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
       element.textContent = `${seconds} s`;
     };
     render();

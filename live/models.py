@@ -121,7 +121,7 @@ class Session(models.Model):
         position = self.schedule.position((now - self.started_at).total_seconds())
         return State("ended") if position is None else State("running", position)
 
-    def add_time(self, slot: str | None, clock: Callable[[], datetime] = timezone.now) -> bool:
+    def add_time(self, slot: str | None, clock: Callable[[], datetime] | None = None) -> bool:
         """TPS-01 : ajoute 10 s au créneau `slot` (son rang, tel qu'envoyé par le tableau) s'il
         est en cours ; False sinon (clic arrivé après la fin du créneau, avant le démarrage ou
         après la fin de la session).
@@ -134,6 +134,7 @@ class Session(models.Model):
         """
         if self.started_at is None:
             return False
+        clock = clock or timezone.now  # lue à l'appel, pas figée à la définition
         position = self.state(clock()).position
         if position is None or slot != str(position.slot.index):
             return False

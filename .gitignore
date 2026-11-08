@@ -7,6 +7,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.test
 
 # Données locales : base et listes d'étudiants réelles (données personnelles)
 db.sqlite3
@@ -26,3 +27,5 @@ test-results/
 
 # Réglages locaux de Claude Code (le partagé est dans .claude/settings.json)
 .claude/settings.local.json
+# Copies jetables de l'agent spec-auditor (isolation: worktree)
+.claude/worktrees/

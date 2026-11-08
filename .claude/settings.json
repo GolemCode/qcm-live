@@ -1,7 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "UV_ENV_FILE": ".env"
+    "UV_ENV_FILE": ".env.test"
+  },
+  "worktree": {
+    "baseRef": "head"
   },
   "permissions": {
     "allow": [

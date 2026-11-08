@@ -24,7 +24,7 @@ make superuser    # crée un compte enseignant (identifiant + mot de passe)
 make run          # http://localhost:8000
 ```
 
-`make setup` génère `.env` avec une clé secrète aléatoire propre à votre installation. Ce fichier n'est jamais versionné.
+`make setup` génère `.env` avec une clé secrète aléatoire propre à votre installation. Ce fichier n'est jamais versionné, et seuls `make setup`, `make run`, `make classe` et `make superuser` le lisent. Les vérifications (`make check`, `make verify`, CI) utilisent `.env.test`, versionné et sans valeur : un clone neuf peut tout vérifier sans clé.
 
 ### Windows sans make (PowerShell)
 

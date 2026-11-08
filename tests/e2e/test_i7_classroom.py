@@ -6,7 +6,8 @@ Le serveur lit la base de test, où les fabriques créent les préconditions.
 
 - Le PC de l'enseignant ouvre l'application en local (`localhost`).
 - Les téléphones ouvrent l'adresse projetée au tableau, celle du PC sur le réseau local.
-- Le fichier `.env` demande le mode debug (`DJANGO_DEBUG=1`) : le mode classe doit l'ignorer.
+- L'environnement demande le mode debug (`DJANGO_DEBUG=1`) : le mode classe doit l'ignorer.
+- Le serveur démarre avec `.env.test` : les tests ne chargent jamais la vraie clé (`.env`).
 """
 
 from __future__ import annotations
@@ -76,7 +77,14 @@ def class_mode(*make_args: str) -> Iterator[Classroom]:
     env = {**os.environ, "DJANGO_DB_PATH": str(settings.DATABASES["default"]["NAME"])}
     env["DJANGO_DEBUG"] = "1"  # comme dans le .env de développement
     process = subprocess.Popen(
-        ["make", "--no-print-directory", "classe", f"PORT={port}", *make_args],
+        [
+            "make",
+            "--no-print-directory",
+            "classe",
+            "ENV_FILE=.env.test",
+            f"PORT={port}",
+            *make_args,
+        ],
         cwd=REPO,
         env=env,
         stdout=subprocess.PIPE,
@@ -106,6 +114,7 @@ def class_mode(*make_args: str) -> Iterator[Classroom]:
                 continue
             if match := PHONE_URL_RE.search(line):
                 phone_url = match.group(1)
+        assert any("--env-file .env.test" in line for line in output), "".join(output)
         yield Classroom(f"http://localhost:{port}", phone_url, output)
     finally:
         os.killpg(process.pid, signal.SIGTERM)
@@ -116,6 +125,12 @@ def class_mode(*make_args: str) -> Iterator[Classroom]:
 def classroom(transactional_db) -> Iterator[Classroom]:
     with class_mode() as server:
         yield server
+
+
+@pytest.fixture(autouse=True)
+def _steady_clock() -> None:
+    """Remplace celui de tests/conftest.py : le serveur du mode classe, lancé à part, lit
+    l'horloge système. Les tests doivent lire la même pour placer le déroulement (`jump_to`)."""
 
 
 @pytest.fixture(autouse=True)
