@@ -4,11 +4,12 @@ Refusé :
 - contourner les hooks git (`--no-verify`, `commit -n`, variable `SKIP=` de pre-commit) ;
 - pousser en force (`--force`, `-f`, refspec `+…`) ;
 - pousser ou committer sur main (seuls les tags d'incrément peuvent partir de main) ;
-- lire le fichier .env par une commande courante (secrets locaux) ;
+- nommer le fichier .env dans une commande (secrets locaux), sauf celles qui ne le lisent pas ;
 - masquer le code de retour d'une vérification (pipe sans pipefail, `;` ou `|| true` après elle).
 
 L'analyse se fait sur les arguments (shlex) et non sur le texte brut, pour ne pas confondre
-une option avec le contenu d'un message de commit.
+une option avec le contenu d'un message de commit. Le corps d'un heredoc n'est pas analysé :
+c'est du texte, sauf s'il est donné à un shell.
 
 Ce garde évite les accidents : ce n'est pas une frontière de sécurité. Un filtre de texte ne voit
 pas ce que fait un programme (voir REX.md, section R, et test_guard_is_not_a_security_boundary).
@@ -23,37 +24,9 @@ import subprocess
 import sys
 
 SEPARATOR_CHARS = set(";&|()\n")
-READERS = {
-    "cat",
-    "less",
-    "more",
-    "head",
-    "tail",
-    "grep",
-    "rg",
-    "sed",
-    "awk",
-    "bat",
-    "xxd",
-    "od",
-    "strings",
-    "nl",
-    "source",
-    ".",
-    "base64",
-    "tac",
-    "cut",
-    "sort",
-    "uniq",
-    "cp",
-    "mv",
-    "dd",
-    "diff",
-    "cmp",
-    "vi",
-    "vim",
-    "nano",
-}
+ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# Commandes qui peuvent nommer .env sans en afficher le contenu.
+ENV_FILE_ALLOWED = {"ls", "stat", "test", "[", "git", "make", "uv"}
 # Options courtes de `git commit` qui consomment l'argument suivant (ex. -m "message").
 COMMIT_VALUE_FLAGS = set("mFCct")
 COMMIT_LONG_VALUE_FLAGS = {"--message", "--file", "--reuse-message", "--reedit-message"}
@@ -63,9 +36,19 @@ TAG_REF = re.compile(r"^(refs/tags/)?inc-(\d+|r)$")
 # Redirections qui contiennent « & » sans être un séparateur de commandes (2>&1, &>fichier).
 FD_REDIRECT = re.compile(r"\d*>&\d*-?|&>>?")
 HEREDOC = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?")
+SHELL = re.compile(r"\b(ba|z|da)?sh\b")
 VERIFY_TARGETS = {"lint", "test", "e2e", "check", "verify", "verify-tests", "accept"}
 VERIFY_TOOLS = {"pytest", "pyright", "ruff"}
-UV_RUN_VALUE_FLAGS = {"--env-file", "--with", "--python", "-p", "--group", "--project"}
+UV_RUN_VALUE_FLAGS = {
+    "--directory",
+    "--env-file",
+    "--extra",
+    "--group",
+    "--project",
+    "--python",
+    "--with",
+    "-p",
+}
 PIPE_MASKS = (
     "Un pipe remplace le code de retour de la vérification par celui de la dernière commande "
     "(incident I5). Écrire `set -o pipefail; …`, ou rediriger vers un fichier puis le lire."
@@ -102,7 +85,7 @@ def _segments(text: str) -> list[Segment]:
 
 
 def split_segments(command: str) -> list[Segment]:
-    """Comme _segments ; si le tout n'est pas analysable (apostrophe dans un heredoc…),
+    """Comme _segments ; si le tout n'est pas analysable (apostrophe dans une ligne…),
     analyse ligne par ligne en ignorant les seules lignes illisibles."""
     try:
         return _segments(command)
@@ -116,12 +99,9 @@ def split_segments(command: str) -> list[Segment]:
         return segments
 
 
-def split_commands(command: str) -> list[list[str]]:
-    return [tokens for tokens, _ in split_segments(command)]
-
-
 def strip_heredocs(command: str) -> str:
-    """Retire le corps des heredocs : du texte (un message de commit…), pas des commandes."""
+    """Retire le corps des heredocs : du texte (un message de commit…), pas des commandes.
+    Il reste analysé s'il est donné à un shell (`bash <<EOF`)."""
     kept: list[str] = []
     delimiter = None
     for line in command.split("\n"):
@@ -130,26 +110,41 @@ def strip_heredocs(command: str) -> str:
                 delimiter = None
             continue
         kept.append(line)
-        if match := HEREDOC.search(line):
+        match = HEREDOC.search(line)
+        if match and not SHELL.search(line[: match.start()]):
             delimiter = match.group(1)
     return "\n".join(kept)
 
 
-def is_verification(tokens: list[str]) -> bool:
-    """`[VAR=x] [timeout n] [uv run [options]] make check|pytest|pyright|ruff|python -m pytest`."""
+def skip_options(tokens: list[str], start: int, value_flags: set[str]) -> int:
+    """Indice du premier mot qui n'est pas une option, à partir de `start`."""
+    i = start
+    while i < len(tokens) and tokens[i].startswith("-"):
+        i += 2 if tokens[i] in value_flags else 1
+    return i
+
+
+def effective_command(tokens: list[str]) -> list[str]:
+    """La commande réelle, sans ses préfixes : `VAR=x`, `env`, `timeout n`, `uv run [options]`."""
     i = 0
-    while i < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[i]):
-        i += 1
-    if i < len(tokens) and tokens[i] == "timeout":
-        i += 2
-    if tokens[i : i + 2] == ["uv", "run"]:
-        i += 2
-        while i < len(tokens) and tokens[i].startswith("-"):
-            i += 2 if tokens[i] in UV_RUN_VALUE_FLAGS else 1
-    if i >= len(tokens):
+    while i < len(tokens):
+        if ASSIGNMENT.match(tokens[i]) or tokens[i] == "env":
+            i += 1
+        elif tokens[i] == "timeout":
+            i += 2
+        elif tokens[i : i + 2] == ["uv", "run"]:
+            i = skip_options(tokens, i + 2, UV_RUN_VALUE_FLAGS)
+        else:
+            break
+    return tokens[i:]
+
+
+def is_verification(command: list[str]) -> bool:
+    """`make check`, `pytest`, `pyright`, `ruff`, `python -m pytest`… (sans préfixe)."""
+    if not command:
         return False
-    head = tokens[i].rsplit("/", 1)[-1]
-    args = tokens[i + 1 :]
+    head = command[0].rsplit("/", 1)[-1]
+    args = command[1:]
     if head == "make":
         return "-n" not in args and any(arg in VERIFY_TARGETS for arg in args)
     if head in VERIFY_TOOLS:
@@ -157,37 +152,31 @@ def is_verification(tokens: list[str]) -> bool:
     return head.startswith("python") and args[:2] == ["-m", "pytest"]
 
 
-def masks_exit_code(command: str) -> str | None:
+def masks_exit_code(segments: list[Segment]) -> str | None:
     """Renvoie la raison si le code de retour d'une vérification ne survit pas à la commande."""
-    segments = split_segments(strip_heredocs(command))
+    last = segments[-1][0] if segments else []
     pipefail = False
-    for index, (tokens, separator) in enumerate(segments):
+    for tokens, separator in segments:
         if tokens[0] == "set" and any("pipefail" in token for token in tokens):
             pipefail = True
-        if not is_verification(tokens):
+        if not is_verification(effective_command(tokens)):
             continue
-        rest = segments[index + 1 :]
         if separator in {"|", "|&"}:
             if not pipefail:
                 return PIPE_MASKS
-        elif rest and separator != "&&" and rest[-1][0][0] != "exit":
+        elif tokens is not last and separator != "&&" and last[0] != "exit":
             return SEQUENCE_MASKS
     return None
 
 
-def git_subcommand(tokens: list[str]) -> tuple[str, list[str]] | None:
-    """Pour `[VAR=x …] git [options globales] sous-commande args`, renvoie (sous-commande, args)."""
-    i = 0
-    while i < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[i]):
-        i += 1
-    if i >= len(tokens) or tokens[i] != "git":
+def git_subcommand(command: list[str]) -> tuple[str, list[str]] | None:
+    """Pour `git [options globales] sous-commande args`, renvoie (sous-commande, args)."""
+    if not command or command[0] != "git":
         return None
-    i += 1
-    while i < len(tokens) and tokens[i].startswith("-"):
-        i += 2 if tokens[i] in GIT_GLOBAL_VALUE_FLAGS else 1
-    if i >= len(tokens):
+    i = skip_options(command, 1, GIT_GLOBAL_VALUE_FLAGS)
+    if i >= len(command):
         return None
-    return tokens[i], tokens[i + 1 :]
+    return command[i], command[i + 1 :]
 
 
 def commit_bypasses_hooks(args: list[str]) -> bool:
@@ -237,15 +226,21 @@ def names_env_file(token: str) -> bool:
 
 def decide(command: str, branch: str) -> str | None:
     """Renvoie la raison du refus, ou None si la commande est acceptée."""
-    masked = masks_exit_code(command)
+    segments = split_segments(strip_heredocs(command))
+    masked = masks_exit_code(segments)
     if masked:
         return masked
-    for tokens in split_commands(command):
+    for tokens, _ in segments:
         if any(t.startswith("SKIP=") for t in tokens):
             return "Ne pas désactiver les hooks pre-commit (SKIP=…)."
-        if tokens[0] in READERS and any(names_env_file(t) for t in tokens[1:]):
+        effective = effective_command(tokens)
+        if (
+            effective
+            and effective[0] not in ENV_FILE_ALLOWED
+            and any(names_env_file(t) for t in effective[1:])
+        ):
             return "Le fichier .env contient des secrets : ne pas le lire."
-        sub = git_subcommand(tokens)
+        sub = git_subcommand(effective)
         if sub is None:
             continue
         name, args = sub

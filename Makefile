@@ -3,7 +3,7 @@
 
 # Deux environnements : la vraie clé (.env, local, jamais versionné) ne sert qu'à lancer l'application.
 # Les vérifications utilisent .env.test, versionné et sans secret : un clone neuf peut tout vérifier.
-ENV_FILE ?= .env
+ENV_FILE := .env
 RUN := uv run --env-file $(ENV_FILE)
 CHECK_RUN := uv run --env-file .env.test
 PYTEST := $(CHECK_RUN) pytest

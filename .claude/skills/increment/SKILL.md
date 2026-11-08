@@ -41,6 +41,7 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 - **SPEC.md** : y reporter les réponses du commanditaire et les nouvelles précisions, sans changer un identifiant existant.
 - **REX.md**, nouvelle section `I<n>` : objectif, problèmes rencontrés, ce qui a bien marché, ce que j'aurais dû savoir dès le départ, choix techniques et leur raison. Sans code.
 - **README.md** et **CLAUDE.md** si les commandes ou les règles changent.
+- **Dans la section du REX, une ligne `Audit spec-auditor : <commit>`**, écrite une fois l'audit fait : le hook Stop la cherche. Une simple mention de l'agent ne compte pas.
 - **Ce qui a dérapé va dans le REX**, même rattrapé aussitôt : un commit raté, un arrêt prématuré, une relance du commanditaire.
 - **Ne pas surestimer une preuve** : écrire ce qu'un mécanisme garantit et ce qui ne tient qu'à la consigne (CLAUDE.md, règle 10).
 

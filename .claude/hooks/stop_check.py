@@ -5,11 +5,12 @@ modifications, contenu des fichiers non suivis) est mémorisé après un succès
 <git-dir>/claude-last-green : aucun contrôle n'est relancé tant que rien n'a changé.
 
 Procédure : sur une branche d'incrément, ou sur main juste après une fusion, les étapes
-qui se lisent dans git, dans REX.md et sur GitHub doivent être faites (voir procedure_gaps).
+qui se lisent dans git, dans REX.md et sur GitHub doivent être faites.
 
 En cas d'échec, Claude est renvoyé au travail (code 2), une seule fois par arrêt
 (`stop_hook_active`). C'est donc un rappel, pas un blocage : s'arrêter reste possible pour
-poser une question au commanditaire ou attendre la CI.
+poser une question au commanditaire ou attendre la CI. Le rappel revient à chaque arrêt, même
+sans nouveau commit : l'arrêt prématuré de I6 survenait justement après une revue sans commit.
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ from pathlib import Path
 
 INC_BRANCH = re.compile(r"^inc/(\d+|r)-")
 INC_MERGE = re.compile(r"^Incrément (\d+|R)\b")
+# Ligne écrite une fois l'audit fait : une simple mention de l'agent ne suffit pas.
+AUDIT_LINE = re.compile(r"^Audit spec-auditor : [0-9a-f]{7,}", re.MULTILINE)
 
 
 def git(project: Path, *args: str) -> str:
@@ -51,35 +54,29 @@ def marker_path(project: Path) -> Path:
     return Path(git_dir or project / ".git") / "claude-last-green"
 
 
-def rex_section(rex: str, increment: str) -> str | None:
-    """La section de REX.md d'un incrément : `## I6 …`, ou `## R …` pour la correction."""
-    title = "R" if increment == "r" else f"I{increment}"
-    match = re.search(rf"^## {title}\b.*?(?=^## |\Z)", rex, re.MULTILINE | re.DOTALL)
-    return match.group(0) if match else None
+def rex_section(rex: str, increment: str) -> str:
+    """La section de REX.md d'un incrément (`## I6 …`, `## R …`), vide si elle manque."""
+    match = re.search(
+        rf"^## I?{increment}\b.*?(?=^## |\Z)", rex, re.MULTILINE | re.DOTALL | re.IGNORECASE
+    )
+    return match.group(0) if match else ""
 
 
-def procedure_gaps(
-    branch: str, rex: str, pr_state: str | None, last_merge: str, tags: set[str]
-) -> list[str]:
-    """Les étapes de la procédure encore à faire, d'après ce que l'on peut constater.
+def increment_gaps(increment: str, rex: str, pr_state: str | None) -> list[str]:
+    """Ce qu'il reste à faire sur une branche d'incrément, d'après ce que l'on peut constater.
 
-    Revues et contrôle visuel ne laissent pas de trace vérifiable : seule leur mention dans
-    le REX est contrôlée, pour l'audit. Le reste de la procédure dépend du skill `increment`.
+    Revues et contrôle visuel ne laissent pas de trace vérifiable : l'audit n'est contrôlé que
+    par la ligne déclarée dans le REX. Le reste de la procédure dépend du skill `increment`.
     """
-    if branch == "main":
-        merged = INC_MERGE.match(last_merge)
-        tag = f"inc-{merged.group(1).lower()}" if merged else None
-        return [f"Poser et pousser le tag {tag}."] if tag and tag not in tags else []
-    match = INC_BRANCH.match(branch)
-    if not match:
-        return []
-    increment = match.group(1)
     gaps: list[str] = []
     section = rex_section(rex, increment)
-    if section is None:
+    if not section:
         gaps.append("REX.md n'a pas de section pour cet incrément.")
-    if section is None or "spec-auditor" not in section:
-        gaps.append("L'audit de l'agent spec-auditor n'est pas consigné dans le REX.")
+    if not AUDIT_LINE.search(section):
+        gaps.append(
+            "L'audit n'est pas consigné : lancer l'agent spec-auditor, puis écrire dans le REX "
+            "la ligne « Audit spec-auditor : <commit> »."
+        )
     if pr_state is None:
         gaps.append("Aucune PR ouverte (ou gh indisponible) : pousser la branche et ouvrir la PR.")
     elif pr_state == "OPEN":
@@ -89,13 +86,20 @@ def procedure_gaps(
     return gaps
 
 
+def missing_tag(last_merge: str, tags: set[str]) -> list[str]:
+    """Sur main : le tag de la dernière fusion d'incrément, s'il manque."""
+    merged = INC_MERGE.match(last_merge)
+    tag = f"inc-{merged.group(1).lower()}" if merged else None
+    return [f"Poser et pousser le tag {tag}."] if tag and tag not in tags else []
+
+
 def pull_request_state(project: Path) -> str | None:
     try:
         out = subprocess.run(
             ["gh", "pr", "view", "--json", "state", "--jq", ".state"],
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=5,
             check=False,
             cwd=project,
         )
@@ -106,15 +110,42 @@ def pull_request_state(project: Path) -> str | None:
 
 def project_gaps(project: Path) -> list[str]:
     branch = git(project, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    if branch == "main":
+        return missing_tag(
+            git(project, "log", "--first-parent", "-1", "--format=%s").strip(),
+            set(git(project, "tag", "--list", "inc-*").split()),
+        )
+    match = INC_BRANCH.match(branch)
+    if not match:
+        return []
     rex_file = project / "REX.md"
     rex = rex_file.read_text(encoding="utf-8") if rex_file.exists() else ""
-    on_increment = INC_BRANCH.match(branch) is not None
-    return procedure_gaps(
-        branch,
-        rex,
-        pull_request_state(project) if on_increment else None,
-        git(project, "log", "--first-parent", "-1", "--format=%s").strip(),
-        set(git(project, "tag", "--list", "inc-*").split()),
+    return increment_gaps(match.group(1), rex, pull_request_state(project))
+
+
+def quality_problem(project: Path) -> str | None:
+    marker = marker_path(project)
+    key = state_key(project)
+    if marker.exists() and marker.read_text() == key:
+        return None
+    result = subprocess.run(
+        ["make", "check"], capture_output=True, text=True, check=False, cwd=project
+    )
+    if result.returncode != 0:
+        tail = "\n".join((result.stdout + result.stderr).splitlines()[-60:])
+        return "`make check` échoue : corriger avant de déclarer le travail terminé.\n" + tail
+    marker.write_text(key)
+    return None
+
+
+def procedure_problem(project: Path) -> str | None:
+    gaps = project_gaps(project)
+    if not gaps:
+        return None
+    return (
+        "Procédure d'incrément inachevée (skill `increment`). Un rapport de revue n'est pas "
+        "un message final : continuer. Si tu attends vraiment le commanditaire ou la CI, "
+        "redis-le clairement et arrête-toi.\n- " + "\n- ".join(gaps)
     )
 
 
@@ -123,28 +154,9 @@ def main() -> int:
     if payload.get("stop_hook_active"):
         return 0
     project = Path(os.environ.get("CLAUDE_PROJECT_DIR", "."))
-    marker = marker_path(project)
-    key = state_key(project)
-    if not (marker.exists() and marker.read_text() == key):
-        result = subprocess.run(
-            ["make", "check"], capture_output=True, text=True, check=False, cwd=project
-        )
-        if result.returncode != 0:
-            tail = "\n".join((result.stdout + result.stderr).splitlines()[-60:])
-            print(
-                "`make check` échoue : corriger avant de déclarer le travail terminé.\n" + tail,
-                file=sys.stderr,
-            )
-            return 2
-        marker.write_text(key)
-    gaps = project_gaps(project)
-    if gaps:
-        print(
-            "Procédure d'incrément inachevée (skill `increment`). Un rapport de revue n'est pas "
-            "un message final : continuer. Si tu attends vraiment le commanditaire ou la CI, "
-            "redis-le clairement et arrête-toi.\n- " + "\n- ".join(gaps),
-            file=sys.stderr,
-        )
+    problem = quality_problem(project) or procedure_problem(project)
+    if problem:
+        print(problem, file=sys.stderr)
         return 2
     return 0
 

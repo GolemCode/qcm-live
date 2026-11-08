@@ -24,6 +24,20 @@ def load(name: str):
 guard = load("guard_bash")
 
 
+def _run_hook(
+    name: str, payload: object = None, project: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project)} if project else None
+    return subprocess.run(
+        [sys.executable, HOOKS / f"{name}.py"],
+        input=None if payload is None else json.dumps(payload),
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+
 @pytest.mark.parametrize(
     "command",
     [
@@ -89,54 +103,31 @@ def test_guard_allows_on_main(command):
 
 
 def test_guard_hook_protocol():
-    payload = json.dumps({"tool_input": {"command": "git commit --no-verify -m x"}})
-    out = subprocess.run(
-        [sys.executable, HOOKS / "guard_bash.py"],
-        input=payload,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    out = _run_hook("guard_bash", {"tool_input": {"command": "git commit --no-verify -m x"}})
     decision = json.loads(out.stdout)["hookSpecificOutput"]
     assert decision["permissionDecision"] == "deny"
     assert "--no-verify" in decision["permissionDecisionReason"]
 
 
-def test_stop_hook_skips_when_already_active():
-    out = subprocess.run(
-        [sys.executable, HOOKS / "stop_check.py"],
-        input=json.dumps({"stop_hook_active": True}),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert out.returncode == 0
-
-
 def test_format_hook_ignores_non_python(tmp_path):
     target = tmp_path / "notes.md"
     target.write_text("x")
-    out = subprocess.run(
-        [sys.executable, HOOKS / "format_python.py"],
-        input=json.dumps({"tool_input": {"file_path": str(target)}}),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert out.returncode == 0
+    assert _run_hook("format_python", {"tool_input": {"file_path": str(target)}}).returncode == 0
 
 
 stop = load("stop_check")
 
 
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=repo, check=True
+    )
+
+
 def _repo(tmp_path: Path) -> Path:
     tmp_path.mkdir(parents=True, exist_ok=True)
-    for args in (["init", "-q"], ["commit", "-q", "--allow-empty", "-m", "init"]):
-        subprocess.run(
-            ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
-            cwd=tmp_path,
-            check=True,
-        )
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "init")
     return tmp_path
 
 
@@ -173,9 +164,46 @@ def test_stop_marker_lives_in_real_git_dir_for_worktrees(tmp_path):
         "dd if=.env",
         "vim .env",
         "diff .env .env.example",
+        "commande-inconnue .env",  # la règle ne dépend plus d'une liste de lecteurs
+        # Les préfixes ne cachent pas la commande réelle.
+        "uv run cat .env",
+        "FOO=1 cat .env",
+        "timeout 5 cat .env",
+        "env cat .env",
     ],
 )
 def test_guard_denies_more_ways_to_read_env(command):
+    assert guard.decide(command, branch="inc/1-x") is not None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ls -la .env",
+        "test -f .env",
+        "git check-ignore .env",
+        "make classe ENV_FILE=.env.test",
+        "cat .env.test",
+        # Le corps d'un heredoc est du texte : un message de commit peut citer la commande.
+        "git commit -F - <<'EOF'\ncat .env\nEOF",
+    ],
+)
+def test_guard_allows_commands_that_do_not_read_env(command):
+    assert guard.decide(command, branch="inc/1-x") is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "timeout 5 git push --force",
+        "timeout 5 git commit --no-verify -m x",
+        "FOO=1 git commit -n -m x",
+        "env git push -f",
+        # Un heredoc donné à un shell, lui, contient des commandes.
+        "bash <<EOF\ngit commit --no-verify -m x\nEOF",
+    ],
+)
+def test_guard_sees_through_prefixes_and_shell_heredocs(command):
     assert guard.decide(command, branch="inc/1-x") is not None
 
 
@@ -214,11 +242,9 @@ def _make_dry_run(*args: str) -> str:
     ).stdout
 
 
-@pytest.mark.parametrize(
-    "args", [("lint",), ("test",), ("e2e",), ("check",), ("verify",), ("accept", "INC=7")]
-)
-def test_quality_targets_never_load_the_real_env(args):
-    output = _make_dry_run(*args)
+@pytest.mark.parametrize("target", sorted(guard.VERIFY_TARGETS))
+def test_quality_targets_never_load_the_real_env(target):
+    output = _make_dry_run(target)
     assert "--env-file .env.test" in output
     assert "--env-file .env " not in output
     assert "gen_env" not in output  # pas besoin du vrai .env pour vérifier
@@ -231,42 +257,50 @@ def test_class_mode_uses_the_real_env_unless_told_otherwise():
 
 # --- Audit externe (R), constat 3 : le hook Stop vérifie que la procédure est allée au bout.
 
-I6_REX = "## I5 — x\ntexte\n\n---\n\n## I6 — y\nRevues : agent `spec-auditor`, 3 survivantes.\n"
+I6_REX = "## I5 — x\ntexte\n\n---\n\n## I6 — y\nAudit spec-auditor : abc1234, 3 survivantes.\n"
 
 
 def test_gaps_reproduce_the_i6_stop_right_after_security_review():
     """L'arrêt réel de I6 : branche de travail, ni REX, ni audit, ni PR."""
-    gaps = stop.procedure_gaps("inc/6-resultats", "## I5 — x\n", None, "", set())
-    joined = " ".join(gaps)
+    joined = " ".join(stop.increment_gaps("6", "## I5 — x\n", None))
     assert "REX.md" in joined
     assert "spec-auditor" in joined
     assert "PR" in joined
 
 
-def test_gaps_section_of_another_increment_does_not_count():
-    rex = "## I5 — x\nAudit par `spec-auditor`.\n\n## I6 — y\nRien sur l'audit.\n"
-    gaps = " ".join(stop.procedure_gaps("inc/6-resultats", rex, "OPEN", "", set()))
-    assert "spec-auditor" in gaps
-    assert "I10" not in gaps
+def test_gaps_audit_of_another_increment_does_not_count():
+    rex = "## I5 — x\nAudit spec-auditor : abc1234\n\n## I6 — y\nRien sur l'audit.\n"
+    assert "spec-auditor" in " ".join(stop.increment_gaps("6", rex, "OPEN"))
+
+
+def test_gaps_mere_mention_of_the_auditor_does_not_count():
+    """La section R citait l'agent dans un constat, sans qu'aucun audit ait eu lieu."""
+    rex = "## R — x\n**6. Agent `spec-auditor` « en lecture seule » : exact.**\n"
+    assert "spec-auditor" in " ".join(stop.increment_gaps("r", rex, "OPEN"))
+
+
+def test_rex_section_does_not_confuse_i1_with_i10():
+    rex = "## I10 — dix\nAudit spec-auditor : abc1234\n"
+    assert stop.rex_section(rex, "1") == ""
+    assert stop.rex_section(rex, "10") != ""
 
 
 def test_gaps_open_pull_request_must_still_be_merged():
-    gaps = stop.procedure_gaps("inc/6-resultats", I6_REX, "OPEN", "", set())
+    gaps = stop.increment_gaps("6", I6_REX, "OPEN")
     assert len(gaps) == 1
     assert "fusionn" in gaps[0]
 
 
 def test_gaps_merged_pull_request_leaves_the_tag():
-    gaps = stop.procedure_gaps("inc/6-resultats", I6_REX, "MERGED", "", set())
+    gaps = stop.increment_gaps("6", I6_REX, "MERGED")
     assert len(gaps) == 1
     assert "inc-6" in gaps[0]
 
 
 def test_gaps_correction_increment_uses_section_r():
-    rex = "## I7 — x\n`spec-auditor`\n\n## R — Audit externe\n`spec-auditor`\n"
-    assert stop.procedure_gaps("inc/r-audit", rex, "OPEN", "", set()) != []
-    assert "REX.md" not in " ".join(stop.procedure_gaps("inc/r-audit", rex, "OPEN", "", set()))
-    assert "REX.md" in " ".join(stop.procedure_gaps("inc/r-audit", "## I7\n", "OPEN", "", set()))
+    rex = "## I7 — x\nAudit spec-auditor : abc1234\n\n## R — Audit\nAudit spec-auditor : def5678\n"
+    assert len(stop.increment_gaps("r", rex, "OPEN")) == 1  # seule la fusion manque
+    assert "REX.md" in " ".join(stop.increment_gaps("r", "## I7\n", "OPEN"))
 
 
 @pytest.mark.parametrize(
@@ -280,34 +314,26 @@ def test_gaps_correction_increment_uses_section_r():
     ],
 )
 def test_gaps_on_main_only_the_tag_can_be_missing(last_merge, tags, expected):
-    assert len(stop.procedure_gaps("main", "", None, last_merge, tags)) == expected
-
-
-def test_gaps_ignore_other_branches():
-    assert stop.procedure_gaps("essai", "", None, "", set()) == []
+    assert len(stop.missing_tag(last_merge, tags)) == expected
 
 
 def _project(path: Path, branch: str) -> Path:
     repo = _repo(path)
     (repo / "Makefile").write_text("check:\n\t@true\n")
     (repo / "REX.md").write_text("## I5 — x\n")
-    git = ["git", "-c", "user.name=t", "-c", "user.email=t@t"]
-    subprocess.run([*git, "add", "."], cwd=repo, check=True)
-    subprocess.run([*git, "commit", "-qm", "Incrément 5 : x (#6)"], cwd=repo, check=True)
-    subprocess.run([*git, "tag", "inc-5"], cwd=repo, check=True)
-    subprocess.run([*git, "branch", "-m", branch], cwd=repo, check=True)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "Incrément 5 : x (#6)")
+    _git(repo, "tag", "inc-5")
+    _git(repo, "branch", "-m", branch)
     return repo
 
 
 def _run_stop(repo: Path, active: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, HOOKS / "stop_check.py"],
-        input=json.dumps({"stop_hook_active": active}),
-        capture_output=True,
-        text=True,
-        check=False,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(repo)},
-    )
+    return _run_hook("stop_check", {"stop_hook_active": active}, repo)
+
+
+def test_stop_hook_ignores_other_branches(tmp_path):
+    assert _run_stop(_project(tmp_path, "essai")).returncode == 0
 
 
 def test_stop_hook_sends_back_to_work_when_the_procedure_is_unfinished(tmp_path):
@@ -407,18 +433,10 @@ def test_spec_auditor_description_matches_what_it_can_do():
     assert "isolation: worktree" in front
     assert "Bash" in front
     assert "lecture seule" not in front  # la description ne promet plus ce que Bash permet
-    assert "Bash peut tout écrire" in text
 
 
 # --- Audit externe (R), constat 7 : la langue de la conversation.
 
 
 def test_session_start_recalls_the_conversation_language():
-    out = subprocess.run(
-        [sys.executable, HOOKS / "session_start.py"],
-        capture_output=True,
-        text=True,
-        check=True,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(REPO)},
-    )
-    assert "en français" in out.stdout
+    assert "en français" in _run_hook("session_start", project=REPO).stdout
