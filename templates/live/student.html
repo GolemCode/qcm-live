@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Session {{ session.code }} — QCM Live{% endblock %}
-{% block body_class %}phone{% if color %} color-{{ color }}{% endif %}{% endblock %}
+{% block body_class %}phone{% if color %} colored color-{{ color }}{% endif %}{% endblock %}
 {% block main_attrs %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
 {% block content %}
   {% if not color %}<h1>Session {{ session.code }}</h1>{% endif %}
@@ -20,7 +20,7 @@
     <p>En attente du démarrage.</p>
   {% else %}
     <div class="phone-head">
-      <p class="badge">Couleur {{ color }}</p>
+      <p class="badge"><span>Couleur {{ color }}</span> {% include "live/shape.html" %}</p>
       <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
     </div>
     <form id="answer-form" method="post" action="{% url 'student-answer' session.code %}">

@@ -43,14 +43,14 @@ STATEMENTS = list(CHOICES)
 ALL_CHOICES = [label for choices in CHOICES.values() for label, _ in choices]
 
 
-def make_marked_session(shown: int = 2):
+def make_marked_session(shown: int = 2, group: str = "TD1"):
     """Trois questions, dont la dernière multiple : un groupe de 2, puis un groupe de 1."""
     questions = [
         make_question(text, choices, multiple=text == STATEMENTS[2])
         for text, choices in CHOICES.items()
     ]
     return make_session(
-        make_quiz("Contrôle", questions), make_group("TD1", STUDENTS), shown=shown, seconds=30
+        make_quiz("Contrôle", questions), make_group(group, STUDENTS), shown=shown, seconds=30
     )
 
 
@@ -199,7 +199,7 @@ def test_board_flags_multiple_answer_questions(teacher_page: Page, live_server, 
     expect(page.get_by_text(MULTIPLE_HINT)).to_have_count(1)
 
     # Seule dans son groupe, elle garde sa mention ; une question simple seule n'en a pas.
-    alone = make_marked_session(shown=2)
+    alone = make_marked_session(shown=2, group="TD2")
     phones_joined(new_phone, live_server.url, alone.code, ["42"])
     open_board(page, live_server.url, alone)
     start(page)
@@ -250,7 +250,7 @@ def silhouette(image: Locator) -> Image.Image:
         return to_ink < to_paper
 
     mask = Image.new("1", capture.size)
-    mask.putdata([near_ink(pixel) for pixel in capture.getdata()])
+    mask.putdata([near_ink(pixel) for pixel in capture.get_flattened_data()])
     box = mask.getbbox()
     assert box, "forme invisible"
     return mask.crop(box).resize((32, 32))

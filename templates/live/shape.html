@@ -1,0 +1,8 @@
+{% comment %}Forme propre à la couleur (AFF-03), en plus de son numéro : un repère qui ne dépend pas de la vision des couleurs. Elle prend la couleur du texte.{% endcomment %}
+{% if color == 1 %}<svg class="shape" role="img" aria-label="rond" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5"/></svg>
+{% elif color == 2 %}<svg class="shape" role="img" aria-label="triangle" viewBox="0 0 24 24"><path d="M12 1.5 23 21.5H1z"/></svg>
+{% elif color == 3 %}<svg class="shape" role="img" aria-label="carré" viewBox="0 0 24 24"><path d="M2.5 2.5h19v19h-19z"/></svg>
+{% elif color == 4 %}<svg class="shape" role="img" aria-label="losange" viewBox="0 0 24 24"><path d="M12 .5 23.5 12 12 23.5.5 12z"/></svg>
+{% elif color == 5 %}<svg class="shape" role="img" aria-label="étoile" viewBox="0 0 24 24"><path d="M12 1.5 14.8 9.1 22.9 9.4 16.6 14.5 18.8 22.3 12 17.8 5.2 22.3 7.4 14.5 1.1 9.4 9.2 9.1z"/></svg>
+{% elif color == 6 %}<svg class="shape" role="img" aria-label="croix" viewBox="0 0 24 24"><path d="M8.5 1.5h7v7h7v7h-7v7h-7v-7h-7v-7h7z"/></svg>
+{% endif %}

@@ -114,10 +114,13 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
         }
     elif state.position is not None:
         group = session.schedule.groups[state.position.slot.group]
-        context |= {  # DER-01, AFF-01 : les énoncés du groupe et leur couleur, sans proposition
+        # DER-01, AFF-01 : les énoncés du groupe et leur couleur, sans proposition ;
+        # AFF-02 : la mention des questions à réponses multiples.
+        questions = [session.questions[index] for index in group]
+        context |= {
             "cards": [
-                {"color": color, "text": session.questions[index]["text"]}
-                for color, index in enumerate(group, start=1)
+                {"color": color, "text": question["text"], "multiple": question["multiple"]}
+                for color, question in enumerate(questions, start=1)
             ],
             "remaining_ms": _ms(state.position.remaining),
         }
