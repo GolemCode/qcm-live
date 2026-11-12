@@ -801,6 +801,28 @@ Il fallait aussi consigner dans SPEC.md, sans rien implémenter : l'absence de c
   - **La liste blanche du test DER-03** admet désormais la mention des questions multiples. Sans cela, le test aurait dépendu de l'ordre des questions de ses données.
   - Écartés : la correspondance couleur → forme reste dans le gabarit, déjà discutée sous `/simplify`. La disparition du bandeau « Session démarrée » est voulue, depuis le 8 novembre, pour que 4 énoncés tiennent à l'écran : l'apparition du minuteur confirme le démarrage.
 - **Pas de `/security-review`.** L'incrément ne touche ni aux entrées, ni à l'authentification, ni aux sessions, ni aux réglages : seulement à l'affichage.
+- **`spec-auditor`, premier passage (commit aaaaeba) : une réserve bloquante.** Sa copie jetable était au bon commit, et le dépôt principal n'a pas bougé (même `HEAD`, `git status` vide, aucune copie oubliée). Il a fait 26 contre-épreuves et lancé `make verify`, vert dans sa copie.
+  - **Bloquante : le test d'AFF-01 ne vérifiait pas les états JSON, alors qu'il l'annonçait.** `JsonResponse` écrit « É » en `\u00c9`, et les marqueurs du test sont tous accentués : la recherche dans le texte brut ne pouvait rien trouver. Énoncés envoyés au téléphone ou propositions envoyées au tableau par l'état JSON : le test passait. Ce test date de la session du 8 novembre, et je l'avais repris sans le mettre à l'épreuve. L'état est désormais décodé avant la recherche. J'ai refait les deux contre-épreuves, et les deux fuites sont détectées.
+  - Non bloquantes, corrigées :
+    - une mention « multiple » masquée à 1 px passait (le test exige désormais une hauteur lisible) ;
+    - le contraste de la mention n'était vérifié que sur l'orange (une question multiple tombe désormais aussi sur le bleu, à texte blanc) ;
+    - le test des formes a échoué une fois chez lui, pour la même cause que la mesure du débordement : une page lue avant sa feuille de style.
+
+    Contre-épreuves refaites : toutes détectées, et cinq passages sur cinq verts pour le test des formes.
+- **`spec-auditor`, second passage (commit fc9e47e) : une autre réserve bloquante, de la même famille.**
+  - Ma correction décodait bien les états JSON, mais le test ne les lisait que pendant le déroulement. Une fuite en attente ou après la fin passait, alors que l'exigence dit « à aucun moment », et que les commentaires du test promettaient « nulle part » et « plus rien ».
+  - J'ai corrigé le défaut que l'auditeur avait montré, sans chercher où d'autre la même recherche manquait : c'est ce que j'aurais dû faire au premier passage.
+  - Les pages et les états JSON du tableau et des téléphones sont désormais lus à chaque phase. Contre-épreuves : énoncés envoyés au téléphone en attente, propositions envoyées au tableau après la fin, toutes deux détectées.
+  - Non bloquante : en rendant multiple la question du bleu, j'avais retiré la mesure du bouton d'effacement sur la seule couleur à texte blanc. Une perte de couverture introduite en corrigeant une réserve : le même schéma qu'en I8. Un second groupe de six questions, toutes simples, la rétablit. Contre-épreuve : un bouton estompé sur le bleu seulement est détecté (contraste de 1,85).
+- **`spec-auditor`, troisième passage (commit 9877daf) : aucune réserve bloquante.**
+  - Onze contre-épreuves, toutes détectées : fuites JSON en attente, pendant le déroulement et après la fin, au tableau comme au téléphone ; bouton d'effacement estompé sur le bleu (inactif puis actif) et sur une couleur simple ; mentions illisibles sur le bleu et sur l'orange.
+  - Cinq passages sur cinq verts pour les tests d'AFF-01 et des formes, et `make verify` vert dans sa copie.
+  - Seule réserve, non bloquante : la ligne d'audit absente du REX. Mes ajouts n'étaient pas encore commités.
+  - Il a limité ce passage aux points corrigés, les autres exigences ayant été couvertes par le premier (26 contre-épreuves).
+  - Contrôle après chacun des trois passages : le dépôt principal n'a pas bougé (même `HEAD`, seules mes propres modifications du REX en cours, aucune copie oubliée).
+  - Le dernier auditeur a écrit son script de mutation dans mon scratchpad, hors de sa copie : sans effet sur le dépôt, mais hors de ce qui lui était demandé.
+
+Audit spec-auditor : 9877dafc970d7d06b801f72e4d417793ad5a5db0
 
 ### Ce qui a bien marché
 - **Mesurer avant de proposer.** La palette a été choisie sur des chiffres et une image comparative, que le commanditaire a pu voir avant de trancher.
@@ -810,6 +832,8 @@ Il fallait aussi consigner dans SPEC.md, sans rien implémenter : l'absence de c
 ### Ce que j'aurais dû savoir dès le départ
 - **Une exigence déjà livrée peut revenir comme une demande nouvelle.** L'ordre propre à l'étudiant existait depuis I4. Il fallait le dire, puis expliquer ce qu'il garantit et ce qu'il ne peut pas garantir, plutôt que de le reconstruire.
 - **Ajouter un élément visuel touche aux tests qui comptent ce qui est affiché.** Chercher ces tests avant de coder évite de les découvrir dans `make verify`.
+- **Un test d'absence qui n'a jamais échoué ne prouve rien.** « Ce texte n'est pas dans la réponse » passe aussi quand la recherche ne peut pas le trouver : encodage, page pas encore chargée. Pour chaque vérification négative, faire au moins une fois la fuite exprès. C'est vrai aussi d'un test hérité d'une session précédente.
+- **Une mesure de page se fait sur une page chargée.** Deux tests ont lu une page sans sa feuille de style, l'un par intermittence. Attendre la fin du chargement avant toute mesure de mise en page ou de couleur.
 
 ### Choix techniques et leur raison
 - **Aucune nouvelle dépendance.**
