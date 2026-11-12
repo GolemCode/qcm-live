@@ -15,7 +15,6 @@ from playwright.sync_api import Locator, Page, expect
 from tests.e2e.live_setup import expect_slot, make_live, open_board
 from tests.e2e.live_ui import (
     LIVE_MS,
-    card,
     choose,
     connected_names,
     identify,
@@ -35,15 +34,9 @@ MIN_QR_PX = 300  # sur un écran de 1080 lignes : assez grand pour se lire depui
 
 
 def images(page: Page) -> Locator:
-    """Toute image de la page, même sans texte de remplacement (`get_by_role` l'ignorerait)."""
-    return page.locator("img, svg, canvas")
-
-
-def only_the_shape(page: Page) -> None:
-    """En déroulement, à une question à la fois, la seule image du tableau est la forme de la
-    couleur 1 (AFF-03) : aucun QR code."""
-    expect(images(page)).to_have_count(1)
-    expect(card(page, 1).get_by_role("img", name="rond", exact=True)).to_have_count(1)
+    """Toute image de la page, même sans texte de remplacement (`get_by_role` l'ignorerait),
+    hormis les formes des couleurs (AFF-03)."""
+    return page.locator("img, svg:not(.shape), canvas")
 
 
 @pytest.mark.spec("SES-05")
@@ -94,10 +87,10 @@ def test_join_qr_code_is_gone_once_started(teacher_page: Page, live_server):
     expect(join_qr(page)).to_be_visible()
 
     start(page)
-    only_the_shape(page)
+    expect(images(page)).to_have_count(0)
     page.reload()
     expect(timer(page)).to_be_visible()
-    only_the_shape(page)
+    expect(images(page)).to_have_count(0)
 
     jump_to(session, 61)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)

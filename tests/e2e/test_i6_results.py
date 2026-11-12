@@ -22,14 +22,11 @@ L'ordre du fichier du groupe (7, 00123, 0999, 42, 555) diffère de l'ordre d'arr
 
 from __future__ import annotations
 
-import csv
-import io
-
 import pytest
 from playwright.sync_api import Page, expect
 
 from bank.models import Quiz
-from live.models import Answer, Session
+from live.models import Session
 from roster.models import StudentGroup
 from tests.e2e.live_setup import (
     QUESTIONS,
@@ -38,10 +35,13 @@ from tests.e2e.live_setup import (
     open_board,
     question_of,
     started,
+    wait_answer,
 )
 from tests.e2e.live_ui import (
     LIVE_MS,
     choose,
+    csv_rows,
+    download_csv,
     open_results,
     open_sessions,
     phone_choices,
@@ -115,17 +115,9 @@ def answer_slot(phones: dict, slot: int, session: Session) -> None:
 
 def wait_saved(phone: Page, session: Session, number: str, question: str, chosen: list[str]):
     """Le dernier choix est enregistré avant de passer au créneau suivant."""
-    index = list(QUESTIONS).index(question)
     labels = [label for label, _ in QUESTIONS[question]]
-    expected = sorted(labels.index(text) for text in chosen)
-    answers = Answer.objects.filter(
-        participant__session=session, participant__number=number, question=index
-    )
-    for _ in range(40):
-        if sorted(answers.values_list("choices", flat=True).first() or []) == expected:
-            return
-        phone.wait_for_timeout(50)
-    raise AssertionError(f"{number} : réponse {chosen} non enregistrée")
+    indexes = [labels.index(text) for text in chosen]
+    wait_answer(phone, session, number, list(QUESTIONS).index(question), indexes)
 
 
 def play_session(page: Page, base_url: str, new_phone) -> Session:
@@ -209,15 +201,6 @@ def test_no_results_before_the_end(teacher_page: Page, live_server, new_phone):
     expect(page.get_by_role("link", name="Télécharger le CSV")).to_have_count(0)
 
 
-def download_csv(page: Page) -> tuple[str, bytes]:
-    with page.expect_download() as info:
-        page.get_by_role("link", name="Télécharger le CSV").click()
-    download = info.value
-    path = download.path()
-    with open(path, "rb") as file:
-        return download.suggested_filename, file.read()
-
-
 @pytest.mark.spec("RES-02")
 @pytest.mark.usefixtures("reversed_choices")
 def test_results_csv(teacher_page: Page, live_server, new_phone):
@@ -229,7 +212,7 @@ def test_results_csv(teacher_page: Page, live_server, new_phone):
 
     assert filename == f"resultats-{session.code}.csv"
     assert content.startswith(b"\xef\xbb\xbf")  # UTF-8 avec BOM, pour Excel
-    rows = list(csv.reader(io.StringIO(content.decode("utf-8-sig")), delimiter=";"))
+    rows = csv_rows(content)
     questions = [f"Q{i} {kind}" for i in range(1, 5) for kind in ("réponse", "points")]
     assert rows == [
         ["numéro", "nom", "note", "note max", *questions],
@@ -256,7 +239,7 @@ def test_results_csv_neutralises_formulas(teacher_page: Page, live_server, new_p
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     open_results(page)
     _, content = download_csv(page)
-    rows = list(csv.reader(io.StringIO(content.decode("utf-8-sig")), delimiter=";"))
+    rows = csv_rows(content)
     assert [row[1] for row in rows[1:]] == ["'=1+1", "'+33 6", "'-2", "'@SOMME(A1)", "Nom=normal"]
     # Le tableau de la page, lui, affiche les noms tels quels.
     assert [row[1] for row in results_rows(page)] == names

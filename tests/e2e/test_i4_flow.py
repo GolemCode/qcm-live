@@ -23,6 +23,7 @@ from tests.e2e.live_ui import (
     choose,
     connected_count,
     connected_names,
+    enter_code,
     join,
     manage_participants,
     phone_choices,
@@ -135,6 +136,14 @@ def test_choices_shuffled_per_student_and_stable(teacher_page: Page, live_server
         assert sorted(order) == sorted(label for label, _ in six)
         phone.reload()
         assert phone_choices(phone) == order  # stable pour l'étudiant et la question
+        # Stable aussi quand l'étudiant revient sur la session, en ressaisissant le code ou dans
+        # un nouvel onglet du même navigateur (précisé en I9).
+        enter_code(phone, live_server.url, session.code)
+        assert phone_choices(phone) == order
+        tab = phone.context.new_page()
+        tab.goto(f"{live_server.url}/s/{session.code}/")
+        assert phone_choices(tab) == order
+        tab.close()
         orders.append(tuple(order))
     assert len(set(orders)) > 1  # propre à chaque étudiant
 

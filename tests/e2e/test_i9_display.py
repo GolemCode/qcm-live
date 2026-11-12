@@ -9,23 +9,23 @@ faux positif, et couvre aussi ce qui serait envoyé sans être visible.
 
 from __future__ import annotations
 
-import csv
 import io
+import itertools
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageChops, ImageColor
 from playwright.sync_api import Locator, Page, ViewportSize, expect
 
 from bank.scoring import LETTERS
-from live.models import Answer
-from tests.e2e.live_setup import STUDENTS, expect_slot, open_board
+from tests.e2e.live_setup import STUDENTS, expect_slot, open_board, started
 from tests.e2e.live_ui import (
     LIVE_MS,
     background,
     board_code,
     card,
     choose,
-    enter_code,
+    csv_rows,
+    download_csv,
     launch_session,
     open_results,
     open_sessions,
@@ -92,9 +92,9 @@ def test_board_has_only_statements_and_phone_only_choices(
     ]
     for slot, (on_board, on_phones) in enumerate(plan):
         jump_to(session, slot * 30 + 1)
-        expect(card(page, 1).get_by_role("heading")).to_have_text(on_board[0], timeout=LIVE_MS)
         for color, statement in enumerate(on_board, start=1):
-            expect(card(page, color).get_by_role("heading")).to_have_text(statement)
+            heading = card(page, color).get_by_role("heading")
+            expect(heading).to_have_text(statement, timeout=LIVE_MS)
         expect(card(page, len(on_board) + 1)).to_have_count(0)
 
         # Le tableau : les énoncés de son groupe, aucune proposition, même invisible.
@@ -123,9 +123,8 @@ def test_board_has_only_statements_and_phone_only_choices(
 
     open_results(page)
     assert_shows_none(page.content(), *everything)
-    with page.expect_download() as info:
-        page.get_by_role("link", name="Télécharger le CSV").click()
-    assert_shows_none(info.value.path().read_text(encoding="utf-8-sig"), *everything)
+    _, content = download_csv(page)
+    assert_shows_none(content.decode("utf-8-sig"), *everything)
 
 
 @pytest.mark.spec("SES-06")
@@ -182,9 +181,7 @@ MULTIPLE_HINT = "Plusieurs réponses possibles"
 def test_board_flags_multiple_answer_questions(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_marked_session(shown=3)  # la troisième question est multiple
-    phones_joined(new_phone, live_server.url, session.code, ["00123"])
-    open_board(page, live_server.url, session)
-    start(page)
+    started(page, live_server.url, new_phone, session)
 
     hint = card(page, 3).get_by_text(MULTIPLE_HINT, exact=True)
     expect(hint).to_be_visible()
@@ -200,9 +197,7 @@ def test_board_flags_multiple_answer_questions(teacher_page: Page, live_server, 
 
     # Seule dans son groupe, elle garde sa mention ; une question simple seule n'en a pas.
     alone = make_marked_session(shown=2, group="TD2")
-    phones_joined(new_phone, live_server.url, alone.code, ["42"])
-    open_board(page, live_server.url, alone)
-    start(page)
+    started(page, live_server.url, new_phone, alone)
     expect(card(page, 1)).not_to_contain_text("réponses possibles")
     jump_to(alone, 61)
     expect(card(page, 1).get_by_role("heading")).to_have_text(STATEMENTS[2], timeout=LIVE_MS)
@@ -215,14 +210,9 @@ PALETTE = ["#F0E442", "#0072B2", "#009E73", "#56B4E9", "#CC79A7", "#E69F00"]
 SIX_STUDENTS = [(f"{n}", f"ÉTUDIANT {n}") for n in range(101, 107)]
 
 
-def rgb(hex_color: str) -> str:
-    r, g, b = (int(hex_color[i : i + 2], 16) for i in (1, 3, 5))
-    return f"rgb({r}, {g}, {b})"
-
-
 def make_six_session():
-    """Six questions affichées à la fois, la dernière multiple, et six téléphones : au premier
-    créneau, l'étudiant de rang r a la couleur r + 1."""
+    """Six questions affichées à la fois, la dernière multiple : au premier créneau,
+    l'étudiant de rang r a la couleur r + 1."""
     questions = [
         make_question(f"ÉNONCÉ-{q} ?", [(f"R{q}-{c}", c == 1) for c in (1, 2, 3)], multiple=q == 6)
         for q in range(1, 7)
@@ -236,21 +226,12 @@ def shape(screen: Page | Locator, color: int) -> Locator:
 
 
 def silhouette(image: Locator) -> Image.Image:
-    """Silhouette de la forme, lue sur une capture de l'écran : les pixels plus proches de la
-    couleur de la forme que du fond, recadrés puis ramenés à 32x32."""
-    image.scroll_into_view_if_needed()
+    """Silhouette de la forme, lue sur une capture de l'écran : les pixels qui se distinguent du
+    fond (le coin de la capture, hors de la forme), recadrés puis ramenés à 32x32."""
     capture = Image.open(io.BytesIO(image.screenshot())).convert("RGB")
-    ink = parse_rgb(image.evaluate("element => getComputedStyle(element).color"))
-    paper = capture.getpixel((0, 0))  # coin hors de la forme : le fond
-    assert isinstance(paper, tuple)
-
-    def near_ink(pixel) -> bool:
-        to_ink = sum((a - b) ** 2 for a, b in zip(pixel, ink, strict=True))
-        to_paper = sum((a - b) ** 2 for a, b in zip(pixel, paper, strict=True))
-        return to_ink < to_paper
-
-    mask = Image.new("1", capture.size)
-    mask.putdata([near_ink(pixel) for pixel in capture.get_flattened_data()])
+    paper = Image.new("RGB", capture.size, capture.getpixel((0, 0)))
+    gap = ImageChops.difference(capture, paper).convert("L")
+    mask = gap.point([255 if v > 64 else 0 for v in range(256)]).convert("1")
     box = mask.getbbox()
     assert box, "forme invisible"
     return mask.crop(box).resize((32, 32))
@@ -262,12 +243,6 @@ def overlap(a: Image.Image, b: Image.Image) -> float:
     both = sum(1 for x, y in zip(pa, pb, strict=True) if x and y)
     either = sum(1 for x, y in zip(pa, pb, strict=True) if x or y)
     return both / either
-
-
-def parse_rgb(css: str) -> tuple[int, int, int]:
-    parts = css[css.index("(") + 1 : css.index(")")].replace(",", " ").split()
-    r, g, b = (round(float(p)) for p in parts[:3])
-    return r, g, b
 
 
 def luminance(color) -> float:
@@ -324,55 +299,39 @@ def low_contrasts(screen: Page) -> list[tuple[str, float]]:
 
 
 @pytest.mark.spec("AFF-03")
-def test_each_color_has_its_own_shape(teacher_page: Page, live_server, new_phone):
+@pytest.mark.spec("AFF-04")
+def test_shapes_and_palette_on_board_and_phones(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_six_session()
-    phones = phones_joined(new_phone, live_server.url, session.code, [n for n, _ in SIX_STUDENTS])
-    open_board(page, live_server.url, session)
-    start(page)
+    numbers = [number for number, _ in SIX_STUDENTS]
+    phones = started(page, live_server.url, new_phone, session, numbers)
 
-    # Au tableau : chaque carte porte son numéro et sa forme, et les six formes se distinguent
-    # à l'œil, et non seulement par leur nom.
+    # Au tableau : chaque carte a sa couleur de la palette, son numéro et sa forme, et les six
+    # formes se distinguent à l'œil, et non seulement par leur nom.
     board = {}
-    for color in range(1, 7):
+    for color, hex_color in enumerate(PALETTE, start=1):
+        assert ImageColor.getrgb(background(card(page, color))) == ImageColor.getrgb(hex_color)
         expect(card(page, color).locator(".badge")).to_contain_text(str(color))
         image = shape(card(page, color), color)
         expect(image).to_be_visible()
         expect(card(page, color).get_by_role("img")).to_have_count(1)
         board[color] = silhouette(image)
-    for a in range(1, 7):
-        for b in range(a + 1, 7):
-            assert overlap(board[a], board[b]) < 0.85, (SHAPES[a - 1], SHAPES[b - 1])
+    for a, b in itertools.combinations(board, 2):
+        assert overlap(board[a], board[b]) < 0.85, (SHAPES[a - 1], SHAPES[b - 1])
+    # Tout texte lisible sur sa couleur, mention des questions multiples comprise.
+    expect(card(page, 6).get_by_text(MULTIPLE_HINT)).to_be_visible()
+    assert low_contrasts(page) == []
 
-    # Sur le téléphone : le numéro et la même forme qu'au tableau.
-    for rank, phone in enumerate(phones):
-        color = rank + 1
+    # Sur le téléphone : la même couleur, le numéro et la même forme qu'au tableau.
+    for color, (phone, hex_color) in enumerate(zip(phones, PALETTE, strict=True), start=1):
         assert phone_color(phone) == color
+        assert ImageColor.getrgb(background(phone.locator("body"))) == ImageColor.getrgb(hex_color)
         image = shape(phone, color)
         expect(image).to_be_visible()
         expect(phone.get_by_role("img")).to_have_count(1)
         seen = silhouette(image)
         closest = max(board, key=lambda c: overlap(seen, board[c]))
         assert closest == color, (SHAPES[color - 1], SHAPES[closest - 1])
-
-
-@pytest.mark.spec("AFF-04")
-def test_color_blind_safe_palette_and_readable_text(teacher_page: Page, live_server, new_phone):
-    page = teacher_page
-    session = make_six_session()
-    phones = phones_joined(new_phone, live_server.url, session.code, [n for n, _ in SIX_STUDENTS])
-    open_board(page, live_server.url, session)
-    start(page)
-
-    for color, hex_color in enumerate(PALETTE, start=1):
-        assert background(card(page, color)) == rgb(hex_color), color
-    expect(card(page, 6).get_by_text(MULTIPLE_HINT)).to_be_visible()
-    assert low_contrasts(page) == []
-
-    for rank, phone in enumerate(phones):
-        color = rank + 1
-        assert phone_color(phone) == color
-        assert background(phone.locator("body")) == rgb(PALETTE[rank])
         # Une réponse choisie : le bouton d'effacement est actif et la confirmation s'affiche.
         choose(phone, f"R{color}-2")
         expect(save_status(phone)).to_have_text("Réponse enregistrée")
@@ -382,58 +341,21 @@ def test_color_blind_safe_palette_and_readable_text(teacher_page: Page, live_ser
 ORDER_CHOICES = [(f"CHOIX-{i}", i == 1) for i in range(1, 9)]  # huit propositions, A juste
 
 
-def wait_saved(page: Page, session, number: str, index: int) -> None:
-    """La réponse de `number` est enregistrée : la proposition d'indice `index` de la banque."""
-    saved = Answer.objects.filter(participant__session=session, participant__number=number)
-    for _ in range(40):
-        if list(saved.values_list("choices", flat=True)) == [[index]]:
-            return
-        page.wait_for_timeout(50)
-    raise AssertionError(f"{number} : réponse non enregistrée")
-
-
-@pytest.mark.spec("ETU-05")
-def test_choice_order_survives_coming_back(teacher_page: Page, live_server, new_phone):
-    page = teacher_page
-    quiz = make_quiz("Ordre", [make_question("Huit propositions", ORDER_CHOICES)])
-    session = make_session(quiz, make_group("TD1", STUDENTS), shown=1, seconds=60)
-    phones = phones_joined(new_phone, live_server.url, session.code, ["00123", "42"])
-    open_board(page, live_server.url, session)
-    start(page)
-
-    orders = []
-    for phone in phones:
-        expect_slot(phone, 0)
-        order = phone_choices(phone)
-        # L'étudiant revient sur la session en ressaisissant le code…
-        enter_code(phone, live_server.url, session.code)
-        expect_slot(phone, 0)
-        assert phone_choices(phone) == order
-        # … ou dans un nouvel onglet du même navigateur.
-        tab = phone.context.new_page()
-        tab.goto(f"{live_server.url}/s/{session.code}/")
-        expect_slot(tab, 0)
-        assert phone_choices(tab) == order
-        orders.append(order)
-    assert orders[0] != orders[1]
-
-
 @pytest.mark.spec("ETU-05")
 def test_marks_do_not_depend_on_displayed_order(teacher_page: Page, live_server, new_phone):
-    """Chaque étudiant choisit une proposition affichée ailleurs qu'à sa place dans la banque :
-    la note et la lettre du CSV sont celles de la proposition, pas de sa place à l'écran."""
+    """Chaque étudiant choisit une proposition par son texte, quelle que soit sa place à l'écran :
+    la note et la lettre du CSV sont celles de la proposition."""
     page = teacher_page
     labels = [label for label, _ in ORDER_CHOICES]
     quiz = make_quiz("Ordre", [make_question("Huit propositions", ORDER_CHOICES)])
     session = make_session(quiz, make_group("TD1", STUDENTS), shown=1, seconds=60)
     numbers = ["00123", "42", "7"]
-    phones = phones_joined(new_phone, live_server.url, session.code, numbers)
-    open_board(page, live_server.url, session)
-    start(page)
+    phones = started(page, live_server.url, new_phone, session, numbers)
 
     # 00123 et 7 choisissent la bonne réponse (A). 42 choisit une mauvaise réponse affichée
     # ailleurs qu'à sa place dans la banque : sa lettre dans le CSV distingue à coup sûr la
-    # proposition de sa place à l'écran.
+    # proposition de sa place à l'écran. « Réponse enregistrée » ne s'affiche qu'après la
+    # réponse du serveur.
     picked = {}
     for number, phone in zip(numbers, phones, strict=True):
         expect_slot(phone, 0)
@@ -442,17 +364,14 @@ def test_marks_do_not_depend_on_displayed_order(teacher_page: Page, live_server,
         picked[number] = next(wrong) if number == "42" else labels[0]
         choose(phone, picked[number])
         expect(save_status(phone)).to_have_text("Réponse enregistrée")
-        wait_saved(page, session, number, labels.index(picked[number]))
 
     jump_to(session, 61)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     open_results(page)
     marks = {row[0]: row[2] for row in results_rows(page)}
     assert marks == {"00123": "1", "42": "0", "7": "1"}
-    with page.expect_download() as info:
-        page.get_by_role("link", name="Télécharger le CSV").click()
-    rows = list(csv.reader(io.StringIO(info.value.path().read_text("utf-8-sig")), delimiter=";"))
-    answers = {row[0]: (row[4], row[5]) for row in rows[1:]}
+    _, content = download_csv(page)
+    answers = {row[0]: (row[4], row[5]) for row in csv_rows(content)[1:]}
     assert answers == {
         "00123": ("A", "1"),
         "42": (LETTERS[labels.index(picked["42"])], "0"),
