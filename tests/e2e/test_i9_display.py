@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import itertools
+import json
 
 import pytest
 from PIL import Image, ImageChops, ImageColor
@@ -60,9 +61,11 @@ def assert_shows_none(content: str, *forbidden: str) -> None:
 
 
 def state(page: Page, url: str) -> str:
+    """État JSON, accents décodés : `JsonResponse` écrit « É » en `\\u00c9`, et les marqueurs,
+    accentués, n'y seraient jamais trouvés tels quels."""
     response = page.request.get(url)
     assert response.ok, url
-    return response.text()
+    return json.dumps(response.json(), ensure_ascii=False)
 
 
 @pytest.mark.spec("AFF-01")
@@ -210,6 +213,7 @@ def test_board_flags_multiple_answer_questions(teacher_page: Page, live_server, 
     heading_box, hint_box = heading.bounding_box(), hint.bounding_box()
     assert heading_box and hint_box
     assert hint_box["y"] >= heading_box["y"] + heading_box["height"] - 1
+    assert hint_box["height"] >= 16, hint_box  # lisible, et non masquée à 1 px
     # Une question simple n'a aucune mention, et la mention n'apparaît qu'une fois.
     for color in (1, 2):
         expect(card(page, color)).not_to_contain_text("réponses possibles")
@@ -230,11 +234,18 @@ PALETTE = ["#F0E442", "#0072B2", "#009E73", "#56B4E9", "#CC79A7", "#E69F00"]
 SIX_STUDENTS = [(f"{n}", f"ÉTUDIANT {n}") for n in range(101, 107)]
 
 
+MULTIPLE_COLORS = {2, 6}  # le texte blanc sur le bleu, le texte sombre sur l'orange
+
+
 def make_six_session():
-    """Six questions affichées à la fois, la dernière multiple : au premier créneau,
+    """Six questions affichées à la fois, dont deux multiples : au premier créneau,
     l'étudiant de rang r a la couleur r + 1."""
     questions = [
-        make_question(f"ÉNONCÉ-{q} ?", [(f"R{q}-{c}", c == 1) for c in (1, 2, 3)], multiple=q == 6)
+        make_question(
+            f"ÉNONCÉ-{q} ?",
+            [(f"R{q}-{c}", c == 1) for c in (1, 2, 3)],
+            multiple=q in MULTIPLE_COLORS,
+        )
         for q in range(1, 7)
     ]
     quiz = make_quiz("Six", questions)
@@ -337,6 +348,11 @@ def test_shapes_and_palette_on_board_and_phones(teacher_page: Page, live_server,
     session = make_six_session()
     numbers = [number for number, _ in SIX_STUDENTS]
     phones = started(page, live_server.url, new_phone, session, numbers)
+    # Les mesures portent sur des pages chargées, feuille de style comprise.
+    page.wait_for_load_state("load")
+    for phone in phones:
+        expect_slot(phone, 0)
+        phone.wait_for_load_state("load")
 
     # Au tableau : chaque carte a sa couleur de la palette, son numéro et sa forme, et les six
     # formes se distinguent à l'œil, et non seulement par leur nom.
@@ -350,8 +366,9 @@ def test_shapes_and_palette_on_board_and_phones(teacher_page: Page, live_server,
         board[color] = silhouette(image)
     for a, b in itertools.combinations(board, 2):
         assert overlap(board[a], board[b]) < 0.85, (SHAPES[a - 1], SHAPES[b - 1])
-    # Tout texte lisible sur sa couleur, mention des questions multiples comprise.
-    expect(card(page, 6).get_by_text(MULTIPLE_HINT)).to_be_visible()
+    # Tout texte lisible sur sa couleur, mentions des questions multiples comprises.
+    for color in MULTIPLE_COLORS:
+        expect(card(page, color).get_by_text(MULTIPLE_HINT)).to_be_visible()
     assert low_contrasts(page) == []
 
     # Sur le téléphone : la même couleur, le numéro et la même forme qu'au tableau.
@@ -366,7 +383,7 @@ def test_shapes_and_palette_on_board_and_phones(teacher_page: Page, live_server,
         assert closest == color, (SHAPES[color - 1], SHAPES[closest - 1])
         # Avant toute réponse, le bouton d'effacement est inactif ; après, il est actif et la
         # confirmation s'affiche. Les deux états doivent rester lisibles.
-        if color < 6:  # la question 6 est multiple, sans bouton d'effacement
+        if color not in MULTIPLE_COLORS:  # une question multiple n'a pas ce bouton
             expect(phone.get_by_role("button", name="Effacer ma réponse")).to_be_disabled()
         assert low_contrasts(phone) == [], color
         choose(phone, f"R{color}-2")
