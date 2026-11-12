@@ -80,11 +80,17 @@ def test_board_has_only_statements_and_phone_only_choices(
     phone_state = f"{live_server.url}/s/{code}/etat/"
     everything = (*STATEMENTS, *ALL_CHOICES)
 
+    def assert_nothing_leaks() -> None:
+        """Ni énoncé ni proposition, ni dans les pages, ni dans les états JSON."""
+        assert_shows_none(page.content(), *everything)
+        assert_shows_none(state(page, board_state), *everything)
+        for phone in phones:
+            assert_shows_none(phone.content(), *everything)
+            assert_shows_none(state(phone, phone_state), *everything)
+
     # En attente : ni énoncé ni proposition, nulle part.
     open_board(page, live_server.url, session)
-    assert_shows_none(page.content(), *everything)
-    for phone in phones:
-        assert_shows_none(phone.content(), *everything)
+    assert_nothing_leaks()
 
     start(page)
     # Créneaux 0 et 1, puis créneau 2 : (énoncés du groupe au tableau, questions de chaque rang).
@@ -119,10 +125,9 @@ def test_board_has_only_statements_and_phone_only_choices(
     # Terminée : plus rien, ni au tableau, ni sur le téléphone, ni dans les résultats.
     jump_to(session, 91)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
-    assert_shows_none(page.content(), *everything)
     for phone in phones:
         expect(phone.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
-        assert_shows_none(phone.content(), *everything)
+    assert_nothing_leaks()
 
     open_results(page)
     assert_shows_none(page.content(), *everything)
@@ -238,15 +243,16 @@ MULTIPLE_COLORS = {2, 6}  # le texte blanc sur le bleu, le texte sombre sur l'or
 
 
 def make_six_session():
-    """Six questions affichées à la fois, dont deux multiples : au premier créneau,
-    l'étudiant de rang r a la couleur r + 1."""
+    """Deux groupes de six questions affichées à la fois. Au premier, les questions 2 et 6 sont
+    multiples ; au second, toutes sont simples. Au premier créneau d'un groupe, l'étudiant de
+    rang r a la couleur r + 1."""
     questions = [
         make_question(
             f"ÉNONCÉ-{q} ?",
             [(f"R{q}-{c}", c == 1) for c in (1, 2, 3)],
             multiple=q in MULTIPLE_COLORS,
         )
-        for q in range(1, 7)
+        for q in range(1, 13)
     ]
     quiz = make_quiz("Six", questions)
     return make_session(quiz, make_group("TD6", SIX_STUDENTS), shown=6, seconds=60)
@@ -389,6 +395,20 @@ def test_shapes_and_palette_on_board_and_phones(teacher_page: Page, live_server,
         choose(phone, f"R{color}-2")
         expect(save_status(phone)).to_have_text("Réponse enregistrée")
         assert low_contrasts(phone) == [], color
+
+    # Le bouton d'effacement sur le bleu, seule couleur à texte blanc : au second groupe, la
+    # question de couleur 2 est simple.
+    jump_to(session, 6 * 60 + 1)
+    blue = phones[1]
+    expect_slot(blue, 6)
+    blue.wait_for_load_state("load")
+    assert phone_color(blue) == 2
+    expect(blue.get_by_role("button", name="Effacer ma réponse")).to_be_disabled()
+    assert low_contrasts(blue) == []
+    choose(blue, "R8-2")
+    expect(save_status(blue)).to_have_text("Réponse enregistrée")
+    expect(blue.get_by_role("button", name="Effacer ma réponse")).to_be_enabled()
+    assert low_contrasts(blue) == []
 
 
 ORDER_CHOICES = [(f"CHOIX-{i}", i == 1) for i in range(1, 9)]  # huit propositions, A juste
