@@ -265,6 +265,7 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
     # Liste blanche (hors barre de navigation) : le titre, le temps restant, les questions.
     allowed = {f"Session {session.code}", "Gérer les connectés", "1", "2"}
     allowed.add("+10 s")  # bouton de l'enseignant (TPS-01)
+    allowed.add("Plusieurs réponses possibles")  # mention des questions multiples (AFF-02)
     allowed |= set(list(QUESTIONS)[:2])
     shown = page.locator("main").evaluate(
         """main => {

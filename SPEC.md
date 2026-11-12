@@ -54,6 +54,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
   Un identifiant de session de 6 chiffres est généré, distinct de ceux des autres sessions. Les sessions lancées sont listées dans l'espace enseignant. *(liste : dérivé)*
 - **[SES-06]** (I9) Par défaut, 4 questions s'affichent à la fois. L'enseignant peut choisir une autre valeur au lancement, de 1 à 6 ; elle reste fixe pendant toute la session. *(précision du commanditaire)*
+  - Le tableau tient sans défilement en 1920x1080 et en 1280x720 avec 4 énoncés d'environ 200 caractères, ou 6 d'environ 135 (trois colonnes à partir de 5). Au-delà, ou sur un écran plus petit (1024x768), il peut défiler. *(dérivé, I9)*
 - **[SES-02]** (I3) Avant le départ, le tableau affiche :
   - l'adresse à ouvrir et l'identifiant de session ;
   - le QCM et le groupe ;
@@ -110,7 +111,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   - Format d'Excel en français : séparateur point-virgule, virgule décimale, UTF-8 avec BOM. Fichier `resultats-<code>.csv`. *(décision I6)*
   - Le CSV n'est téléchargeable qu'une fois la session terminée. *(dérivé)*
   - Le numéro est écrit tel quel. Excel, à l'ouverture, en retire les zéros de tête : on peut reformater la colonne en texte. *(décision I6)*
-  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres des propositions dans l'ordre de la banque au moment du lancement (A pour la première, comme dans la liste des questions), `-` signifie aucune réponse. *(précisé en I9 : le tableau n'affiche plus ces lettres)* Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)*
+  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres des propositions dans l'ordre de la banque au moment du lancement (A pour la première), `-` signifie aucune réponse. *(précisé en I9 : le tableau n'affiche plus ces lettres)* Tant que la question n'a pas été modifiée, ce sont les lettres de la liste des questions. Après une modification (BAN-05), plus aucune page ne montre l'ordre figé : voir §5 bis. *(constat I9)* Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)*
   - Un nom ou un numéro qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot est précédé d'une apostrophe, pour qu'un tableur n'exécute aucune formule. Les nombres calculés (notes, points) ne le sont jamais. *(dérivé)*
 
 ### Mode classe
@@ -179,6 +180,7 @@ Rien de ce qui suit n'est implémenté.
 - **Composition des QCM.** Un nouveau QCM se crée en reprenant un ancien QCM en entier, puis en ajoutant ou en retirant des questions. *(précision du commanditaire, I9)* Contrainte déjà posée : une question ne doit jamais retomber pour une même promo.
 - **Contenu des énoncés.** Formules et code, issus des fichiers AMC (aujourd'hui, texte brut seulement : §4). Images : non précisé.
 - **Barème exact des questions à réponses multiples** : celui des fichiers AMC (aujourd'hui, le §3).
+- **Lettres du CSV après modification d'une question** (`/code-review`, I9). Les lettres du CSV désignent les propositions figées au lancement (SES-03). Si l'enseignant modifie ensuite la question, par exemple en changeant l'ordre de ses propositions, la banque montre le nouvel ordre, et plus aucune page ne montre celui de la session. Faut-il rappeler, sur la page des résultats (réservée à l'enseignant, jamais projetée), les propositions figées de chaque question ? Aujourd'hui, AFF-01 exclut énoncés et propositions de cette page.
 
 ## 6. Journal des décisions du commanditaire
 
