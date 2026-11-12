@@ -72,14 +72,15 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[ETU-03]** (I3) Un téléphone rechargé ou sorti de veille retrouve l'identité de l'étudiant, sans nouvelle saisie. Ressaisir l'identifiant de la session mène aussi directement à son écran.
 
 ### Session : déroulement
-- **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche, sur sa **couleur de fond** et avec son **numéro de couleur** (1 à N), son énoncé seul (AFF-01). Le contenu affiché est celui qui a été figé au lancement (SES-03). À la fin du dernier créneau, le tableau indique que la session est terminée.
+- **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche, sur sa **couleur de fond** et avec son **numéro de couleur** (1 à N) et sa forme (AFF-03), son énoncé seul (AFF-01). Le contenu affiché est celui qui a été figé au lancement (SES-03). À la fin du dernier créneau, le tableau indique que la session est terminée.
 - **[DER-02]** (I4) Un groupe de n questions se déroule en n **créneaux** synchronisés de t secondes, identiques pour tous. À la fin du temps, on passe automatiquement au créneau suivant, sans recharger à la main : le tableau et les téléphones suivent en 2 secondes au plus. Il n'y a ni pause ni saut. Le temps restant s'affiche au tableau et sur les téléphones. Après le dernier créneau, les téléphones indiquent que la session est terminée.
-- **[ETU-04]** (I4) Pendant un créneau, le fond du téléphone prend la couleur de la question à laquelle l'étudiant doit répondre, avec son numéro de couleur. Seules les propositions s'affichent, sans lettre et **jamais l'énoncé** :
+- **[ETU-04]** (I4) Pendant un créneau, le fond du téléphone prend la couleur de la question à laquelle l'étudiant doit répondre, avec son numéro de couleur et sa forme (AFF-03). Seules les propositions s'affichent, sans lettre et **jamais l'énoncé** :
   - question simple : on en choisit une ;
   - question multiple : on coche une ou plusieurs cases.
 
   Chaque choix est enregistré aussitôt, sans bouton à valider, et le téléphone confirme l'enregistrement. *(enregistrement immédiat : dérivé)*
-- **[ETU-05]** (I4) Sur chaque téléphone, les propositions sont mélangées. L'ordre est propre à l'étudiant et reste stable pour une question donnée.
+- **[ETU-05]** (I4) Sur chaque téléphone, les propositions sont mélangées. L'ordre est propre à l'étudiant et reste stable pour une question donnée. *(précisé en I9)* Il reste le même quand le téléphone recharge la page ou revient sur la session, et la note ne dépend pas de l'ordre affiché : une réponse désigne une proposition, pas sa place à l'écran.
+  - L'ordre est tiré au hasard, indépendamment pour chaque étudiant. L'application ne sait pas qui est assis à côté de qui : deux étudiants qui ont la même question au même moment peuvent voir une proposition au même endroit (1 fois sur 4 avec 4 propositions). Une répartition qui l'éviterait entre étudiants connectés à la suite a été écartée, rien ne garantissant que des voisins de table se connectent l'un après l'autre. *(décision I9)*
 - **[ETU-06]** (I4) Tous les étudiants répondent à toutes les questions, mais pas dans le même ordre : à chaque créneau d'un groupe, chacun a une autre question du groupe (rotation). Si N=1, l'ordre est forcément le même pour tous.
 - **[ETU-07]** (I4) L'étudiant peut changer sa réponse jusqu'à la fin du créneau ; c'est la dernière qui compte. Un téléphone rechargé réaffiche la réponse enregistrée. Après la fin du créneau, toute réponse est refusée par le serveur, et le téléphone le signale.
 - **[ETU-08]** (I4) Un étudiant peut rejoindre une session déjà commencée. Les créneaux qu'il a manqués comptent comme non-réponse.
@@ -88,6 +89,11 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
 - **[AFF-01]** (I9) **Une capture d'écran ou une photo ne contient jamais à la fois une question et ses réponses.** À aucun moment de la session, le tableau n'affiche ni ne reçoit une proposition de réponse, et le téléphone n'affiche ni ne reçoit un énoncé (ETU-04). Les pages des résultats et le CSV ne contiennent ni énoncé ni proposition.
   - Les pages de la banque de questions et des QCM, réservées à l'enseignant et sans rapport avec le déroulement, montrent encore l'un et l'autre, puisqu'elles servent à les rédiger. L'enseignant ne les projette pas pendant une évaluation. *(dérivé)*
+- **[AFF-02]** (I9) Au tableau, une question à réponses multiples porte la mention « Plusieurs réponses possibles » sous son énoncé. Une question simple n'a aucune mention. *(forme choisie par le commanditaire : texte seul, sans le ♣ d'AMC)*
+- **[AFF-03]** (I9) Chaque couleur a, en plus de son numéro, une **forme** qui lui est propre, au tableau comme sur le téléphone : 1 ● rond, 2 ▲ triangle, 3 ■ carré, 4 ◆ losange, 5 ★ étoile, 6 ✚ croix. Il n'y a qu'un affichage, lisible par tous, sans mode à activer. *(choix des formes : proposé en I9, validé)*
+- **[AFF-04]** (I9) Les six couleurs sont celles de la palette d'Okabe et Ito, conçue pour rester distincte dans les principaux types de daltonisme, dans cet ordre : 1 jaune `#F0E442`, 2 bleu `#0072B2`, 3 vert bleuté `#009E73`, 4 bleu ciel `#56B4E9`, 5 pourpre `#CC79A7`, 6 orange `#E69F00`. Tout texte affiché sur une couleur, au tableau comme sur le téléphone, a un contraste d'au moins 4,5:1 (texte blanc sur le bleu). *(décision I9)*
+  - Ordre choisi pour N = 4, la valeur par défaut : les 4 premières couleurs restent distinctes en vision normale, en protanopie, deutéranopie et tritanopie simulées, sur un projecteur délavé, et même en niveaux de gris. Au-delà de 4, la forme et le numéro départagent les couleurs que la simulation rapproche. *(décision I9, mesures dans REX.md)*
+  - L'ancienne palette confondait le jaune et l'orange (1 et 5) en deutéranopie et sur projecteur, le bleu et le violet (2 et 6) en protanopie, et ses six couleurs avaient presque la même luminosité. *(constat I9)*
 
 ### Session : temps additionnel
 - **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée. Le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ; un clic arrivé après la fin du créneau n'ajoute rien. *(emplacement et clic tardif : dérivé)*
@@ -145,7 +151,9 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
 - **Contenu figé.** Le contenu du QCM, son barème et la liste du groupe sont figés au **lancement** de la session (SES-03, décision I3 ; H8 disait « au démarrage »). Modifier la banque ou les groupes ensuite ne change ni la session ni ses résultats.
 - **Questions.** Texte brut, sans image ni formule.
-- **Couleurs.** Six couleurs contrastées, numérotées de 1 à 6.
+- **Couleurs.** Six couleurs, numérotées de 1 à 6, chacune avec sa forme (AFF-03, AFF-04).
+- **Correction.** Il n'y a pas de correction en classe : le professeur corrige de son côté et envoie les résultats par mail à la promotion. Aucune correction ni page de résultats n'est affichée aux étudiants ; l'export CSV (RES-02) suffit. *(confirmé par le commanditaire en I9)*
+- **Retardataires.** Un étudiant arrivé après le démarrage passe sur copie AMC papier. Le QR code de jonction, affiché avant le démarrage seulement (SES-05), convient. *(confirmé en I9 ; l'application accepte toujours un retardataire qui a le code, ETU-08)*
 - **Comptes enseignants.** Un espace commun à tous les comptes, créés en ligne de commande (`createsuperuser`). Pas de gestion multi-enseignants.
 - **Identité de l'étudiant.** Elle est gardée par un cookie de session. Un autre appareil qui se présente avec le même numéro est refusé (ETU-02).
 - **Incident d'appareil.** Après le démarrage, il n'y a pas de recours dans l'application : par exemple, un téléphone tombé en panne ne peut pas être remplacé. L'enseignant garde à portée de main des copies papier d'Auto Multiple Choice. Avant le démarrage, il peut libérer un numéro (SES-04).
@@ -156,16 +164,21 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants. Le recours retenu (SES-04) : l'enseignant voit la liste des connectés au tableau et libère les numéros usurpés avant le démarrage.
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
 - **Lecteurs de QR code à navigateur intégré.** L'identité de l'étudiant vit dans le cookie du navigateur qui a validé le numéro. Une application qui ouvre le lien dans son propre navigateur peut perdre ce cookie à la fermeture : le numéro reste alors lié à ce premier « appareil » (ETU-02) et, après le démarrage, il n'y a pas de recours (§4). Non observé : à vérifier avec de vrais téléphones, l'appareil photo du téléphone ouvrant en principe le navigateur habituel.
-- **Wi-Fi d'école.** L'isolation entre appareils peut empêcher les téléphones de joindre le PC de l'enseignant. Dans ce cas, l'hébergement en ligne (incrément conditionnel, à numéroter le moment venu) devient nécessaire. Le parcours complet a réussi avec un vrai téléphone sur un Wi-Fi domestique, serveur lancé depuis Windows (hors WSL) ; le Wi-Fi de l'école **n'a pas encore été testé**.
+- **Wi-Fi d'école : le risque principal avant un premier cours.** En classe, le PC et tous les téléphones seront sur **eduroam**, en mode local : les téléphones joindront le PC par son adresse sur ce réseau (de la forme `172.x.x.x`). Rien de cela n'est encore testé :
+  - on ne sait pas si eduroam isole les appareils entre eux à l'INSA, ce qui empêcherait les téléphones de joindre le PC ;
+  - on ne sait pas si la détection automatique de l'adresse (CLA-01) choisit celle d'eduroam. Sinon, l'enseignant l'impose avec `ADRESSE=…`.
+
+  Le parcours complet a réussi avec un vrai téléphone sur un Wi-Fi domestique, serveur lancé depuis Windows (hors WSL). L'hébergement sur un serveur, qui lèverait le risque d'isolation, est reporté. *(précisions du commanditaire, I9)*
+- **Horloge du PC.** Sous Windows, le compte à rebours est resté stable : le recul de l'horloge observé en développement venait de WSL (REX, section R). *(constat du commanditaire, I9, que je n'ai pas observé moi-même)*
 
 ## 5 bis. Questions ouvertes, en attente du professeur
 
 Rien de ce qui suit n'est implémenté.
 
-- **Import en masse des questions.** Plusieurs centaines de questions, sur plusieurs matières, au format AMC probablement. Un fichier d'exemple est attendu.
-- **Organisation des banques et composition des QCM.** Un fichier AMC contient-il exactement les questions d'un QCM, ou un ensemble plus large dans lequel on tire ? Contrainte déjà posée : une question ne doit jamais retomber pour une même promo.
-- **Contenu des énoncés.** Images, formules et code (aujourd'hui, texte brut seulement : §4).
-- **Barème exact des questions à réponses multiples** (aujourd'hui, le §3).
+- **Import des questions depuis AMC (prochain incrément, en attente).** Les questions viennent de fichiers AMC d'anciens QCM, en texte AMC ou en LaTeX, avec formules et code. Le barème figure dans ces fichiers. *(précision du commanditaire, I9)* Aucun fichier d'exemple n'est encore disponible : rien ne sera fait sans lui.
+- **Composition des QCM.** Un nouveau QCM se crée en reprenant un ancien QCM en entier, puis en ajoutant ou en retirant des questions. *(précision du commanditaire, I9)* Contrainte déjà posée : une question ne doit jamais retomber pour une même promo.
+- **Contenu des énoncés.** Formules et code, issus des fichiers AMC (aujourd'hui, texte brut seulement : §4). Images : non précisé.
+- **Barème exact des questions à réponses multiples** : celui des fichiers AMC (aujourd'hui, le §3).
 
 ## 6. Journal des décisions du commanditaire
 
@@ -207,3 +220,11 @@ Rien de ce qui suit n'est implémenté.
 | QR code de jonction pendant le déroulement (I8) | Non : avant le démarrage seulement |
 | Contenu du tableau et du téléphone (après I7) | Tableau : énoncés seuls. Téléphone : propositions seules. Une photo ne doit jamais contenir une question et ses réponses (AFF-01) |
 | Nombre de questions affichées à la fois (après I7) | 4 par défaut, modifiable au lancement, de 1 à 6 (SES-06) |
+| Correction en classe (I9) | Aucune : le professeur corrige et envoie les résultats par mail ; l'export CSV suffit |
+| Ordre des propositions (I9) | Propre à chaque étudiant, stable, notes indépendantes de l'ordre (ETU-05) ; tirage au hasard conservé |
+| Indication des questions à réponses multiples (I9) | « Plusieurs réponses possibles » sous l'énoncé, au tableau (AFF-02) |
+| Daltonisme (I9) | Un seul affichage pour tous ; une forme par couleur (AFF-03) ; palette d'Okabe et Ito (AFF-04) |
+| Horloge du PC de classe (I9) | Stable sous Windows ; le recul venait de WSL |
+| Retardataires (I9) | Copie AMC papier ; QR code avant le démarrage seulement, confirmé |
+| Réseau en classe (I9) | eduroam, en local, adresse en 172.x.x.x ; non testé, risque principal ; hébergement reporté |
+| Import AMC et composition des QCM (I9) | Prochain incrément, en attente d'un fichier d'exemple |

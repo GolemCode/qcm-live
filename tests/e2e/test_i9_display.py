@@ -1,5 +1,7 @@
 """Incrément 9 : le tableau n'affiche que les énoncés, le téléphone que les propositions
-(AFF-01), et 4 questions s'affichent à la fois par défaut (SES-06).
+(AFF-01), et 4 questions s'affichent à la fois par défaut (SES-06). Les questions multiples
+sont signalées au tableau (AFF-02). Chaque couleur a sa forme (AFF-03) et la palette reste
+lisible pour les daltoniens (AFF-04). L'ordre des propositions est propre à l'étudiant (ETU-05).
 
 Les textes sont des marqueurs uniques : les chercher dans le code de la page ne donne aucun
 faux positif, et couvre aussi ce qui serait envoyé sans être visible.
@@ -7,20 +9,31 @@ faux positif, et couvre aussi ce qui serait envoyé sans être visible.
 
 from __future__ import annotations
 
-import pytest
-from playwright.sync_api import Page, ViewportSize, expect
+import csv
+import io
 
+import pytest
+from PIL import Image
+from playwright.sync_api import Locator, Page, ViewportSize, expect
+
+from bank.scoring import LETTERS
+from live.models import Answer
 from tests.e2e.live_setup import STUDENTS, expect_slot, open_board
 from tests.e2e.live_ui import (
     LIVE_MS,
+    background,
     board_code,
     card,
+    choose,
+    enter_code,
     launch_session,
     open_results,
     open_sessions,
     phone_choices,
     phone_color,
     phones_joined,
+    results_rows,
+    save_status,
     start,
 )
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session
@@ -160,3 +173,288 @@ def test_another_value_can_be_chosen_at_launch(teacher_page: Page):
     start(page)
     expect(card(page, 2).get_by_role("heading")).to_have_text(STATEMENTS[1])
     expect(card(page, 3)).to_have_count(0)
+
+
+MULTIPLE_HINT = "Plusieurs réponses possibles"
+
+
+@pytest.mark.spec("AFF-02")
+def test_board_flags_multiple_answer_questions(teacher_page: Page, live_server, new_phone):
+    page = teacher_page
+    session = make_marked_session(shown=3)  # la troisième question est multiple
+    phones_joined(new_phone, live_server.url, session.code, ["00123"])
+    open_board(page, live_server.url, session)
+    start(page)
+
+    hint = card(page, 3).get_by_text(MULTIPLE_HINT, exact=True)
+    expect(hint).to_be_visible()
+    # Sous son énoncé.
+    heading = card(page, 3).get_by_role("heading")
+    heading_box, hint_box = heading.bounding_box(), hint.bounding_box()
+    assert heading_box and hint_box
+    assert hint_box["y"] >= heading_box["y"] + heading_box["height"] - 1
+    # Une question simple n'a aucune mention, et la mention n'apparaît qu'une fois.
+    for color in (1, 2):
+        expect(card(page, color)).not_to_contain_text("réponses possibles")
+    expect(page.get_by_text(MULTIPLE_HINT)).to_have_count(1)
+
+    # Seule dans son groupe, elle garde sa mention ; une question simple seule n'en a pas.
+    alone = make_marked_session(shown=2)
+    phones_joined(new_phone, live_server.url, alone.code, ["42"])
+    open_board(page, live_server.url, alone)
+    start(page)
+    expect(card(page, 1)).not_to_contain_text("réponses possibles")
+    jump_to(alone, 61)
+    expect(card(page, 1).get_by_role("heading")).to_have_text(STATEMENTS[2], timeout=LIVE_MS)
+    expect(card(page, 1).get_by_text(MULTIPLE_HINT, exact=True)).to_be_visible()
+
+
+# Formes (AFF-03) et palette d'Okabe et Ito (AFF-04), dans l'ordre des couleurs 1 à 6.
+SHAPES = ["rond", "triangle", "carré", "losange", "étoile", "croix"]
+PALETTE = ["#F0E442", "#0072B2", "#009E73", "#56B4E9", "#CC79A7", "#E69F00"]
+SIX_STUDENTS = [(f"{n}", f"ÉTUDIANT {n}") for n in range(101, 107)]
+
+
+def rgb(hex_color: str) -> str:
+    r, g, b = (int(hex_color[i : i + 2], 16) for i in (1, 3, 5))
+    return f"rgb({r}, {g}, {b})"
+
+
+def make_six_session():
+    """Six questions affichées à la fois, la dernière multiple, et six téléphones : au premier
+    créneau, l'étudiant de rang r a la couleur r + 1."""
+    questions = [
+        make_question(f"ÉNONCÉ-{q} ?", [(f"R{q}-{c}", c == 1) for c in (1, 2, 3)], multiple=q == 6)
+        for q in range(1, 7)
+    ]
+    quiz = make_quiz("Six", questions)
+    return make_session(quiz, make_group("TD6", SIX_STUDENTS), shown=6, seconds=60)
+
+
+def shape(screen: Page | Locator, color: int) -> Locator:
+    return screen.get_by_role("img", name=SHAPES[color - 1], exact=True)
+
+
+def silhouette(image: Locator) -> Image.Image:
+    """Silhouette de la forme, lue sur une capture de l'écran : les pixels plus proches de la
+    couleur de la forme que du fond, recadrés puis ramenés à 32x32."""
+    image.scroll_into_view_if_needed()
+    capture = Image.open(io.BytesIO(image.screenshot())).convert("RGB")
+    ink = parse_rgb(image.evaluate("element => getComputedStyle(element).color"))
+    paper = capture.getpixel((0, 0))  # coin hors de la forme : le fond
+    assert isinstance(paper, tuple)
+
+    def near_ink(pixel) -> bool:
+        to_ink = sum((a - b) ** 2 for a, b in zip(pixel, ink, strict=True))
+        to_paper = sum((a - b) ** 2 for a, b in zip(pixel, paper, strict=True))
+        return to_ink < to_paper
+
+    mask = Image.new("1", capture.size)
+    mask.putdata([near_ink(pixel) for pixel in capture.getdata()])
+    box = mask.getbbox()
+    assert box, "forme invisible"
+    return mask.crop(box).resize((32, 32))
+
+
+def overlap(a: Image.Image, b: Image.Image) -> float:
+    """Part commune de deux silhouettes (1 : identiques)."""
+    pa, pb = a.convert("L").tobytes(), b.convert("L").tobytes()
+    both = sum(1 for x, y in zip(pa, pb, strict=True) if x and y)
+    either = sum(1 for x, y in zip(pa, pb, strict=True) if x or y)
+    return both / either
+
+
+def parse_rgb(css: str) -> tuple[int, int, int]:
+    parts = css[css.index("(") + 1 : css.index(")")].replace(",", " ").split()
+    r, g, b = (round(float(p)) for p in parts[:3])
+    return r, g, b
+
+
+def luminance(color) -> float:
+    def channel(c: float) -> float:
+        c /= 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (channel(c) for c in color)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a, b) -> float:
+    high, low = sorted((luminance(a), luminance(b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+# Pour chaque élément visible qui porte du texte, ou pour chaque forme : couleur du texte et
+# fond effectif, composé à travers les fonds semi-transparents des ancêtres.
+READ_COLORS = """() => {
+  const parse = s => s.match(/[\\d.]+/g).map(Number);
+  const backdrop = el => {
+    const layers = [];
+    for (let e = el; e; e = e.parentElement) {
+      const [r, g, b, a = 1] = parse(getComputedStyle(e).backgroundColor);
+      if (a > 0) layers.push([r, g, b, a]);
+      if (a >= 1) break;
+    }
+    let out = [255, 255, 255];
+    for (const [r, g, b, a] of layers.reverse()) {
+      out = out.map((v, i) => v * (1 - a) + [r, g, b][i] * a);
+    }
+    return out;
+  };
+  const found = [];
+  for (const el of document.body.querySelectorAll("*")) {
+    const text = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+    if (!(text || el.matches("svg[role=img]")) || !el.checkVisibility()) continue;
+    const box = el.getBoundingClientRect();
+    if (box.width < 2 || box.height < 2) continue;
+    const label = el.getAttribute("aria-label") || el.textContent.trim();
+    const fg = parse(getComputedStyle(el).color);
+    found.push({label: label.slice(0, 40), fg, bg: backdrop(el)});
+  }
+  return found;
+}"""
+
+
+def low_contrasts(screen: Page) -> list[tuple[str, float]]:
+    """Textes et formes de l'écran dont le contraste avec leur fond est sous 4,5:1."""
+    found = screen.evaluate(READ_COLORS)
+    assert found
+    measured = [(item["label"], contrast(item["fg"][:3], item["bg"])) for item in found]
+    return [(label, round(ratio, 2)) for label, ratio in measured if ratio < 4.5]
+
+
+@pytest.mark.spec("AFF-03")
+def test_each_color_has_its_own_shape(teacher_page: Page, live_server, new_phone):
+    page = teacher_page
+    session = make_six_session()
+    phones = phones_joined(new_phone, live_server.url, session.code, [n for n, _ in SIX_STUDENTS])
+    open_board(page, live_server.url, session)
+    start(page)
+
+    # Au tableau : chaque carte porte son numéro et sa forme, et les six formes se distinguent
+    # à l'œil, et non seulement par leur nom.
+    board = {}
+    for color in range(1, 7):
+        expect(card(page, color).locator(".badge")).to_contain_text(str(color))
+        image = shape(card(page, color), color)
+        expect(image).to_be_visible()
+        expect(card(page, color).get_by_role("img")).to_have_count(1)
+        board[color] = silhouette(image)
+    for a in range(1, 7):
+        for b in range(a + 1, 7):
+            assert overlap(board[a], board[b]) < 0.85, (SHAPES[a - 1], SHAPES[b - 1])
+
+    # Sur le téléphone : le numéro et la même forme qu'au tableau.
+    for rank, phone in enumerate(phones):
+        color = rank + 1
+        assert phone_color(phone) == color
+        image = shape(phone, color)
+        expect(image).to_be_visible()
+        expect(phone.get_by_role("img")).to_have_count(1)
+        seen = silhouette(image)
+        closest = max(board, key=lambda c: overlap(seen, board[c]))
+        assert closest == color, (SHAPES[color - 1], SHAPES[closest - 1])
+
+
+@pytest.mark.spec("AFF-04")
+def test_color_blind_safe_palette_and_readable_text(teacher_page: Page, live_server, new_phone):
+    page = teacher_page
+    session = make_six_session()
+    phones = phones_joined(new_phone, live_server.url, session.code, [n for n, _ in SIX_STUDENTS])
+    open_board(page, live_server.url, session)
+    start(page)
+
+    for color, hex_color in enumerate(PALETTE, start=1):
+        assert background(card(page, color)) == rgb(hex_color), color
+    expect(card(page, 6).get_by_text(MULTIPLE_HINT)).to_be_visible()
+    assert low_contrasts(page) == []
+
+    for rank, phone in enumerate(phones):
+        color = rank + 1
+        assert phone_color(phone) == color
+        assert background(phone.locator("body")) == rgb(PALETTE[rank])
+        # Une réponse choisie : le bouton d'effacement est actif et la confirmation s'affiche.
+        choose(phone, f"R{color}-2")
+        expect(save_status(phone)).to_have_text("Réponse enregistrée")
+        assert low_contrasts(phone) == [], color
+
+
+ORDER_CHOICES = [(f"CHOIX-{i}", i == 1) for i in range(1, 9)]  # huit propositions, A juste
+
+
+def wait_saved(page: Page, session, number: str, index: int) -> None:
+    """La réponse de `number` est enregistrée : la proposition d'indice `index` de la banque."""
+    saved = Answer.objects.filter(participant__session=session, participant__number=number)
+    for _ in range(40):
+        if list(saved.values_list("choices", flat=True)) == [[index]]:
+            return
+        page.wait_for_timeout(50)
+    raise AssertionError(f"{number} : réponse non enregistrée")
+
+
+@pytest.mark.spec("ETU-05")
+def test_choice_order_survives_coming_back(teacher_page: Page, live_server, new_phone):
+    page = teacher_page
+    quiz = make_quiz("Ordre", [make_question("Huit propositions", ORDER_CHOICES)])
+    session = make_session(quiz, make_group("TD1", STUDENTS), shown=1, seconds=60)
+    phones = phones_joined(new_phone, live_server.url, session.code, ["00123", "42"])
+    open_board(page, live_server.url, session)
+    start(page)
+
+    orders = []
+    for phone in phones:
+        expect_slot(phone, 0)
+        order = phone_choices(phone)
+        # L'étudiant revient sur la session en ressaisissant le code…
+        enter_code(phone, live_server.url, session.code)
+        expect_slot(phone, 0)
+        assert phone_choices(phone) == order
+        # … ou dans un nouvel onglet du même navigateur.
+        tab = phone.context.new_page()
+        tab.goto(f"{live_server.url}/s/{session.code}/")
+        expect_slot(tab, 0)
+        assert phone_choices(tab) == order
+        orders.append(order)
+    assert orders[0] != orders[1]
+
+
+@pytest.mark.spec("ETU-05")
+def test_marks_do_not_depend_on_displayed_order(teacher_page: Page, live_server, new_phone):
+    """Chaque étudiant choisit une proposition affichée ailleurs qu'à sa place dans la banque :
+    la note et la lettre du CSV sont celles de la proposition, pas de sa place à l'écran."""
+    page = teacher_page
+    labels = [label for label, _ in ORDER_CHOICES]
+    quiz = make_quiz("Ordre", [make_question("Huit propositions", ORDER_CHOICES)])
+    session = make_session(quiz, make_group("TD1", STUDENTS), shown=1, seconds=60)
+    numbers = ["00123", "42", "7"]
+    phones = phones_joined(new_phone, live_server.url, session.code, numbers)
+    open_board(page, live_server.url, session)
+    start(page)
+
+    # 00123 et 7 choisissent la bonne réponse (A). 42 choisit une mauvaise réponse affichée
+    # ailleurs qu'à sa place dans la banque : sa lettre dans le CSV distingue à coup sûr la
+    # proposition de sa place à l'écran.
+    picked = {}
+    for number, phone in zip(numbers, phones, strict=True):
+        expect_slot(phone, 0)
+        shown = phone_choices(phone)
+        wrong = (t for t in labels[1:] if shown.index(t) != labels.index(t))
+        picked[number] = next(wrong) if number == "42" else labels[0]
+        choose(phone, picked[number])
+        expect(save_status(phone)).to_have_text("Réponse enregistrée")
+        wait_saved(page, session, number, labels.index(picked[number]))
+
+    jump_to(session, 61)
+    expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
+    open_results(page)
+    marks = {row[0]: row[2] for row in results_rows(page)}
+    assert marks == {"00123": "1", "42": "0", "7": "1"}
+    with page.expect_download() as info:
+        page.get_by_role("link", name="Télécharger le CSV").click()
+    rows = list(csv.reader(io.StringIO(info.value.path().read_text("utf-8-sig")), delimiter=";"))
+    answers = {row[0]: (row[4], row[5]) for row in rows[1:]}
+    assert answers == {
+        "00123": ("A", "1"),
+        "42": (LETTERS[labels.index(picked["42"])], "0"),
+        "7": ("A", "1"),
+    }
