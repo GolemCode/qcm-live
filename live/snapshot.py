@@ -20,7 +20,7 @@ class FrozenChoice(TypedDict):
 class FrozenQuestion(TypedDict):
     text: str
     multiple: bool
-    choices: list[FrozenChoice]  # ordre canonique : A, B, C… au tableau
+    choices: list[FrozenChoice]  # ordre canonique, celui de la banque : A, B, C…
 
 
 class FrozenQuiz(TypedDict):

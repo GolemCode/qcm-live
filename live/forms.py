@@ -16,6 +16,7 @@ from roster.csv_import import MAX_NUMBER_LENGTH
 from roster.models import StudentGroup
 
 MAX_SHOWN = 6  # SES-01 : de 1 à 6 questions affichées en même temps
+DEFAULT_SHOWN = 4  # SES-06
 MIN_SECONDS, MAX_SECONDS = 5, 600
 CODE_ATTEMPTS = 20  # un million de codes : une collision est rare, vingt d'affilée impossible
 RANK_ATTEMPTS = 10  # arrivées simultanées : une tentative par conflit de rang
@@ -31,7 +32,10 @@ class LaunchSessionForm(PlainForm):
         label="Groupe", queryset=StudentGroup.objects.all(), empty_label=None
     )
     shown = forms.IntegerField(
-        label="Questions affichées en même temps", min_value=1, max_value=MAX_SHOWN, initial=1
+        label="Questions affichées en même temps",
+        min_value=1,
+        max_value=MAX_SHOWN,
+        initial=DEFAULT_SHOWN,
     )
     seconds = forms.IntegerField(
         label="Temps par question (secondes)",

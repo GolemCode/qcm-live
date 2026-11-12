@@ -34,8 +34,9 @@ MIN_QR_PX = 300  # sur un écran de 1080 lignes : assez grand pour se lire depui
 
 
 def images(page: Page) -> Locator:
-    """Toute image de la page, même sans texte de remplacement (`get_by_role` l'ignorerait)."""
-    return page.locator("img, svg, canvas")
+    """Toute image de la page, même sans texte de remplacement (`get_by_role` l'ignorerait),
+    hormis les formes des couleurs (AFF-03)."""
+    return page.locator("img, svg:not(.shape), canvas")
 
 
 @pytest.mark.spec("SES-05")

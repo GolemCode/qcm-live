@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 
-LETTERS = "ABCDEFGH"  # 2 à 8 propositions, désignées A…H comme au tableau (indice 0 = A)
+LETTERS = "ABCDEFGH"  # 2 à 8 propositions, désignées A…H, dans l'ordre de la banque (indice 0 = A)
 
 
 @dataclass(frozen=True)

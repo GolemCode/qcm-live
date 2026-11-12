@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from playwright.sync_api import Page, expect
 
-from live.models import Session
+from live.models import Answer, Session
 from tests.e2e.live_ui import LIVE_MS, phones_joined, start
 from tests.factories import make_group, make_question, make_quiz, make_session
 
@@ -50,6 +50,19 @@ def make_live(
     group = make_group("TD1", students)
     quiz = make_quiz("Contrôle", questions, **(scale or {}))
     return make_session(quiz, group, shown=shown, seconds=seconds)
+
+
+def wait_answer(screen: Page, session: Session, number: str, question: int, choices) -> None:
+    """La réponse de `number` à la question figée `question` est enregistrée : les propositions
+    d'indices `choices`, dans l'ordre de la banque."""
+    answers = Answer.objects.filter(
+        participant__session=session, participant__number=number, question=question
+    )
+    for _ in range(40):
+        if sorted(answers.values_list("choices", flat=True).first() or []) == sorted(choices):
+            return
+        screen.wait_for_timeout(50)
+    raise AssertionError(f"{number} : réponse {choices} non enregistrée")
 
 
 def open_board(page: Page, base_url: str, session: Session) -> None:

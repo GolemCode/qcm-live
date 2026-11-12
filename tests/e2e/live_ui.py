@@ -3,6 +3,7 @@ leur téléphone. Uniquement par l'interface."""
 
 from __future__ import annotations
 
+import csv
 import io
 import re
 
@@ -185,6 +186,20 @@ def qr_text(qr: Locator) -> str:
 def open_results(page: Page) -> None:
     page.get_by_role("link", name="Résultats").click()
     expect(page.get_by_role("heading", name="Résultats", level=1)).to_be_visible()
+
+
+def download_csv(page: Page) -> tuple[str, bytes]:
+    """Nom proposé et contenu brut du CSV des résultats (RES-02)."""
+    with page.expect_download() as info:
+        page.get_by_role("link", name="Télécharger le CSV").click()
+    download = info.value
+    with open(download.path(), "rb") as file:
+        return download.suggested_filename, file.read()
+
+
+def csv_rows(content: bytes) -> list[list[str]]:
+    """Lignes du CSV des résultats : UTF-8 avec BOM, séparateur point-virgule."""
+    return list(csv.reader(io.StringIO(content.decode("utf-8-sig")), delimiter=";"))
 
 
 def results_rows(page: Page) -> list[list[str]]:

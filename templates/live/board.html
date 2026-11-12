@@ -43,11 +43,9 @@
     <div class="qcards">
       {% for card in cards %}
         <article class="qcard color-{{ card.color }}" aria-label="Couleur {{ card.color }}">
-          <p class="badge">{{ card.color }}</p>
-          <h2>{{ card.question.text }}</h2>
-          <ol type="A">
-            {% for choice in card.question.choices %}<li>{{ choice.text }}</li>{% endfor %}
-          </ol>
+          <p class="badge"><span>{{ card.color }}</span> {% include "live/shape.html" with color=card.color %}</p>
+          <h2>{{ card.text }}</h2>
+          {% if card.multiple %}<p class="multiple">Plusieurs réponses possibles</p>{% endif %}
         </article>
       {% endfor %}
     </div>

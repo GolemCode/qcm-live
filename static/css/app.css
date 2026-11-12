@@ -63,15 +63,16 @@ h2 { font-size: 1.25rem; margin: 1.25rem 0 0.5rem; }
 
 a.button { display: inline-block; padding: 0.6rem 1.25rem; border-radius: 0.375rem; background: var(--accent); color: #fff; text-decoration: none; }
 button.danger { background: var(--error); }
-button.secondary { background: none; color: var(--accent); border: 2px solid var(--accent); }
-button:disabled { opacity: 0.4; cursor: default; }
+button.secondary { background: var(--bg); color: var(--accent); border: 2px solid var(--accent); }
+/* Inactif, mais lisible même sur une couleur (AFF-04) : gris sur blanc, sans transparence. */
+button:disabled { cursor: default; background: var(--bg); color: var(--muted); border-color: var(--border); }
 .actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 
 .form.wide { max-width: 48rem; }
 fieldset { border: 1px solid var(--border); border-radius: 0.375rem; margin: 0.5rem 0; padding: 0.5rem 1rem 1rem; min-width: 0; }
 legend { font-weight: 600; padding: 0 0.25rem; }
 label.inline { display: flex; gap: 0.5rem; align-items: center; margin: 0.25rem 0; }
-input[type="radio"], input[type="checkbox"] { width: 1.25rem; height: 1.25rem; }
+input[type="radio"], input[type="checkbox"] { width: 1.25rem; height: 1.25rem; flex: none; }
 
 .card { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.25rem 1rem; margin: 0.75rem 0; }
 .card h2 { margin-top: 0.75rem; }
@@ -107,28 +108,36 @@ button.big { font-size: 1.5rem; padding: 0.8rem 2rem; }
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* Six couleurs de questions, numérotées (repère pour les daltoniens), texte sombre lisible. */
-.color-1 { background: #ffd54f; }
-.color-2 { background: #64b5f6; }
-.color-3 { background: #f48fb1; }
-.color-4 { background: #81c784; }
-.color-5 { background: #ffb74d; }
-.color-6 { background: #b39ddb; }
+/* Six couleurs de questions (AFF-04) : palette d'Okabe et Ito, ordonnée pour que les 4 premières
+   restent distinctes pour les daltoniens et en niveaux de gris. Chacune a aussi son numéro et sa
+   forme (AFF-03). Texte sombre, sauf sur le bleu : contraste d'au moins 4,5:1. */
+.color-1 { background: #f0e442; }
+.color-2 { background: #0072b2; color: #fff; }
+.color-3 { background: #009e73; }
+.color-4 { background: #56b4e9; }
+.color-5 { background: #cc79a7; }
+.color-6 { background: #e69f00; }
+.shape { width: 1em; height: 1em; vertical-align: -0.125em; fill: currentColor; }
 
-/* Tableau en déroulement : les N questions côte à côte. */
+/* Tableau en déroulement : les énoncés des N questions, sur deux colonnes. */
 .board .page { max-width: none; }
 .timer { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0.25rem 0; }
-.qcards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
-.qcard { border-radius: 0.75rem; padding: 1rem 1.5rem; font-size: 1.4rem; color: var(--fg); }
-.qcard h2 { font-size: 1.6rem; margin: 0.25rem 0 0.75rem; }
+.qcards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(40%, 1fr)); }
+/* À 5 ou 6 questions, trois colonnes : deux rangées au lieu de trois, pour tenir en hauteur. */
+.qcards:has(> :nth-child(5)) { grid-template-columns: repeat(3, 1fr); }
+.qcard { border-radius: 0.75rem; padding: 1rem 1.5rem; overflow-wrap: anywhere; }
+.qcard h2 { font-size: clamp(1.25rem, 3vh, 2rem); line-height: 1.25; margin: 0.25rem 0 0.75rem; }
 .badge { display: inline-block; margin: 0; font-weight: 700; font-size: 1.25rem; }
 .qcard .badge { font-size: 2rem; }
+.qcard .multiple { margin: 0; font-size: clamp(1.125rem, 2.5vh, 1.5rem); font-weight: 600; }
 
 /* Téléphone : fond de la couleur de la question, grandes cibles tactiles. */
 .phone-head { display: flex; justify-content: space-between; align-items: center; }
 .phone .answers { border: 0; padding: 0; margin: 1rem 0; display: grid; gap: 0.75rem; }
 .phone .answer {
   display: flex; gap: 0.75rem; align-items: center; padding: 1rem;
-  background: rgba(255, 255, 255, 0.85); border-radius: 0.75rem; font-size: 1.25rem;
+  background: rgba(255, 255, 255, 0.85); color: var(--fg); border-radius: 0.75rem; font-size: 1.25rem;
 }
+/* Sur une couleur, le texte secondaire reste lisible (AFF-04). */
+.colored .muted { color: inherit; }
 .save-status { min-height: 1.5em; font-weight: 600; }

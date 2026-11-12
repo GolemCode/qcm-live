@@ -114,10 +114,13 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
         }
     elif state.position is not None:
         group = session.schedule.groups[state.position.slot.group]
-        context |= {  # DER-01 : les questions du groupe, avec leur couleur (1 à n)
+        # DER-01, AFF-01 : les énoncés du groupe et leur couleur, sans proposition ;
+        # AFF-02 : la mention des questions à réponses multiples.
+        questions = [session.questions[index] for index in group]
+        context |= {
             "cards": [
-                {"color": color, "question": session.questions[index]}
-                for color, index in enumerate(group, start=1)
+                {"color": color, "text": question["text"], "multiple": question["multiple"]}
+                for color, question in enumerate(questions, start=1)
             ],
             "remaining_ms": _ms(state.position.remaining),
         }
@@ -138,8 +141,7 @@ def board_state(request: HttpRequest, code: str) -> JsonResponse:
 @require_POST
 def session_start(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session.objects.only("pk", "started_at"), code=code)
-    if session.start(timezone.now()):
-        messages.success(request, "Session démarrée.")
+    session.start(timezone.now())  # déjà démarrée (double clic) : rien ne change
     return redirect("board", code=code)
 
 

@@ -736,3 +736,111 @@ Audit spec-auditor : 4136116b5de16bfccd98773409596d86bcd4ba54
 - **Lecteurs à navigateur intégré (SPEC §5).** L'identité vit dans le cookie du navigateur qui a validé le numéro. Une application qui ouvre le lien dans son propre navigateur pourrait la perdre, avec un numéro resté lié à ce premier « appareil ». Non observé, et les tests ne peuvent pas le voir : à essayer sur de vrais téléphones.
 - **La lecture depuis la salle.** Un test impose une taille minimale et décode une capture nette. Il ne dit rien d'une photo prise à 10 mètres d'un projecteur.
 - **Sans réseau, ou en mode développement ouvert en `localhost`,** le QR code contient une adresse que le téléphone ne peut pas joindre, comme le texte projeté. Écarté : le mode classe l'annonce dans le terminal.
+
+---
+
+## I9 — Retour du test réel : affichage, formes et palette
+
+### Objectif
+Traiter la seconde moitié du retour du commanditaire après le test réel, complétée par ses précisions du 12 novembre, après discussion avec le professeur :
+- tableau limité aux énoncés, téléphone limité aux propositions (AFF-01), et 4 questions à la fois par défaut (SES-06) ;
+- mention des questions à réponses multiples au tableau (AFF-02) ;
+- une forme par couleur, en plus du numéro (AFF-03), et une palette lisible par les daltoniens et sur un vidéoprojecteur (AFF-04) ;
+- ordre des propositions propre à l'étudiant, stable, sans effet sur la note (ETU-05, précisée).
+
+Il fallait aussi consigner dans SPEC.md, sans rien implémenter : l'absence de correction en classe, l'horloge stable sous Windows, les retardataires sur copie papier, le réseau eduroam (risque principal, non testé) et le prochain incrément (import AMC, en attente d'un fichier d'exemple).
+
+**Déroulé.** La branche existait déjà : une session précédente, le 8 novembre, avait commité les tests rouges puis le code d'AFF-01 et SES-06, sans section de REX et sans pousser. J'ai repris sur cette base. Le message de ce commit annonce des tests rouges, mais je n'ai pas vu cet échec moi-même, et l'historique ne prouve que l'ordre des commits.
+
+**Questions posées avant d'écrire les tests**, avec leurs réponses :
+- Palette : celle d'Okabe et Ito, proposée avec ses mesures (voir ci-dessous), est retenue.
+- Forme de la mention « multiple » : « Plusieurs réponses possibles », en texte seul. Le ♣ d'AMC n'a pas été retenu.
+- Ordre des propositions : il était déjà propre à l'étudiant depuis I4. J'ai expliqué que l'application ne sait pas qui est assis à côté de qui, et qu'avec 4 propositions, deux étudiants qui ont la même question voient la bonne réponse au même endroit 1 fois sur 4. Une « répartition équilibrée » entre étudiants connectés à la suite n'aiderait que si les voisins de table se connectaient l'un après l'autre. Le tirage au hasard est conservé.
+
+### Évaluation de la palette
+- **Méthode.** Écart CIEDE2000 entre chaque paire de couleurs, en vision normale et en simulation de protanopie, deutéranopie et tritanopie (matrices de Machado et al., 2009, sévérité maximale). S'y ajoutent les niveaux de gris (achromatopsie, photo en noir et blanc) et un projecteur délavé, modélisé par un voile de lumière ambiante, seul et combiné à la deutéranopie. C'est un modèle, pas une mesure sur un vrai projecteur.
+- **L'ancienne palette** confondait le jaune et l'orange (1 et 5) : écart de 4,5 en deutéranopie, 3,3 sur projecteur délavé. Elle confondait aussi le bleu et le violet (2 et 6) en protanopie (4,9). Ses six couleurs avaient presque la même luminosité (écart de 0,2 en gris). Ses quatre premières tenaient, sauf en gris.
+- **Recherche.** Une optimisation libre sur la grille des couleurs donnait des couleurs criardes ou presque blanches, inutilisables comme fond. Le meilleur sous-ensemble de palettes reconnues (Okabe et Ito, Paul Tol) en texte sombre seul plafonnait à un écart de 6,3. Accepter un texte blanc sur une couleur foncée élargit l'espace, et la palette d'Okabe et Ito l'emporte.
+- **Palette retenue, ordonnée pour N = 4** : jaune, bleu, vert bleuté, bleu ciel, pourpre, orange. Pour les 4 premières, l'écart minimal vaut 8,4 sur toutes les conditions et 10,1 en gris. Sur les 6, il vaut 7,8 hors niveaux de gris, contre 3,3 auparavant. En gris, 3/5 et 4/6 restent proches : la forme et le numéro les départagent.
+- **Coût :** texte blanc sur le bleu, et un contraste de 5:1 environ sur 2, 3 et 5, au lieu de 7:1. C'est au-dessus de 4,5:1, le seuil pour un texte courant (WCAG AA), et l'énoncé projeté est un gros texte.
+- **Vérification visuelle.** Simulation appliquée à une capture réelle du tableau à 6 couleurs : en protanopie, deutéranopie, tritanopie et niveaux de gris, les 4 premières cartes restent distinctes. Au-delà, 5 et 6 se rapprochent en tritanopie, comme mesuré.
+
+### Problèmes rencontrés
+- **La partie « contraste » d'AFF-04 n'a pas été vue rouge avant le code.** Le test s'arrêtait d'abord sur la palette, et j'ai corrigé dans le même temps le texte gris et le bouton d'effacement posés sur la couleur. Pour vérifier que cette partie sait échouer, j'ai fait deux contre-épreuves après coup, sans les présenter comme un échec observé avant le code. Sans les correctifs, le test tombe sur le téléphone bleu (contraste de 1,2). Avec un texte sombre sur le bleu, il tombe au tableau (3,4).
+- **Les deux tests ajoutés pour ETU-05 passent dès leur écriture.** Le comportement existe depuis I4 : ce sont des garde-fous, pas des tests rouges. Le premier, sur le retour à la session (code ressaisi, nouvel onglet), a ensuite rejoint le test ETU-05 d'I4, qu'il doublait (`/simplify`). Le second distingue sûrement la place à l'écran de la proposition par la lettre du CSV d'un étudiant qui choisit une proposition affichée ailleurs qu'à sa place. Une première version comptait aussi sur la place de la bonne réponse, ce qui l'aurait fait échouer 1 fois sur 64 : je l'ai retirée avant le commit.
+- **La forme a cassé un test de SES-05 (I8).** Il comptait toute image du tableau en déroulement pour vérifier que le QR code avait disparu. Ma première correction attendait exactement une image, la forme de la couleur 1 : le test d'I8 dépendait alors des formes d'I9. Sur la remarque de `/simplify`, il ignore désormais les formes (`svg.shape`) et n'attend aucune autre image. Ce qu'il laisse passer : un QR code qui serait dessiné comme une forme de couleur, cas que je ne juge pas réaliste.
+- **Le texte « Couleur N » doit rester seul dans son élément.** La forme placée dans le même paragraphe empêchait les tests de lire le numéro du téléphone. Le numéro est désormais dans son propre élément, à côté de la forme.
+- **Une image d'analyse écrite dans le dépôt.** Mon script de comparaison des palettes a enregistré son image dans le dossier courant, à la racine du dépôt. Je l'ai déplacée dans le scratchpad aussitôt, avant tout commit, et vérifié que `git status` était vide.
+- **Le garde a refusé deux de mes commandes** : des contre-épreuves enchaînées par `;`, puis un pipe sans `pipefail`. Je les ai relancées une par une, chacune avec son code de retour.
+- **Défaut antérieur vu au contrôle visuel :** sur le téléphone, une case ou un bouton radio rétrécissait quand la proposition tenait sur plusieurs lignes. Une ligne de style le corrige.
+
+### Ce que les revues ont trouvé
+- **`/simplify`, quatre relecteurs.** Rien de bloquant : surtout des doublons dans les tests.
+  - Corrigé :
+    - téléchargement du CSV et attente d'une réponse enregistrée mis en commun avec I6 ;
+    - démarrage par l'aide `started` ;
+    - téléphones inutiles retirés du test AFF-02 ;
+    - AFF-03 et AFF-04 réunis dans un même test, ce qui évite de construire deux fois une session à six téléphones ;
+    - silhouettes lues par différence avec le fond, et couleurs comparées avec Pillow ;
+    - fond propre au bouton secondaire, plutôt qu'une exception sur les pages colorées ;
+    - taille des cases fixée dans la règle commune ;
+    - `Session.start` ne renvoie plus un booléen qu'aucun appelant ne lit depuis le retrait du bandeau « Session démarrée ».
+  - Contre-épreuve refaite après la nouvelle lecture des silhouettes : une étoile dessinée comme un rond fait échouer le test (recouvrement de 98 %).
+  - Écarté :
+    - la correspondance couleur → forme reste dans le gabarit ;
+    - pas de variables CSS par couleur : le test de contraste couvre déjà les six couleurs ;
+    - le `<span>` autour du numéro reste nécessaire pour lire « Couleur N » ;
+    - le test SES-06 garde son remplissage du formulaire à la main, qui vérifie la valeur affichée avant l'envoi ;
+    - pas de constructeur de session commun : il toucherait des tests d'autres incréments pour un gain faible.
+
+- **`/code-review`, sept constats.**
+  - **Le bouton « Effacer ma réponse » inactif était illisible sur une couleur.** Son opacité de 0,4 donnait un contraste de 1,6 à 2,1. Mon test ne pouvait pas le voir pour deux raisons : il mesurait après une réponse, quand le bouton est actif, et son relevé ignorait l'opacité. Le bouton inactif est désormais gris sur blanc. Le relevé compose l'opacité, et le test mesure avant et après la réponse. Contre-épreuve : avec l'ancien style, le test tombe (2,07 sur le jaune).
+  - **À 5 ou 6 questions, le tableau débordait sur un projecteur de 720 lignes.** Les cartes restaient sur deux colonnes, donc trois rangées : 130 px de trop avec des énoncés d'environ 135 caractères. Le test du 8 novembre ne vérifiait que N = 4. Trois colonnes à partir de 5 cartes, et un nouveau test à N = 6. La limite est écrite dans SPEC.md (SES-06) : des énoncés plus longs, ou un écran de 1024x768, peuvent encore défiler.
+  - **En écrivant ce test, j'ai trouvé un défaut latent de la mesure.** Elle pouvait lire la page avant sa feuille de style : 11 075 px de « débordement », les formes SVG sans taille occupant toute la largeur. Le test SES-06 du 8 novembre avait le même défaut, sans qu'il se soit encore manifesté. La mesure attend désormais le chargement complet, et cinq passages sur cinq sont verts. Contre-épreuve : sans les trois colonnes, le test tombe pour la bonne raison (130 px en 1280x720).
+  - **Les lettres du CSV après modification d'une question.** Elles désignent les propositions figées au lancement. Une fois la question modifiée, plus aucune page ne montre cet ordre. Le tableau ne le montrait de toute façon plus après la fin de la session, mais il le montrait pendant. La formulation de la spec, « comme dans la liste des questions », était fausse dans ce cas : elle est corrigée, et la question est posée au commanditaire (SPEC §5 bis).
+  - **La liste blanche du test DER-03** admet désormais la mention des questions multiples. Sans cela, le test aurait dépendu de l'ordre des questions de ses données.
+  - Écartés : la correspondance couleur → forme reste dans le gabarit, déjà discutée sous `/simplify`. La disparition du bandeau « Session démarrée » est voulue, depuis le 8 novembre, pour que 4 énoncés tiennent à l'écran : l'apparition du minuteur confirme le démarrage.
+- **Pas de `/security-review`.** L'incrément ne touche ni aux entrées, ni à l'authentification, ni aux sessions, ni aux réglages : seulement à l'affichage.
+- **`spec-auditor`, premier passage (commit aaaaeba) : une réserve bloquante.** Sa copie jetable était au bon commit, et le dépôt principal n'a pas bougé (même `HEAD`, `git status` vide, aucune copie oubliée). Il a fait 26 contre-épreuves et lancé `make verify`, vert dans sa copie.
+  - **Bloquante : le test d'AFF-01 ne vérifiait pas les états JSON, alors qu'il l'annonçait.** `JsonResponse` écrit « É » en `\u00c9`, et les marqueurs du test sont tous accentués : la recherche dans le texte brut ne pouvait rien trouver. Énoncés envoyés au téléphone ou propositions envoyées au tableau par l'état JSON : le test passait. Ce test date de la session du 8 novembre, et je l'avais repris sans le mettre à l'épreuve. L'état est désormais décodé avant la recherche. J'ai refait les deux contre-épreuves, et les deux fuites sont détectées.
+  - Non bloquantes, corrigées :
+    - une mention « multiple » masquée à 1 px passait (le test exige désormais une hauteur lisible) ;
+    - le contraste de la mention n'était vérifié que sur l'orange (une question multiple tombe désormais aussi sur le bleu, à texte blanc) ;
+    - le test des formes a échoué une fois chez lui, pour la même cause que la mesure du débordement : une page lue avant sa feuille de style.
+
+    Contre-épreuves refaites : toutes détectées, et cinq passages sur cinq verts pour le test des formes.
+- **`spec-auditor`, second passage (commit fc9e47e) : une autre réserve bloquante, de la même famille.**
+  - Ma correction décodait bien les états JSON, mais le test ne les lisait que pendant le déroulement. Une fuite en attente ou après la fin passait, alors que l'exigence dit « à aucun moment », et que les commentaires du test promettaient « nulle part » et « plus rien ».
+  - J'ai corrigé le défaut que l'auditeur avait montré, sans chercher où d'autre la même recherche manquait : c'est ce que j'aurais dû faire au premier passage.
+  - Les pages et les états JSON du tableau et des téléphones sont désormais lus à chaque phase. Contre-épreuves : énoncés envoyés au téléphone en attente, propositions envoyées au tableau après la fin, toutes deux détectées.
+  - Non bloquante : en rendant multiple la question du bleu, j'avais retiré la mesure du bouton d'effacement sur la seule couleur à texte blanc. Une perte de couverture introduite en corrigeant une réserve : le même schéma qu'en I8. Un second groupe de six questions, toutes simples, la rétablit. Contre-épreuve : un bouton estompé sur le bleu seulement est détecté (contraste de 1,85).
+- **`spec-auditor`, troisième passage (commit 9877daf) : aucune réserve bloquante.**
+  - Onze contre-épreuves, toutes détectées : fuites JSON en attente, pendant le déroulement et après la fin, au tableau comme au téléphone ; bouton d'effacement estompé sur le bleu (inactif puis actif) et sur une couleur simple ; mentions illisibles sur le bleu et sur l'orange.
+  - Cinq passages sur cinq verts pour les tests d'AFF-01 et des formes, et `make verify` vert dans sa copie.
+  - Seule réserve, non bloquante : la ligne d'audit absente du REX. Mes ajouts n'étaient pas encore commités.
+  - Il a limité ce passage aux points corrigés, les autres exigences ayant été couvertes par le premier (26 contre-épreuves).
+  - Contrôle après chacun des trois passages : le dépôt principal n'a pas bougé (même `HEAD`, seules mes propres modifications du REX en cours, aucune copie oubliée).
+  - Le dernier auditeur a écrit son script de mutation dans mon scratchpad, hors de sa copie : sans effet sur le dépôt, mais hors de ce qui lui était demandé.
+
+Audit spec-auditor : 9877dafc970d7d06b801f72e4d417793ad5a5db0
+
+### Ce qui a bien marché
+- **Mesurer avant de proposer.** La palette a été choisie sur des chiffres et une image comparative, que le commanditaire a pu voir avant de trancher.
+- **Vérifier une forme comme un œil la voit.** Le test d'AFF-03 compare les silhouettes des formes lues sur une capture, et non leur seul nom accessible. Il reconnaît aussi la forme du téléphone comme la plus proche de celle de la même couleur au tableau.
+- **Vérifier le contraste de tout texte affiché,** et pas seulement celui des énoncés. C'est ainsi qu'ont été trouvés le texte gris et le bouton d'effacement illisibles sur le bleu.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Une exigence déjà livrée peut revenir comme une demande nouvelle.** L'ordre propre à l'étudiant existait depuis I4. Il fallait le dire, puis expliquer ce qu'il garantit et ce qu'il ne peut pas garantir, plutôt que de le reconstruire.
+- **Ajouter un élément visuel touche aux tests qui comptent ce qui est affiché.** Chercher ces tests avant de coder évite de les découvrir dans `make verify`.
+- **Un test d'absence qui n'a jamais échoué ne prouve rien.** « Ce texte n'est pas dans la réponse » passe aussi quand la recherche ne peut pas le trouver : encodage, page pas encore chargée. Pour chaque vérification négative, faire au moins une fois la fuite exprès. C'est vrai aussi d'un test hérité d'une session précédente.
+- **Une mesure de page se fait sur une page chargée.** Deux tests ont lu une page sans sa feuille de style, l'un par intermittence. Attendre la fin du chargement avant toute mesure de mise en page ou de couleur.
+
+### Choix techniques et leur raison
+- **Aucune nouvelle dépendance.**
+- **Formes en SVG intégré** (`templates/live/shape.html`) plutôt qu'en caractères Unicode : leur rendu ne dépend pas des polices du téléphone ni du vidéoprojecteur. Elles prennent la couleur du texte, donc le blanc sur le bleu. Chacune porte un nom accessible.
+- **La mention « multiple » vient du QCM figé** (`multiple`), comme l'énoncé : rien de nouveau n'est envoyé au tableau.
+
+### Ce qui n'est garanti que par la consigne ou reste à vérifier
+- **Les simulations ne remplacent pas un essai.** Le modèle de projecteur est grossier, et aucune personne daltonienne n'a vu l'écran. À vérifier en salle, avec le vrai projecteur.
+- **Deux voisins peuvent voir une proposition au même endroit** (ETU-05) : c'est accepté, et la rotation (N = 4) le rend plus rare.
+- **eduroam reste le risque principal** avant un premier cours (SPEC §5).

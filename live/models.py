@@ -91,8 +91,8 @@ class Session(models.Model):
         extra = {slot: n * EXTRA_SECONDS for slot, n in clicks.items()}
         return Schedule(self.n_questions, self.shown, self.seconds, extra)
 
-    def start(self, now: datetime) -> bool:
-        """Démarre la session si elle ne l'est pas déjà ; False si elle l'était (double clic).
+    def start(self, now: datetime) -> None:
+        """Démarre la session si elle ne l'est pas déjà ; sinon (double clic), rien ne change.
 
         Mise à jour conditionnelle et atomique, qui ne déplace pas l'heure de départ. Les rangs
         de rotation sont renumérotés 0, 1, 2… dans l'ordre d'arrivée : les libérations (SES-04)
@@ -102,7 +102,7 @@ class Session(models.Model):
             if not Session.objects.filter(pk=self.pk, started_at__isnull=True).update(
                 started_at=now
             ):
-                return False
+                return
             participants = list(self.participants.order_by("rank", "pk"))
             offset = len(participants) + max((p.rank for p in participants), default=0) + 1
             for participant in participants:  # en deux passes, à cause de l'unicité des rangs
@@ -112,7 +112,6 @@ class Session(models.Model):
                 participant.rank = rank
             Participant.objects.bulk_update(participants, ["rank"])
         self.started_at = now
-        return True
 
     def state(self, now: datetime) -> State:
         if self.started_at is None:
