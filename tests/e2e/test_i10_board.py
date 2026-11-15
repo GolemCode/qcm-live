@@ -250,6 +250,11 @@ def test_time_left_in_minutes_and_seconds(teacher_page: Page, live_server, new_p
     for screen in (page, phone):
         timer_shows(screen, 56, 59)  # « 0:56 » à « 0:59 »
     expect_time_bar(page, 90)
+    # Près de l'échéance, la barre est presque vide : elle se vide jusqu'au bout. Dix secondes
+    # de marge, pour mesurer avant le créneau suivant.
+    jump_to(session, 80)
+    timer_shows(page, 8, 10)
+    expect_time_bar(page, 90)
 
 
 def statement_size(page: Page) -> float:
