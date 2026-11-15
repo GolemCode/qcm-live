@@ -867,3 +867,68 @@ Le commanditaire m'a demandé de vérifier au tableau un énoncé d'environ 200 
 - **En simulation de projecteur vu du fond de la salle** (image réduite au quart, légèrement floutée, voile de lumière ambiante), la graisse normale perd un peu de corps sur le vert et le bleu ciel, sans devenir illisible. Le gras y reste plus dense, mais ses lettres commencent à se confondre.
 - **Décision :** graisse normale pour les énoncés, gras pour les numéros, les étiquettes et les titres. Le gras ne tient plus dans les deux cas. Si l'essai en salle montre un texte trop fin, la police, à graisse variable, permet une graisse intermédiaire (500) sans autre fichier : c'est un réglage d'une ligne, à décider sur place.
 - Les énoncés ont ensuite été agrandis selon le nombre de questions affichées : un énoncé de 200 caractères (135 à 5 et 6) occupe environ les deux tiers de sa carte, et il reste de la place pour un énoncé plus long.
+
+### Tests d'acceptation
+Écrits avant le code et lancés aussitôt : 6 échecs sur 10, chacun pour la raison attendue.
+- **VIS-01** : police non chargée, texte en `system-ui`.
+- **VIS-02** : pas de bandeau ; à 5 et 6 questions, 18 px de trop en 1280x720.
+- **VIS-03** : pas de zone « Rejoindre la session ».
+- **ACC-01** : focus de 1 px, celui du navigateur.
+
+Les cas de 1 à 4 questions du test de VIS-02 passaient déjà, taille des énoncés comprise : ce sont des garde-fous, pas des tests rouges. axe-core ne relevait rien sur l'accueil avant la refonte. C'est le contrôle du clavier qui a fait échouer ACC-01 en premier.
+
+### Problèmes rencontrés
+- **La suite existante a trouvé deux régressions que mes tests d'I10 ne voyaient pas.**
+  - En passant dans le bandeau, hors de `<main>`, le formulaire « +10 s » échappait à `board.js`, qui ne mettait plus à jour son créneau. Au second créneau d'un même groupe, le clic visait le premier et n'ajoutait rien (TPS-01, I5).
+  - Le lien « Gérer les connectés » n'était plus affiché qu'en attente, alors que SES-04 l'ouvre depuis le tableau à toute phase (I4).
+- **Le bandeau sorti de `<main>` échappait aussi au test de DER-03.** Sa liste blanche ne parcourait que `<main>`. Le minuteur, la position et le code n'étaient donc plus contrôlés, et le test passait. Je l'ai vu en relisant ce test, à cause d'un autre constat de `/simplify`. Il parcourt désormais toute la page. Il a aussitôt attrapé un défaut : un commentaire de gabarit sur deux lignes, en `{# … #}`, s'affichait tel quel, Django ne reconnaissant cette syntaxe que sur une ligne. Il est passé en `{% comment %}`.
+- **Ma mesure de la barre lisait 0.** La barre des connectés est placée à une position fractionnaire (x = 25,9 px) : la capture déborde d'un pixel de fond de chaque côté. La mesure écarte désormais ces deux pixels. C'était un défaut du test, pas de la page.
+- **Des tests existants ont changé avec l'interface.** Minuteur en « 0:18 » au lieu de « 18 s », décompte « 0 / 3 » sous le titre « Connectés », adresse seule dans son élément, liste des sessions atteinte par le logo depuis le tableau, qui n'a plus la navigation de l'enseignant. Chaque aide a été adaptée sans affaiblir ce qu'elle vérifie. Le test de CLA-01 vérifie même l'adresse plus strictement : texte exact au lieu d'un « contient ».
+- **Une précision de SES-06 est devenue fausse.** 3 questions s'affichent désormais sur trois colonnes, et non sur deux. SES-06 le dit maintenant.
+- **pre-commit a modifié les licences de la police** (espaces en fin de ligne). Je les ai restaurées telles que publiées, et les fichiers tiers (polices, axe-core) sont exclus de ces contrôles. Le commit avait échoué sans rien enregistrer, grâce à l'enchaînement par `&&`.
+- **Mon script de capture a d'abord été écrit dans `tests/e2e/`**, pour profiter des fixtures. Je l'ai déplacé dans le scratchpad avant le premier commit du code, et `git status` le confirmait.
+
+### Ce que les revues ont trouvé
+- **`/simplify`, quatre relecteurs : rien de bloquant.**
+  - Corrigé :
+    - la durée d'un créneau est calculée une seule fois (`Schedule.lengths`), pour les échéances comme pour la barre ;
+    - le suivi du direct est rattaché à `<body>`, et non plus à `<main>` : le minuteur, la barre et « +10 s » du bandeau restent dans son périmètre, sans recherche dans toute la page ;
+    - le bandeau est construit par blocs dans la base, plutôt que recopié par le tableau, et le code de session est découpé dans un seul gabarit ;
+    - les deux barres partagent leurs règles (variables `--track` et `--value`), et la palette est déclarée une seule fois ;
+    - le minuteur n'écrit plus qu'une fois par seconde, et la liste des connectés n'est reconstruite que si elle a changé ;
+    - côté tests : parcours des textes visibles et nom d'un élément mis en commun, tailles d'écran en une constante avec un seul passage, contrôle groupé des 40 noms ;
+    - le test d'I9 « 6 questions tiennent » est retiré : le test paramétré d'I10 le contient, et porte aussi SES-06.
+  - Écarté :
+    - tailles des énoncés par requêtes de conteneur plutôt que par N : les tailles actuelles ont été choisies à l'œil, sur captures ;
+    - deux aides distinctes pour la liste des sessions : aucune page n'a les deux liens ;
+    - barre animée en CSS plutôt que recalée tous les quarts de seconde : le coût est négligeable sur le PC.
+- **`/code-review`, six constats, aucun bug bloquant.**
+  - **Un trou de test**, le plus utile : rien ne vérifiait que la barre du temps se recale sur la durée d'un nouveau créneau sans recharger la page (même groupe, après un « +10 s » au précédent). Le test de VIS-02 passait par des rechargements à chaque fois. Le cas est ajouté. Contre-épreuve : sans la ligne qui recale la barre, le test tombe, avec une barre à 0,55 au lieu de 0,83.
+  - **L'inventaire des dépendances de CLAUDE.md (règle 5) était faux** : il ne citait ni axe-core ni les polices. Il est complété, et leur besoin est écrit ci-dessous.
+  - **Le tableau n'a plus la navigation de l'enseignant ni le bouton de déconnexion.** C'était voulu (la maquette validée n'en a pas, et la page est projetée), mais rien ne l'écrivait : c'est désormais une précision de VIS-02. Le logo ramène à la liste des sessions.
+  - **L'aide `open_sessions` acceptait deux liens différents.** Elle est séparée en deux : la navigation de l'enseignant, et `leave_board` pour le logo du tableau. Chaque test dit ainsi quel chemin il emprunte.
+  - **La docstring de `_position_label`** décrivait un libellé faux ; elle est corrigée.
+  - **`slot_ms` partait aussi vers les téléphones**, qui n'ont pas encore de barre : il est réservé au tableau jusqu'à I11.
+- **Pas de `/security-review`.** L'incrément ne touche ni aux entrées, ni à l'authentification, ni aux sessions, ni aux réglages (la CSP est inchangée et couvre la police, servie par l'application).
+
+### Choix techniques et leur raison
+- **Atkinson Hyperlegible Next, servie par l'application** (`static/fonts/`, licence OFL, environ 80 ko au total). Besoin : une police qui distingue les caractères proches (I, l, 1 ; O, 0) pour le code de session et les numéros, et qui s'affiche sans Internet, la salle n'en ayant pas forcément. La CSP, qui n'autorise que l'application elle-même, l'imposait de toute façon. C'est la version à graisse variable : un seul fichier par jeu de caractères, et une graisse intermédiaire possible sans autre fichier. Le jeu latin étendu et la version à chasse fixe (pour le code, à venir) ne sont téléchargés que si une page en a besoin.
+- **axe-core 4.14.0, livré dans `tests/e2e/vendor/`** (MPL-2.0), en test seulement. Besoin : le contrôle automatique d'accessibilité promis avec les maquettes (ACC-01). Le paquet Python qui l'embarque n'était plus maintenu et contenait une ancienne version : le fichier publié sur npm, vérifié contre l'empreinte de l'archive officielle, est plus sûr et ne dépend pas du réseau en CI. Il est évalué par Playwright, hors de la page, et la CSP de l'application reste donc en place pendant le contrôle.
+- **Le suivi du direct sur `<body>`.** Le bandeau, hors de `<main>`, porte le minuteur, la barre et « +10 s ». Rattacher le suivi au `<body>` les garde dans son périmètre ; chercher dans tout le document aurait été une rustine.
+- **Une barre en `<progress>`.** Elle s'affiche sans JavaScript à la bonne valeur, et ne demande aucun style inline, que la CSP refuserait.
+- **Le logo en CSS** (quatre carrés en dégradé conique). Une image ou un SVG aurait été compté comme image par le test de SES-05, qui vérifie qu'aucun QR code ne reste au tableau.
+- **Tailles du tableau en `em`, sur 1,5 % de la hauteur de l'écran** : une seule mise en page pour 1080 et 720 lignes.
+
+### Ce qui a bien marché
+- **Montrer avant de coder.** Les trois directions, sur les mêmes écrans et les mêmes données, ont permis au commanditaire de choisir et de répondre aux questions en une fois.
+- **Mesurer la barre sur une capture**, comme un œil la voit, plutôt que de lire sa valeur : la mesure vaut quel que soit le moyen de dessiner la barre.
+- **La suite existante comme filet.** Les deux régressions de cet incrément ont été trouvées par des tests d'I4 et d'I5, et non par les nouveaux.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Déplacer un élément change ce que les scripts et les tests trouvent.** Sortir le minuteur et « +10 s » de `<main>` a cassé `board.js` et fait sortir le bandeau du test de DER-03. Avant de déplacer un élément, chercher qui le trouve par son conteneur : scripts, tests, et surtout tests d'absence (liste blanche), qui passent alors sans rien dire.
+- **`{# … #}` ne vaut que sur une ligne** dans un gabarit Django. Sur deux lignes, le commentaire s'affiche.
+
+### Ce qui n'est garanti que par la consigne ou reste à vérifier
+- **La graisse normale au vidéoprojecteur.** Ma simulation suggère une petite perte de corps sur le vert et le bleu ciel. À vérifier en salle ; une graisse de 500 se règle en une ligne.
+- **Un contrôle automatique ne trouve qu'une partie des défauts d'accessibilité.** Aucun essai n'a été fait avec un lecteur d'écran.
+- **Le tableau n'est vérifié qu'en 16:9** (1920x1080 et 1280x720). Un projecteur en 4:3 (1024x768) peut faire défiler les énoncés longs, comme le prévoit SES-06.

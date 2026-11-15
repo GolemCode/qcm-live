@@ -16,9 +16,8 @@ CODE_RE = re.compile(r"\b(\d{6})\b")
 
 
 def open_sessions(page: Page) -> None:
-    """Liste des sessions : par la navigation de l'espace enseignant, ou, depuis le tableau, qui
-    n'en a pas, par le logo du bandeau."""
-    page.get_by_role("link", name=re.compile(r"^(Sessions|QCM Live : sessions)$")).click()
+    """Liste des sessions, par la navigation de l'espace enseignant."""
+    page.get_by_role("navigation").get_by_role("link", name="Sessions").click()
     expect(page.get_by_role("heading", name="Sessions", exact=True, level=1)).to_be_visible()
 
 
@@ -28,6 +27,13 @@ def fill_launch(page: Page, quiz: str, group: str, shown: int | str, seconds: in
     page.get_by_label("Questions affichées en même temps").fill(str(shown))
     page.get_by_label("Temps par question (secondes)").fill(str(seconds))
     page.get_by_role("button", name="Lancer").click()
+
+
+def leave_board(page: Page) -> None:
+    """Retour du tableau, qui n'a pas la navigation de l'enseignant, à la liste des sessions,
+    par le logo du bandeau."""
+    page.get_by_role("banner").get_by_role("link", name="QCM Live : sessions").click()
+    expect(page.get_by_role("heading", name="Sessions", exact=True, level=1)).to_be_visible()
 
 
 def board_code(page: Page) -> str:

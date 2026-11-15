@@ -22,7 +22,7 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 2. **Tests d'abord.** Le premier commit d'un incrément contient les tests d'acceptation, rouges. Ils sont écrits avant le code, et l'échec est observé à ce moment-là : on ne le reconstitue jamais après coup (I0, voir REX). L'historique git prouve l'ordre des commits, pas l'ordre d'écriture : ne pas le présenter comme une preuve.
 3. **Terminé**, c'est seulement : `make verify` vert, PR à la CI verte, fusionnée dans main, agent `spec-auditor` sans réserve bloquante, SPEC.md et REX.md à jour. Ne jamais l'affirmer avant.
 4. **Aucun secret, aucune donnée réelle** dans le dépôt : configuration par variables d'environnement, données de test fictives. gitleaks tourne en pre-commit et en CI.
-5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django, de segno (QR code de jonction, I8), de waitress et de whitenoise (mode classe, I7). En test seulement : zxing-cpp et Pillow décodent le QR code.
+5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django, de segno (QR code de jonction, I8), de waitress et de whitenoise (mode classe, I7), et sert elle-même la police Atkinson Hyperlegible (`static/fonts/`, licence OFL, I10). En test seulement : zxing-cpp et Pillow décodent le QR code ; axe-core (`tests/e2e/vendor/`, MPL-2.0, I10) contrôle l'accessibilité.
 6. **Git.**
    - Jamais de commit ni de push sur `main`, qui est protégée : on passe par une PR.
    - Une branche `inc/<n>-<slug>` par incrément (`inc/r-<slug>` et tag `inc-r` pour la correction de l'audit externe).
@@ -65,9 +65,14 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Puis il applique les migrations et sert l'application avec waitress sur toutes les interfaces. whitenoise sert les fichiers statiques depuis leurs dossiers (`WHITENOISE_USE_FINDERS`), sans `collectstatic`.
   - `config/middleware.py` réserve alors tout `/prof/` (connexion comprise) aux requêtes venues du PC lui-même (`REMOTE_ADDR` de boucle locale ; waitress n'est derrière aucun mandataire).
   - Hors debug, les erreurs des requêtes s'affichent dans le terminal (`LOGGING`). Les pages d'erreur `400`, `403_csrf`, `404` et `500` sont en français.
+- **Présentation (I10, direction « Signalétique »).** Une seule feuille, `static/css/app.css`, bâtie sur des variables (`--ink`, `--paper`, `--signal`, `--color-1`…`--color-6`). Police servie par l'application, jamais par un autre serveur.
+  - `base.html` : bandeau noir par blocs (`brand`, `band`), puis `after_header` et `<main>`. Le téléphone garde son ancienne présentation, sans bandeau, jusqu'à I11 ; l'espace enseignant garde sa mise en page jusqu'à I12.
+  - Tableau : tailles en `em`, sur une base de 1,5 % de la hauteur de l'écran, pour que la même mise en page vaille en 1080 et en 720 lignes. Énoncés en graisse normale, plus grands quand N est petit (classes `n-1`…`n-6`).
+  - Barre du temps restant : un `<progress data-countdown>` recalé par `qcm.follow` sur `slot_ms` (durée du créneau, temps ajouté compris, au tableau seulement).
+  - Accessibilité : `tests/e2e/a11y.py` (axe-core, contraste de tout texte, parcours au clavier avec focus visible).
 - **Jonction (I8, SES-05).** Le tableau en attente projette un QR code vers l'écran de la session (`/s/<code>/`), bâti sur la même adresse que le texte projeté (`settings.JOIN_URL`, sinon l'adresse de la requête). Un test E2E le lit comme un vrai lecteur : capture de l'image, puis décodage (`qr_text` dans `tests/e2e/live_ui.py`).
 - **Temps réel.** Polling JSON chaque seconde, sans WebSocket. `static/js/poll.js` expose `qcm.poll`, `qcm.countdown` et `qcm.follow`.
-  - Une page qui suit le direct porte `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
+  - Une page qui suit le direct porte, sur `<body>` (bloc `body_attrs`), `data-state-url` et un jeton `data-page` (`waiting`, `running:<groupe>` au tableau, `running:<créneau>` au téléphone, `ended`) ; elle se recharge dès que l'état annonce un autre jeton.
   - Le texte est toujours inséré avec `textContent`.
   - CSP stricte : aucun script ni style inline.
 - **Identité de l'étudiant.** Elle est stockée dans la session Django : `request.session["live_participants"] = {code: id du participant}`, une identité par appareil et par session. Un numéro déjà pris est refusé par la contrainte d'unicité en base, seul arbitre en cas de concurrence.

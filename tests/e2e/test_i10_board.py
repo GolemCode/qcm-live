@@ -187,6 +187,12 @@ def test_running_board_band_and_time_bar(teacher_page: Page, live_server, new_ph
     add_time(page)
     expect(timer(page)).to_have_text(re.compile(r"^0:2[3-5]$"), timeout=LIVE_MS)
     expect_fill(time_bar(page), 25 / 40)
+    # Créneau suivant, dans le même groupe : la page ne se recharge pas, et la barre se recale
+    # pourtant sur sa durée, 30 s et non plus 40.
+    jump_to(session, 40 + 5)
+    expect(timer(page)).to_have_text(re.compile(r"^0:2[3-5]$"), timeout=LIVE_MS)
+    expect(page.locator("body")).to_have_attribute("data-page", "running:0")
+    expect_fill(time_bar(page), 25 / 30)
 
     # Dernier groupe, d'une seule question : 40 s pour le premier créneau, 30 s pour les trois
     # suivants, puis le cinquième.

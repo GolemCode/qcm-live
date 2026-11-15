@@ -14,6 +14,7 @@ from tests.e2e.live_ui import (
     identity,
     join,
     launch_session,
+    leave_board,
     open_sessions,
     timer,
 )
@@ -59,11 +60,12 @@ def test_launch_session(teacher_page: Page, quiz_and_group):
     first = board_code(page)
     expect(page.get_by_role("main")).to_contain_text("6 questions à la fois")
     expect(page.get_by_role("main")).to_contain_text("5 s par question")
+    leave_board(page)
     second = launch_session(page, "Contrôle 1", "TD2", shown=1, seconds=600)
     expect(page.get_by_role("main")).to_contain_text("600 s par question")
     assert first != second
 
-    open_sessions(page)
+    leave_board(page)
     for code, group in ((first, "TD1"), (second, "TD2")):
         row = page.get_by_role("row").filter(has=page.get_by_role("link", name=code))
         expect(row).to_contain_text("Contrôle 1")
@@ -186,6 +188,7 @@ def test_identity_survives_reload(teacher_page: Page, live_server, new_phone, qu
 
     # L'identité vaut pour cette session seulement : le même téléphone, dans une autre
     # session (autre groupe), doit s'identifier à nouveau.
+    leave_board(teacher_page)
     second = launch_session(teacher_page, "Contrôle 1", "TD2")
     enter_code(phone, live_server.url, second)
     expect(phone.get_by_label("Numéro d'étudiant")).to_be_visible()
