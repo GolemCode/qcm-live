@@ -54,7 +54,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
   Un identifiant de session de 6 chiffres est généré, distinct de ceux des autres sessions. Les sessions lancées sont listées dans l'espace enseignant. *(liste : dérivé)*
 - **[SES-06]** (I9) Par défaut, 4 questions s'affichent à la fois. L'enseignant peut choisir une autre valeur au lancement, de 1 à 6 ; elle reste fixe pendant toute la session. *(précision du commanditaire)*
-  - Le tableau tient sans défilement en 1920x1080 et en 1280x720 avec 4 énoncés d'environ 200 caractères, ou 6 d'environ 135 (trois colonnes à partir de 5). Au-delà, ou sur un écran plus petit (1024x768), il peut défiler. *(dérivé, I9)*
+  - Le tableau tient sans défilement en 1920x1080 et en 1280x720 avec 4 énoncés d'environ 200 caractères, ou 6 d'environ 135 (trois colonnes à partir de 5 ; aussi à 3 depuis I10, sur une seule rangée). Au-delà, ou sur un écran plus petit (1024x768), il peut défiler. *(dérivé, I9)*
 - **[SES-02]** (I3) Avant le départ, le tableau affiche :
   - l'adresse à ouvrir et l'identifiant de session ;
   - le QCM et le groupe ;
@@ -95,6 +95,26 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[AFF-04]** (I9) Les six couleurs sont celles de la palette d'Okabe et Ito, conçue pour rester distincte dans les principaux types de daltonisme, dans cet ordre : 1 jaune `#F0E442`, 2 bleu `#0072B2`, 3 vert bleuté `#009E73`, 4 bleu ciel `#56B4E9`, 5 pourpre `#CC79A7`, 6 orange `#E69F00`. Tout texte affiché sur une couleur, au tableau comme sur le téléphone, a un contraste d'au moins 4,5:1 (texte blanc sur le bleu). *(décision I9)*
   - Ordre choisi pour N = 4, la valeur par défaut : les 4 premières couleurs restent distinctes en vision normale, en protanopie, deutéranopie et tritanopie simulées, sur un projecteur délavé, et même en niveaux de gris. Au-delà de 4, la forme et le numéro départagent les couleurs que la simulation rapproche. *(décision I9, mesures dans REX.md)*
   - L'ancienne palette confondait le jaune et l'orange (1 et 5) en deutéranopie et sur projecteur, le bleu et le violet (2 et 6) en protanopie, et ses six couleurs avaient presque la même luminosité. *(constat I9)*
+
+### Présentation et accessibilité (refonte visuelle)
+Direction « Signalétique », choisie par le commanditaire parmi trois maquettes (I10). Découpage : socle et tableau (I10), téléphone (I11), espace enseignant (I12, reporté après l'import AMC : §5 bis).
+
+- **[VIS-01]** (I10) L'interface suit la direction « Signalétique » : encre sur papier, bandeau noir, filets épais, majuscules espacées pour les étiquettes. La police est Atkinson Hyperlegible Next, dessinée pour les lecteurs malvoyants : elle distingue les caractères proches (I, l, 1 ; O, 0), utile pour un code de session et des numéros d'étudiant.
+  - La police est servie par l'application : aucune page ne demande quoi que ce soit à un autre serveur, la salle n'ayant pas forcément accès à Internet. *(dérivé)*
+  - Les énoncés sont en graisse normale ; le gras est réservé aux numéros, aux étiquettes et aux titres. *(demande du commanditaire, I10 : vérifier au tableau la lisibilité d'un énoncé d'environ 200 caractères ; résultat dans REX.md)*
+  - Les styles du code (police à chasse fixe Atkinson Hyperlegible Mono), des formules et des images sont prêts, mais aucun contenu de ce type n'existe encore : il viendra avec l'import AMC (§5 bis). *(décision du commanditaire, I10)*
+- **[VIS-02]** (I10) Au tableau, pendant le déroulement, un bandeau porte le code de session, la position dans le QCM (« Questions 5–8 sur 24 », ou « Question 5 sur 24 » pour un groupe d'une seule question), le temps restant en minutes et secondes (« 0:18 ») et le bouton « +10 s ». Sous le bandeau, une barre montre la part du créneau qui reste : elle se vide jusqu'à l'échéance et tient compte du temps ajouté (TPS-01). *(validé par le commanditaire, I10)*
+  - Le temps restant s'écrit de la même façon sur le téléphone. *(dérivé)*
+  - Le tableau, projeté, n'a ni la navigation de l'espace enseignant ni le bouton de déconnexion : son logo ramène à la liste des sessions, et « Gérer les connectés » reste dans le bandeau à toute phase (SES-04). *(décision I10, d'après la maquette validée)*
+  - De 1 à 6 questions à la fois, le tableau tient sans défilement en 1920x1080 et en 1280x720, avec des énoncés d'environ 200 caractères jusqu'à 4 questions, et d'environ 135 à 5 et 6 (SES-06). *(dérivé)*
+  - Les énoncés mesurent au moins 2,5 % de la hauteur de l'écran (27 px en 1080 lignes), pour rester lisibles du fond de la salle. *(dérivé)*
+- **[VIS-03]** (I10) Au tableau, avant le départ : l'adresse à ouvrir, le code de session en grands chiffres (au moins 8 % de la hauteur de l'écran) groupés par trois, le QR code (« ou scannez »), le QCM, le groupe et les réglages, puis le décompte des connectés, avec une barre de remplissage, et leurs noms en colonnes (SES-02, SES-05). Avec un groupe de 40 étudiants tous connectés, il tient sans défilement en 1280x720, bouton « Démarrer » compris. À la fin, il affiche « Session terminée. » et le lien vers les résultats. *(dérivé)*
+- **[ACC-01]** (I10) L'accessibilité des pages communes (accueil, connexion, pages d'erreur) et du tableau, dans ses trois phases, est vérifiée par des tests :
+  - aucune violation des règles WCAG 2.1, niveaux A et AA, que détecte axe-core ;
+  - un contraste d'au moins 4,5:1 pour tout texte affiché (la mesure d'AFF-04, étendue à ces pages) ;
+  - chaque lien, bouton et champ s'atteint au clavier, avec la touche Tab, et montre un indicateur de focus d'au moins 2 px, contrasté d'au moins 3:1 avec le fond.
+
+  Le téléphone suivra en I11, l'espace enseignant en I12. Un contrôle automatique ne trouve qu'une partie des défauts : il ne remplace pas un essai avec un lecteur d'écran, qui reste à faire. *(dérivé)*
 
 ### Session : temps additionnel
 - **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée. Le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ; un clic arrivé après la fin du créneau n'ajoute rien. *(emplacement et clic tardif : dérivé)*
@@ -151,7 +171,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 ## 4. Règles et hypothèses validées
 
 - **Contenu figé.** Le contenu du QCM, son barème et la liste du groupe sont figés au **lancement** de la session (SES-03, décision I3 ; H8 disait « au démarrage »). Modifier la banque ou les groupes ensuite ne change ni la session ni ses résultats.
-- **Questions.** Texte brut, sans image ni formule.
+- **Questions.** Texte brut, sans image ni formule. Les styles du code, des formules et des images sont prêts depuis I10 (VIS-01) ; le contenu viendra avec l'import AMC.
 - **Couleurs.** Six couleurs, numérotées de 1 à 6, chacune avec sa forme (AFF-03, AFF-04).
 - **Correction.** Il n'y a pas de correction en classe : le professeur corrige de son côté et envoie les résultats par mail à la promotion. Aucune correction ni page de résultats n'est affichée aux étudiants ; l'export CSV (RES-02) suffit. *(confirmé par le commanditaire en I9)*
 - **Retardataires.** Un étudiant arrivé après le démarrage passe sur copie AMC papier. Le QR code de jonction, affiché avant le démarrage seulement (SES-05), convient. *(confirmé en I9 ; l'application accepte toujours un retardataire qui a le code, ETU-08)*
@@ -180,6 +200,9 @@ Rien de ce qui suit n'est implémenté.
 - **Composition des QCM.** Un nouveau QCM se crée en reprenant un ancien QCM en entier, puis en ajoutant ou en retirant des questions. *(précision du commanditaire, I9)* Contrainte déjà posée : une question ne doit jamais retomber pour une même promo.
 - **Contenu des énoncés.** Formules et code, issus des fichiers AMC (aujourd'hui, texte brut seulement : §4). Images : non précisé.
 - **Barème exact des questions à réponses multiples** : celui des fichiers AMC (aujourd'hui, le §3).
+- **Refonte de l'espace enseignant (I12, reportée).** Elle reprendra après l'import AMC, qui en changera le contenu : import, QCM repris d'anciens QCM, versions des questions, questions déjà posées à un groupe. *(décision du commanditaire, I10)*
+  - La recherche et les filtres de la banque de questions seront revus à ce moment-là. En plus de ceux proposés (texte, type, utilisation, tri, pagination), il faudra un filtre par QCM d'origine (fichier AMC importé) et un filtre « déjà posée à tel groupe ».
+  - D'ici là, l'espace enseignant prend la police et les couleurs du socle (I10), sans changer de mise en page.
 - **Lettres du CSV après modification d'une question** (`/code-review`, I9). Les lettres du CSV désignent les propositions figées au lancement (SES-03). Si l'enseignant modifie ensuite la question, par exemple en changeant l'ordre de ses propositions, la banque montre le nouvel ordre, et plus aucune page ne montre celui de la session. Faut-il rappeler, sur la page des résultats (réservée à l'enseignant, jamais projetée), les propositions figées de chaque question ? Aujourd'hui, AFF-01 exclut énoncés et propositions de cette page.
 
 ## 6. Journal des décisions du commanditaire
@@ -230,3 +253,10 @@ Rien de ce qui suit n'est implémenté.
 | Retardataires (I9) | Copie AMC papier ; QR code avant le démarrage seulement, confirmé |
 | Réseau en classe (I9) | eduroam, en local, adresse en 172.x.x.x ; non testé, risque principal ; hébergement reporté |
 | Import AMC et composition des QCM (I9) | Prochain incrément, en attente d'un fichier d'exemple |
+| Direction visuelle (après I9) | B, « Signalétique » ; énoncés en graisse normale si le gras les alourdit (VIS-01) |
+| Ordre de la refonte (après I9) | Socle et tableau (I10), puis téléphone (I11) ; espace enseignant (I12) après l'import AMC |
+| Formules, code et images (après I9) | Styles prêts seulement ; le contenu viendra avec l'import AMC |
+| Recherche et filtres de la banque (après I9) | À revoir en I12, avec un filtre par QCM d'origine et un filtre « déjà posée à tel groupe » |
+| Réseau lent sur le téléphone (après I9) | Renvoi automatique pendant le créneau ; une réponse arrivée après la fin de son créneau est signalée comme non enregistrée, jamais comme enregistrée (I11) |
+| Ajouts au tableau et au téléphone (après I9) | « Questions 5–8 sur 24 » et barre du temps restant au tableau ; numéro à côté du nom et barre du temps restant sur le téléphone |
+| Message de fin sur le téléphone (après I9) | « Vos réponses ont été transmises à l'enseignant » seulement si toutes ont été confirmées par le serveur ; sinon, le nombre de réponses non transmises et l'invitation à le signaler (FIN-02, I11) |

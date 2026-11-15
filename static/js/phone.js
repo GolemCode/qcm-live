@@ -3,9 +3,9 @@
 // envois partent un par un, chacun avec l'état du formulaire au moment de partir : la
 // dernière réponse arrive toujours en dernier, même sur un réseau lent.
 (() => {
-  const main = document.querySelector("main[data-state-url]");
-  if (!main) return;
-  window.qcm.follow(main);
+  const root = document.querySelector("body[data-state-url]");
+  if (!root) return;
+  window.qcm.follow(root);
 
   const form = document.getElementById("answer-form");
   if (!form) return;

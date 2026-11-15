@@ -54,16 +54,28 @@ def _page(state: State, *, board: bool) -> str:
 
 def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
     """État d'une page en direct : son jeton, le temps restant et le rang du créneau en cours
-    (visé par « +10 s », car le tableau ne se recharge qu'au changement de groupe)."""
+    (visé par « +10 s », car le tableau ne se recharge qu'au changement de groupe). Au tableau,
+    aussi la durée du créneau : sa barre du temps se recale sans recharger la page, sur un
+    créneau allongé par « +10 s » comme sur le créneau suivant du même groupe."""
     position = state.position
-    return JsonResponse(
-        {
-            "page": _page(state, board=board),
-            "remaining_ms": _ms(position.remaining) if position else None,
-            "slot": position.slot.index if position else None,
-            **extra,
-        }
-    )
+    data = {
+        "page": _page(state, board=board),
+        "remaining_ms": _ms(position.remaining) if position else None,
+        "slot": position.slot.index if position else None,
+    }
+    if board:
+        data["slot_ms"] = _ms(position.length) if position else None
+    return JsonResponse(data | extra)
+
+
+def _position_label(group: list[int], total: int) -> str:
+    """VIS-02 : place du groupe affiché dans le QCM. Pour les questions 5 à 8 sur 24, le libellé
+    est « Questions 5 », tiret demi-cadratin, « 8 sur 24 » ; pour une seule question, il est
+    « Question 5 sur 24 »."""
+    first, last = group[0] + 1, group[-1] + 1
+    if first == last:
+        return f"Question {first} sur {total}"
+    return f"Questions {first}\N{EN DASH}{last} sur {total}"
 
 
 # --- Enseignant ---------------------------------------------------------------------------
@@ -122,7 +134,9 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
                 {"color": color, "text": question["text"], "multiple": question["multiple"]}
                 for color, question in enumerate(questions, start=1)
             ],
+            "position_label": _position_label(group, session.n_questions),
             "remaining_ms": _ms(state.position.remaining),
+            "slot_ms": _ms(state.position.length),
         }
     return render(request, "live/board.html", context)
 

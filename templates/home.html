@@ -1,6 +1,6 @@
 {% extends "base.html" %}
+{% block brand %}<h1 class="brand">{% include "logo.html" %}QCM Live</h1>{% endblock %}
 {% block content %}
-  <h1>QCM Live</h1>
   <form method="get" action="{% url 'home' %}" class="form" novalidate>
     {% include "form_errors.html" %}
     {{ form.code.label_tag }}

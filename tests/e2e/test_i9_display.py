@@ -15,12 +15,14 @@ import json
 
 import pytest
 from PIL import Image, ImageChops, ImageColor
-from playwright.sync_api import Locator, Page, ViewportSize, expect
+from playwright.sync_api import Locator, Page, expect
 
 from bank.scoring import LETTERS
+from tests.e2e.a11y import low_contrasts
 from tests.e2e.live_setup import STUDENTS, expect_slot, open_board, started
 from tests.e2e.live_ui import (
     LIVE_MS,
+    assert_fits,
     background,
     board_code,
     card,
@@ -164,32 +166,6 @@ def test_four_questions_at_once_by_default(teacher_page: Page, live_server, new_
     assert_fits(page)
 
 
-def assert_fits(page: Page) -> None:
-    """Le tableau tient sans défilement en 1920x1080 et en 1280x720."""
-    # Après le démarrage, la page se charge à nouveau : mesurer avant sa feuille de style
-    # donnerait n'importe quoi (des formes SVG sans taille occupent toute la largeur).
-    page.wait_for_load_state("load")
-    for width, height in ((1920, 1080), (1280, 720)):
-        size = ViewportSize(width=width, height=height)
-        page.set_viewport_size(size)
-        overflow = page.evaluate(
-            "() => document.documentElement.scrollHeight - document.documentElement.clientHeight"
-        )
-        assert overflow <= 0, (size, overflow)
-
-
-@pytest.mark.spec("SES-06")
-def test_six_questions_fit_too(teacher_page: Page, live_server, new_phone):
-    """À 6, la valeur maximale, des énoncés d'environ 135 caractères tiennent encore."""
-    page = teacher_page
-    text = "Quelle est la proposition exacte parmi celles de votre téléphone ? " * 2
-    quiz = make_quiz("Six", [make_question(f"{i} : {text}") for i in range(1, 7)])
-    session = make_session(quiz, make_group("TD1", STUDENTS), shown=6)
-    started(page, live_server.url, new_phone, session)
-    expect(page.get_by_role("article")).to_have_count(6)
-    assert_fits(page)
-
-
 @pytest.mark.spec("SES-06")
 def test_another_value_can_be_chosen_at_launch(teacher_page: Page):
     page = teacher_page
@@ -280,71 +256,6 @@ def overlap(a: Image.Image, b: Image.Image) -> float:
     both = sum(1 for x, y in zip(pa, pb, strict=True) if x and y)
     either = sum(1 for x, y in zip(pa, pb, strict=True) if x or y)
     return both / either
-
-
-def luminance(color) -> float:
-    def channel(c: float) -> float:
-        c /= 255
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-
-    r, g, b = (channel(c) for c in color)
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-
-def contrast(a, b) -> float:
-    high, low = sorted((luminance(a), luminance(b)), reverse=True)
-    return (high + 0.05) / (low + 0.05)
-
-
-# Pour chaque élément visible qui porte du texte, ou pour chaque forme : couleur du texte et
-# fond tels qu'affichés, composés à travers les fonds semi-transparents des ancêtres et
-# l'opacité de l'élément ou d'un ancêtre (un bouton estompé, par exemple).
-READ_COLORS = """() => {
-  const WHITE = [255, 255, 255];
-  const parse = s => s.match(/[\\d.]+/g).map(Number);
-  const mix = (under, over, alpha) => under.map((v, i) => v * (1 - alpha) + over[i] * alpha);
-  // Fonds de `el` et de ses ancêtres jusqu'à `last` compris, posés sur `base`.
-  const compose = (el, last, base) => {
-    const layers = [];
-    for (let e = el; e; e = e.parentElement) {
-      const [r, g, b, a = 1] = parse(getComputedStyle(e).backgroundColor);
-      if (a > 0) layers.push([[r, g, b], a]);
-      if (a >= 1 || e === last) break;
-    }
-    return layers.reverse().reduce((out, [color, a]) => mix(out, color, a), base);
-  };
-  const found = [];
-  for (const el of document.body.querySelectorAll("*")) {
-    const text = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
-    if (!(text || el.matches("svg[role=img]")) || !el.checkVisibility()) continue;
-    const box = el.getBoundingClientRect();
-    if (box.width < 2 || box.height < 2) continue;
-    let group = null, opacity = 1;
-    for (let e = el; e; e = e.parentElement) {
-      const o = Number(getComputedStyle(e).opacity);
-      if (o < 1) { opacity *= o; group = e; }
-    }
-    const behind = group && group.parentElement ? compose(group.parentElement, null, WHITE) : WHITE;
-    const inside = compose(el, group, behind);
-    const [r, g, b, a = 1] = parse(getComputedStyle(el).color);
-    const ink = mix(inside, [r, g, b], a);
-    const label = el.getAttribute("aria-label") || el.textContent.trim();
-    found.push({
-      label: label.slice(0, 40),
-      fg: mix(behind, ink, opacity),
-      bg: mix(behind, inside, opacity),
-    });
-  }
-  return found;
-}"""
-
-
-def low_contrasts(screen: Page) -> list[tuple[str, float]]:
-    """Textes et formes de l'écran dont le contraste avec leur fond est sous 4,5:1."""
-    found = screen.evaluate(READ_COLORS)
-    assert found
-    measured = [(item["label"], contrast(item["fg"], item["bg"])) for item in found]
-    return [(label, round(ratio, 2)) for label, ratio in measured if ratio < 4.5]
 
 
 @pytest.mark.spec("AFF-03")

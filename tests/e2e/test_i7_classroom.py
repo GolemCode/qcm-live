@@ -43,8 +43,9 @@ from tests.e2e.live_ui import (
     choose,
     identity,
     join,
-    join_hint,
     join_qr,
+    join_region,
+    join_url,
     open_results,
     qr_text,
     results_rows,
@@ -157,7 +158,7 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     login(page, classroom.local_url)
     expect(page.get_by_role("heading", name="Espace enseignant")).to_be_visible()
     open_board(page, classroom.local_url, session)
-    hint = join_hint(page)
+    hint = join_region(page)
     projected = re.search(r"http://\S+", hint.inner_text())
     assert projected and projected.group(0) == classroom.phone_url
     # Le QR code du tableau pointe lui aussi vers cette adresse, et un téléphone peut le suivre.
@@ -310,7 +311,7 @@ def test_class_mode_announces_the_address_imposed_by_the_teacher(
         assert server.phone_url == f"http://pc-prof.local:{port}/"
         login(page, server.local_url)
         open_board(page, server.local_url, session)
-        expect(join_hint(page)).to_contain_text(f"http://pc-prof.local:{port}/ puis")
+        expect(join_url(page)).to_have_text(f"http://pc-prof.local:{port}/")
         # Les téléphones qui ouvrent cette adresse sont acceptés par le serveur.
         assert _status(port, host="pc-prof.local") == 200
         assert _status(port, host="autre.local") == 400

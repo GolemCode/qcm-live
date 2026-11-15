@@ -19,8 +19,8 @@ from tests.e2e.live_ui import (
     connected_names,
     identify,
     identity,
-    join_hint,
     join_qr,
+    join_region,
     phone_choices,
     phones_joined,
     qr_text,
@@ -50,7 +50,7 @@ def test_board_qr_code_opens_the_session_on_a_phone(teacher_page: Page, live_ser
     box = join_qr(page).bounding_box()
     assert box and min(box["width"], box["height"]) >= MIN_QR_PX, box
     # L'adresse et le code restent lisibles, pour un téléphone qui ne lit pas le QR code.
-    hint = join_hint(page)
+    hint = join_region(page)
     expect(hint).to_contain_text(f"{live_server.url}/")
     expect(hint).to_contain_text(session.code)
 
@@ -76,7 +76,7 @@ def test_join_qr_code_uses_the_class_mode_address(teacher_page: Page, live_serve
     session = make_live(1, shown=1)
     open_board(teacher_page, live_server.url, session)
     assert qr_text(join_qr(teacher_page)) == f"http://192.168.1.23:8000/s/{session.code}/"
-    expect(join_hint(teacher_page)).to_contain_text("http://192.168.1.23:8000/")
+    expect(join_region(teacher_page)).to_contain_text("http://192.168.1.23:8000/")
 
 
 @pytest.mark.spec("SES-05")

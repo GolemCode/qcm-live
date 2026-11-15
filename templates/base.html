@@ -5,11 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}QCM Live{% endblock %}</title>
   <link rel="icon" href="data:,">
+  <link rel="preload" href="{% static 'fonts/atkinson-hyperlegible-next-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
-<body class="{% block body_class %}{% endblock %}">
-  <main class="page"{% block main_attrs %}{% endblock %}>
-    {% block header %}{% endblock %}
+{% comment %}Une page qui suit le direct porte data-state-url et data-page sur <body> (body_attrs) : le bandeau, son minuteur et sa barre du temps restent dans le périmètre suivi.{% endcomment %}
+<body class="{% block body_class %}{% endblock %}"{% block body_attrs %}{% endblock %}>
+  {% block header %}
+    <header class="band">
+      {% block brand %}<a class="brand" href="{% url 'home' %}">{% include "logo.html" %}QCM Live</a>{% endblock %}
+      {% block band %}{% endblock %}
+    </header>
+  {% endblock %}
+  {% block after_header %}{% endblock %}
+  <main class="page">
     {% if messages %}
       <div class="messages" role="status">{% for message in messages %}<p>{{ message }}</p>{% endfor %}</div>
     {% endif %}

@@ -17,8 +17,8 @@ from django.utils import timezone
 
 from bank.forms import LETTERS, QuestionForm, QuizForm
 from bank.models import AMC_DEFAULTS, Question, Quiz
-from live.forms import LaunchSessionForm
-from live.models import Session
+from live.forms import IdentifyForm, LaunchSessionForm
+from live.models import Participant, Session
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 
@@ -62,6 +62,15 @@ def make_session(quiz: Quiz, group: StudentGroup, *, shown: int = 1, seconds: in
     """Session lancée par le formulaire de lancement."""
     data = {"quiz": quiz.pk, "group": group.pk, "shown": shown, "seconds": seconds}
     return _saved(LaunchSessionForm(data))
+
+
+def make_participant(session: Session, number: str) -> Participant:
+    """Étudiant identifié dans la session, comme s'il avait saisi son numéro sur un téléphone :
+    pour remplir une salle sans ouvrir un navigateur par étudiant."""
+    form = IdentifyForm({"number": number}, session=session)
+    participant = _saved(form)
+    assert participant is not None, form.errors
+    return participant
 
 
 def rewind(session: Session, seconds: float) -> None:

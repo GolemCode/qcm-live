@@ -6,15 +6,17 @@ from __future__ import annotations
 import csv
 import io
 import re
+from collections.abc import Callable
 
 import zxingcpp
 from PIL import Image
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Locator, Page, ViewportSize, expect
 
 CODE_RE = re.compile(r"\b(\d{6})\b")
 
 
 def open_sessions(page: Page) -> None:
+    """Liste des sessions, par la navigation de l'espace enseignant."""
     page.get_by_role("navigation").get_by_role("link", name="Sessions").click()
     expect(page.get_by_role("heading", name="Sessions", exact=True, level=1)).to_be_visible()
 
@@ -25,6 +27,13 @@ def fill_launch(page: Page, quiz: str, group: str, shown: int | str, seconds: in
     page.get_by_label("Questions affichées en même temps").fill(str(shown))
     page.get_by_label("Temps par question (secondes)").fill(str(seconds))
     page.get_by_role("button", name="Lancer").click()
+
+
+def leave_board(page: Page) -> None:
+    """Retour du tableau, qui n'a pas la navigation de l'enseignant, à la liste des sessions,
+    par le logo du bandeau."""
+    page.get_by_role("banner").get_by_role("link", name="QCM Live : sessions").click()
+    expect(page.get_by_role("heading", name="Sessions", exact=True, level=1)).to_be_visible()
 
 
 def board_code(page: Page) -> str:
@@ -48,7 +57,8 @@ def connected_names(page: Page) -> Locator:
 
 
 def connected_count(page: Page) -> Locator:
-    return page.get_by_text(re.compile(r"^Connectés : \d+ / \d+$"))
+    """Décompte « k / n » affiché sous le titre « Connectés » du tableau en attente."""
+    return page.get_by_role("region", name="Connectés").get_by_text(re.compile(r"^\d+ / \d+$"))
 
 
 def enter_code(phone: Page, base_url: str, code: str) -> None:
@@ -86,11 +96,16 @@ def timer(page: Page) -> Locator:
     return page.get_by_role("timer", name="Temps restant")
 
 
+def clock(seconds: int) -> str:
+    """Temps restant tel qu'affiché, en minutes et secondes : 18 s s'écrit « 0:18 » (VIS-02)."""
+    return f"{seconds // 60}:{seconds % 60:02d}"
+
+
 def seconds_left(page: Page) -> int:
     text = timer(page).inner_text()
-    match = re.fullmatch(r"(\d+) s", text.strip())
+    match = re.fullmatch(r"(\d+):(\d{2})", text.strip())
     assert match, text
-    return int(match.group(1))
+    return int(match.group(1)) * 60 + int(match.group(2))
 
 
 def background(locator: Locator) -> str:
@@ -159,13 +174,18 @@ def clear_answer(phone: Page) -> None:
 
 def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> None:
     """Le temps restant affiché atteint, dans le délai, une valeur entre `low` et `high` s."""
-    values = "|".join(str(s) for s in range(low, high + 1))
-    expect(timer(screen)).to_have_text(re.compile(rf"^({values}) s$"), timeout=timeout)
+    values = "|".join(clock(s) for s in range(low, high + 1))
+    expect(timer(screen)).to_have_text(re.compile(rf"^({values})$"), timeout=timeout)
 
 
-def join_hint(page: Page) -> Locator:
+def join_region(page: Page) -> Locator:
     """Consigne projetée au tableau : l'adresse à ouvrir et le code de session."""
-    return page.get_by_text(re.compile(r"^Sur votre téléphone, ouvrez "))
+    return page.get_by_role("region", name="Rejoindre la session")
+
+
+def join_url(page: Page) -> Locator:
+    """Adresse à ouvrir, seule dans son élément, au tableau en attente."""
+    return join_region(page).get_by_text(re.compile(r"^https?://"))
 
 
 def join_qr(page: Page) -> Locator:
@@ -210,3 +230,22 @@ def results_rows(page: Page) -> list[list[str]]:
         [cell.inner_text().strip() for cell in row.get_by_role("cell").all()]
         for row in table.locator("tbody").get_by_role("row").all()
     ]
+
+
+BOARD_SIZES = (ViewportSize(width=1920, height=1080), ViewportSize(width=1280, height=720))
+
+
+def assert_fits(page: Page, check: Callable[[ViewportSize], None] | None = None) -> None:
+    """Le tableau tient sans défilement en 1920x1080 et en 1280x720. `check`, s'il est donné,
+    fait ses propres vérifications à chacune de ces tailles."""
+    # Après le démarrage, la page se charge à nouveau : mesurer avant sa feuille de style
+    # donnerait n'importe quoi (des formes SVG sans taille occupent toute la largeur).
+    page.wait_for_load_state("load")
+    for size in BOARD_SIZES:
+        page.set_viewport_size(size)
+        overflow = page.evaluate(
+            "() => document.documentElement.scrollHeight - document.documentElement.clientHeight"
+        )
+        assert overflow <= 0, (size, overflow)
+        if check:
+            check(size)
