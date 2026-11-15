@@ -129,10 +129,11 @@ def test_font_is_served_by_the_application(teacher_page: Page, live_server, new_
 
 def bar_fill(bar: Locator) -> float:
     """Part remplie d'une barre, lue sur une capture : longueur, depuis la gauche, de la plage
-    de la couleur du bord gauche, sur la ligne du milieu."""
+    de la couleur du bord gauche, sur la ligne du milieu. Une barre placée à une position
+    fractionnaire déborde d'un pixel sur le fond, de chaque côté : on les écarte."""
     image = Image.open(io.BytesIO(bar.screenshot())).convert("RGB")
     y = image.height // 2
-    row = [image.getpixel((x, y)) for x in range(image.width)]
+    row = [image.getpixel((x, y)) for x in range(1, image.width - 1)]
     first = row[0]
     assert isinstance(first, tuple)
 

@@ -15,7 +15,9 @@ CODE_RE = re.compile(r"\b(\d{6})\b")
 
 
 def open_sessions(page: Page) -> None:
-    page.get_by_role("navigation").get_by_role("link", name="Sessions").click()
+    """Liste des sessions : par la navigation de l'espace enseignant, ou, depuis le tableau, qui
+    n'en a pas, par le logo du bandeau."""
+    page.get_by_role("link", name=re.compile(r"^(Sessions|QCM Live : sessions)$")).click()
     expect(page.get_by_role("heading", name="Sessions", exact=True, level=1)).to_be_visible()
 
 

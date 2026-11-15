@@ -1,56 +1,88 @@
-{% extends "teacher/base.html" %}
+{% extends "base.html" %}
 {% load static %}
 {% block title %}Session {{ session.code }} — QCM Live{% endblock %}
 {% block body_class %}board{% endblock %}
+{% block header %}
+  {# Bandeau du tableau projeté (VIS-02) : le code de session groupé par trois chiffres. #}
+  <header class="band">
+    <a class="brand" href="{% url 'session-list' %}">{% include "logo.html" %}QCM Live<span class="visually-hidden"> : sessions</span></a>
+    <h1 class="band-title">Session <span class="digits">{{ session.code|slice:":3" }}</span><span class="digits">{{ session.code|slice:"3:" }}</span></h1>
+    {% if state.phase == "running" %}
+      <p class="band-position">{{ position_label }}</p>
+    {% endif %}
+    {# Page non projetée (SES-04), à toute phase. #}
+    <a class="band-link" href="{% url 'participants' session.code %}">Gérer les connectés</a>
+    {% if state.phase == "running" %}
+      <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
+      <form method="post" action="{% url 'session-add-time' session.code %}">
+        {% csrf_token %}
+        <input type="hidden" name="slot" value="{{ state.position.slot.index }}">
+        <button type="submit" class="on-band">+10 s</button>
+      </form>
+    {% endif %}
+  </header>
+{% endblock %}
+{% block after_header %}
+  {% if state.phase == "running" %}
+    <progress class="timebar" aria-label="Part du créneau restante" max="{{ slot_ms }}" value="{{ remaining_ms }}"></progress>
+  {% endif %}
+{% endblock %}
 {% block main_attrs %}{% if state.phase != "ended" %} data-state-url="{% url 'board-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
 {% block content %}
-  <div class="bar">
-    <h1>Session {{ session.code }}</h1>
-    <a href="{% url 'participants' session.code %}">Gérer les connectés</a>
-    {% if state.phase == "ended" %}<a href="{% url 'results' session.code %}">Résultats</a>{% endif %}
-  </div>
   {% if state.phase == "waiting" %}
-    <div class="bar waiting">
-      <div>
-        <p class="join-hint">Sur votre téléphone, ouvrez <strong>{{ join_url }}</strong>
-          puis saisissez le code <strong class="code">{{ session.code }}</strong></p>
-        <p class="muted">
+    <div class="waiting">
+      <section class="join" aria-labelledby="join-title">
+        <h2 id="join-title" class="visually-hidden">Rejoindre la session</h2>
+        <p class="label">Sur votre téléphone, ouvrez</p>
+        <p class="join-url">{{ join_url }}</p>
+        <p class="label">puis saisissez le code</p>
+        <p class="join-code"><span class="digits">{{ session.code|slice:":3" }}</span><span class="digits">{{ session.code|slice:"3:" }}</span></p>
+        <p class="meta">
           {{ session.quiz_title }} ({{ session.n_questions }} question{{ session.n_questions|pluralize }})
           · Groupe {{ session.group_name }}
           · {{ session.shown }} question{{ session.shown|pluralize }} à la fois
           · {{ session.seconds }} s par question
         </p>
-        <p class="count">Connectés : <span id="connected-n">{{ connected|length }}</span> / {{ session.students|length }}</p>
-        <ul id="connected" class="connected" aria-label="Étudiants connectés">
-          {% for name in connected %}<li>{{ name }}</li>{% endfor %}
-        </ul>
+      </section>
+      <div class="join-side">
+        <figure class="qr-figure">
+          <img class="qr" src="{{ join_qr }}" alt="QR code pour rejoindre la session">
+          <figcaption class="label">ou scannez</figcaption>
+        </figure>
         <form method="post" action="{% url 'session-start' session.code %}">
           {% csrf_token %}
           <button type="submit" class="big">Démarrer</button>
         </form>
       </div>
-      <img class="qr" src="{{ join_qr }}" alt="QR code pour rejoindre la session">
+      <section class="people" aria-labelledby="people-title">
+        <div class="people-head">
+          <h2 id="people-title" class="label">Connectés</h2>
+          <p class="count"><strong id="connected-n">{{ connected|length }}</strong> / {{ session.students|length }}</p>
+        </div>
+        <progress id="connected-bar" class="fill" aria-label="Part des étudiants connectés" max="{{ session.students|length }}" value="{{ connected|length }}"></progress>
+        <ul id="connected" class="connected" aria-label="Étudiants connectés">
+          {% for name in connected %}<li>{{ name }}</li>{% endfor %}
+        </ul>
+      </section>
     </div>
   {% elif state.phase == "running" %}
-    <div class="bar">
-      <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
-      <form method="post" action="{% url 'session-add-time' session.code %}">
-        {% csrf_token %}
-        <input type="hidden" name="slot" value="{{ state.position.slot.index }}">
-        <button type="submit">+10 s</button>
-      </form>
-    </div>
-    <div class="qcards">
+    <div class="qcards n-{{ cards|length }}">
       {% for card in cards %}
         <article class="qcard color-{{ card.color }}" aria-label="Couleur {{ card.color }}">
           <p class="badge"><span>{{ card.color }}</span> {% include "live/shape.html" with color=card.color %}</p>
-          <h2>{{ card.text }}</h2>
+          <h2 class="statement">{{ card.text }}</h2>
           {% if card.multiple %}<p class="multiple">Plusieurs réponses possibles</p>{% endif %}
         </article>
       {% endfor %}
     </div>
   {% else %}
-    <p class="started">Session terminée.</p>
+    <section class="over">
+      <p class="over-title">Session terminée.</p>
+      <p class="actions">
+        <a class="button" href="{% url 'results' session.code %}">Résultats</a>
+        <a href="{% url 'session-list' %}">Toutes les sessions</a>
+      </p>
+    </section>
   {% endif %}
   {% if state.phase != "ended" %}
     <script src="{% static 'js/poll.js' %}" defer></script>

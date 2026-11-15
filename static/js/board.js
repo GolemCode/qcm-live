@@ -4,11 +4,12 @@
 (() => {
   const main = document.querySelector("main[data-state-url]");
   if (!main) return;
-  const slot = main.querySelector("input[name=slot]");
+  const slot = document.querySelector("input[name=slot]"); // formulaire « +10 s », dans le bandeau
   window.qcm.follow(main, (state) => {
     if (slot && state.slot !== null) slot.value = state.slot;
     if (!state.connected) return;
     document.getElementById("connected-n").textContent = state.connected.length;
+    document.getElementById("connected-bar").value = state.connected.length;
     document.getElementById("connected").replaceChildren(
       ...state.connected.map((name) => {
         const item = document.createElement("li");

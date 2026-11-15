@@ -66,7 +66,13 @@ def test_board_state_lists_names_in_join_order(admin_client, session):
     Participant.objects.create(session=session, number="2", name="B", rank=0)
     Participant.objects.create(session=session, number="1", name="A", rank=1)
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
-    assert state == {"page": "waiting", "remaining_ms": None, "slot": None, "connected": ["B", "A"]}
+    assert state == {
+        "page": "waiting",
+        "remaining_ms": None,
+        "slot_ms": None,
+        "slot": None,
+        "connected": ["B", "A"],
+    }
 
 
 def test_snapshot_keeps_quiz_order_choices_and_scales(session):
@@ -314,6 +320,7 @@ def test_add_time_to_current_slot(admin_client, session):
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
     assert state["slot"] == 1
     assert 34_000 < state["remaining_ms"] <= 35_000
+    assert state["slot_ms"] == 40_000  # la barre du temps s'allonge avec les ajouts (VIS-02)
 
 
 @pytest.mark.parametrize("slot", ["0", "2", "", "x", "-1", "1.0", "01"])
@@ -378,7 +385,7 @@ def test_board_state_has_no_slot_once_ended(admin_client, session):
     session.start(timezone.now())
     rewind(session, 40)
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
-    assert state == {"page": "ended", "remaining_ms": None, "slot": None}
+    assert state == {"page": "ended", "remaining_ms": None, "slot_ms": None, "slot": None}
 
 
 # --- Fin de session et résultats (RES-01, RES-02) ---------------------------------

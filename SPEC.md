@@ -54,7 +54,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
   Un identifiant de session de 6 chiffres est généré, distinct de ceux des autres sessions. Les sessions lancées sont listées dans l'espace enseignant. *(liste : dérivé)*
 - **[SES-06]** (I9) Par défaut, 4 questions s'affichent à la fois. L'enseignant peut choisir une autre valeur au lancement, de 1 à 6 ; elle reste fixe pendant toute la session. *(précision du commanditaire)*
-  - Le tableau tient sans défilement en 1920x1080 et en 1280x720 avec 4 énoncés d'environ 200 caractères, ou 6 d'environ 135 (trois colonnes à partir de 5). Au-delà, ou sur un écran plus petit (1024x768), il peut défiler. *(dérivé, I9)*
+  - Le tableau tient sans défilement en 1920x1080 et en 1280x720 avec 4 énoncés d'environ 200 caractères, ou 6 d'environ 135 (trois colonnes à partir de 5 ; aussi à 3 depuis I10, sur une seule rangée). Au-delà, ou sur un écran plus petit (1024x768), il peut défiler. *(dérivé, I9)*
 - **[SES-02]** (I3) Avant le départ, le tableau affiche :
   - l'adresse à ouvrir et l'identifiant de session ;
   - le QCM et le groupe ;

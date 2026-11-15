@@ -34,6 +34,7 @@ def test_position(elapsed, slot, remaining):
     assert position is not None
     assert position.slot.index == slot
     assert position.remaining == pytest.approx(remaining)
+    assert position.length == 30
 
 
 def test_session_ends_after_last_slot():
@@ -62,6 +63,7 @@ def test_added_time_lengthens_its_slot_and_shifts_the_next(elapsed, slot, remain
     assert position is not None
     assert position.slot.index == slot
     assert position.remaining == pytest.approx(remaining)
+    assert position.length == 30 + schedule.extra.get(slot, 0)
     assert schedule.position(180) is None
 
 

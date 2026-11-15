@@ -28,6 +28,7 @@ from django.views.decorators.http import require_POST
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
 from live.results import csv_rows, decimal_fr, max_total
+from live.schedule import Slot
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
@@ -53,17 +54,29 @@ def _page(state: State, *, board: bool) -> str:
 
 
 def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
-    """État d'une page en direct : son jeton, le temps restant et le rang du créneau en cours
-    (visé par « +10 s », car le tableau ne se recharge qu'au changement de groupe)."""
+    """État d'une page en direct : son jeton, le temps restant et la durée du créneau en cours
+    (barre du temps, qui s'allonge avec « +10 s »), et son rang (visé par « +10 s », car le
+    tableau ne se recharge qu'au changement de groupe)."""
     position = state.position
     return JsonResponse(
         {
             "page": _page(state, board=board),
             "remaining_ms": _ms(position.remaining) if position else None,
+            "slot_ms": _ms(position.length) if position else None,
             "slot": position.slot.index if position else None,
             **extra,
         }
     )
+
+
+def _position_label(session: Session, slot: Slot) -> str:
+    """VIS-02 : place du groupe affiché dans le QCM (« Questions 5 à 8 sur 24 », avec un tiret
+    demi-cadratin)."""
+    group = session.schedule.groups[slot.group]
+    first, last = group[0] + 1, group[-1] + 1
+    if first == last:
+        return f"Question {first} sur {session.n_questions}"
+    return f"Questions {first}\N{EN DASH}{last} sur {session.n_questions}"
 
 
 # --- Enseignant ---------------------------------------------------------------------------
@@ -122,7 +135,9 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
                 {"color": color, "text": question["text"], "multiple": question["multiple"]}
                 for color, question in enumerate(questions, start=1)
             ],
+            "position_label": _position_label(session, state.position.slot),
             "remaining_ms": _ms(state.position.remaining),
+            "slot_ms": _ms(state.position.length),
         }
     return render(request, "live/board.html", context)
 
