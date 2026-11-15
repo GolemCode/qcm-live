@@ -9,7 +9,7 @@ import re
 
 import zxingcpp
 from PIL import Image
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Locator, Page, ViewportSize, expect
 
 CODE_RE = re.compile(r"\b(\d{6})\b")
 
@@ -48,7 +48,8 @@ def connected_names(page: Page) -> Locator:
 
 
 def connected_count(page: Page) -> Locator:
-    return page.get_by_text(re.compile(r"^Connectés : \d+ / \d+$"))
+    """Décompte « k / n » affiché sous le titre « Connectés » du tableau en attente."""
+    return page.get_by_role("region", name="Connectés").get_by_text(re.compile(r"^\d+ / \d+$"))
 
 
 def enter_code(phone: Page, base_url: str, code: str) -> None:
@@ -86,11 +87,16 @@ def timer(page: Page) -> Locator:
     return page.get_by_role("timer", name="Temps restant")
 
 
+def clock(seconds: int) -> str:
+    """Temps restant tel qu'affiché, en minutes et secondes : 18 s s'écrit « 0:18 » (VIS-02)."""
+    return f"{seconds // 60}:{seconds % 60:02d}"
+
+
 def seconds_left(page: Page) -> int:
     text = timer(page).inner_text()
-    match = re.fullmatch(r"(\d+) s", text.strip())
+    match = re.fullmatch(r"(\d+):(\d{2})", text.strip())
     assert match, text
-    return int(match.group(1))
+    return int(match.group(1)) * 60 + int(match.group(2))
 
 
 def background(locator: Locator) -> str:
@@ -159,13 +165,18 @@ def clear_answer(phone: Page) -> None:
 
 def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> None:
     """Le temps restant affiché atteint, dans le délai, une valeur entre `low` et `high` s."""
-    values = "|".join(str(s) for s in range(low, high + 1))
-    expect(timer(screen)).to_have_text(re.compile(rf"^({values}) s$"), timeout=timeout)
+    values = "|".join(clock(s) for s in range(low, high + 1))
+    expect(timer(screen)).to_have_text(re.compile(rf"^({values})$"), timeout=timeout)
 
 
 def join_hint(page: Page) -> Locator:
     """Consigne projetée au tableau : l'adresse à ouvrir et le code de session."""
-    return page.get_by_text(re.compile(r"^Sur votre téléphone, ouvrez "))
+    return page.get_by_role("region", name="Rejoindre la session")
+
+
+def join_url(page: Page) -> Locator:
+    """Adresse à ouvrir, seule dans son élément, au tableau en attente."""
+    return join_hint(page).get_by_text(re.compile(r"^https?://"))
 
 
 def join_qr(page: Page) -> Locator:
@@ -210,3 +221,17 @@ def results_rows(page: Page) -> list[list[str]]:
         [cell.inner_text().strip() for cell in row.get_by_role("cell").all()]
         for row in table.locator("tbody").get_by_role("row").all()
     ]
+
+
+def assert_fits(page: Page) -> None:
+    """Le tableau tient sans défilement en 1920x1080 et en 1280x720."""
+    # Après le démarrage, la page se charge à nouveau : mesurer avant sa feuille de style
+    # donnerait n'importe quoi (des formes SVG sans taille occupent toute la largeur).
+    page.wait_for_load_state("load")
+    for width, height in ((1920, 1080), (1280, 720)):
+        size = ViewportSize(width=width, height=height)
+        page.set_viewport_size(size)
+        overflow = page.evaluate(
+            "() => document.documentElement.scrollHeight - document.documentElement.clientHeight"
+        )
+        assert overflow <= 0, (size, overflow)

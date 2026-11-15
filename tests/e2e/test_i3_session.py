@@ -80,16 +80,16 @@ def test_board_waiting_room(teacher_page: Page, live_server, new_phone, quiz_and
     expect(board).to_contain_text(f"{live_server.url}/")
     expect(board).to_contain_text("Contrôle 1")
     expect(board).to_contain_text("TD1")
-    expect(connected_count(page)).to_have_text("Connectés : 0 / 3")
+    expect(connected_count(page)).to_have_text("0 / 3")
     expect(connected_names(page)).to_have_count(0)
 
     # Mise à jour en direct (2 s au plus), sans recharger le tableau.
     join(new_phone(), live_server.url, code, "00123")
     expect(connected_names(page)).to_have_text(["DURAND Élise"], timeout=LIVE_MS)
-    expect(connected_count(page)).to_have_text("Connectés : 1 / 3", timeout=LIVE_MS)
+    expect(connected_count(page)).to_have_text("1 / 3", timeout=LIVE_MS)
     join(new_phone(), live_server.url, code, "42")
     expect(connected_names(page)).to_have_text(["DURAND Élise", "MARTIN Léo"], timeout=LIVE_MS)
-    expect(connected_count(page)).to_have_text("Connectés : 2 / 3", timeout=LIVE_MS)
+    expect(connected_count(page)).to_have_text("2 / 3", timeout=LIVE_MS)
     expect(board).not_to_contain_text("00123")  # noms seulement, pas les numéros
 
     page.get_by_role("button", name="Démarrer").click()
@@ -119,7 +119,7 @@ def test_session_frozen_at_launch(teacher_page: Page, live_server, new_phone, qu
     page.reload()
     expect(page.get_by_role("main")).to_contain_text("Contrôle 1 (2 questions)")
     expect(page.get_by_role("main")).to_contain_text("TD1")
-    expect(connected_count(page)).to_have_text("Connectés : 0 / 3")
+    expect(connected_count(page)).to_have_text("0 / 3")
     phone = new_phone()
     join(phone, live_server.url, code, "7")
     expect(identity(phone)).to_have_text("Vous êtes Ng Anh")
@@ -168,7 +168,7 @@ def test_refused_codes_and_numbers(teacher_page: Page, live_server, new_phone, q
     expect(phone.get_by_role("alert")).to_contain_text("déjà utilisé")
     first.reload()
     expect(identity(first)).to_have_text("Vous êtes DURAND Élise")
-    expect(connected_count(teacher_page)).to_have_text("Connectés : 1 / 3")
+    expect(connected_count(teacher_page)).to_have_text("1 / 3")
 
 
 @pytest.mark.spec("ETU-03")
