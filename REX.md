@@ -931,6 +931,14 @@ Les cas de 1 à 4 questions du test de VIS-02 passaient déjà, taille des énon
   - Non bloquantes, laissées :
     - la tolérance de la barre, d'environ 1,6 s sur un créneau de 30 s, acceptable pour une barre vue de loin ;
     - la taille du code de session, lue sur la police calculée et non sur la hauteur dessinée, qu'une transformation CSS tromperait (cas artificiel).
+- **`spec-auditor`, troisième passage (commit eea9965) : aucune réserve bloquante.**
+  - Sept contre-épreuves sur la fin du créneau : planchers à 40 %, 25 % et 15 %, barre pleine puis vide à 10 s de la fin, barre vidée trop tôt.
+  - Toutes sont détectées, sauf un plancher de 12 % : non bloquant, peu visible de loin. Une mesure plus près de l'échéance, sur un créneau court, le ramènerait à 5 % environ, au prix d'une marge plus étroite avant le créneau suivant.
+  - Test stable : trois passages sur trois, et le fichier entier deux fois sur deux.
+  - Contrôle après chacun des trois passages : le dépôt principal n'a pas bougé (même `HEAD`, seules mes modifications en cours, aucune copie oubliée).
+
+Audit spec-auditor : eea9965f9ba485a5f6dd8d8079e6bee66ea945de
+
 ### Choix techniques et leur raison
 - **Atkinson Hyperlegible Next, servie par l'application** (`static/fonts/`, licence OFL, environ 80 ko au total). Besoin : une police qui distingue les caractères proches (I, l, 1 ; O, 0) pour le code de session et les numéros, et qui s'affiche sans Internet, la salle n'en ayant pas forcément. La CSP, qui n'autorise que l'application elle-même, l'imposait de toute façon. C'est la version à graisse variable : un seul fichier par jeu de caractères, et une graisse intermédiaire possible sans autre fichier. Le jeu latin étendu et la version à chasse fixe (pour le code, à venir) ne sont téléchargés que si une page en a besoin.
 - **axe-core 4.14.0, livré dans `tests/e2e/vendor/`** (MPL-2.0), en test seulement. Besoin : le contrôle automatique d'accessibilité promis avec les maquettes (ACC-01). Le paquet Python qui l'embarque n'était plus maintenu et contenait une ancienne version : le fichier publié sur npm, vérifié contre l'empreinte de l'archive officielle, est plus sûr et ne dépend pas du réseau en CI. Il est évalué par Playwright, hors de la page, et la CSP de l'application reste donc en place pendant le contrôle.
