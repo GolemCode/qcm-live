@@ -6,6 +6,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from collections.abc import Callable
 
 import zxingcpp
 from PIL import Image
@@ -171,14 +172,14 @@ def timer_shows(screen: Page, low: int, high: int, timeout: float = LIVE_MS) -> 
     expect(timer(screen)).to_have_text(re.compile(rf"^({values})$"), timeout=timeout)
 
 
-def join_hint(page: Page) -> Locator:
+def join_region(page: Page) -> Locator:
     """Consigne projetée au tableau : l'adresse à ouvrir et le code de session."""
     return page.get_by_role("region", name="Rejoindre la session")
 
 
 def join_url(page: Page) -> Locator:
     """Adresse à ouvrir, seule dans son élément, au tableau en attente."""
-    return join_hint(page).get_by_text(re.compile(r"^https?://"))
+    return join_region(page).get_by_text(re.compile(r"^https?://"))
 
 
 def join_qr(page: Page) -> Locator:
@@ -225,15 +226,20 @@ def results_rows(page: Page) -> list[list[str]]:
     ]
 
 
-def assert_fits(page: Page) -> None:
-    """Le tableau tient sans défilement en 1920x1080 et en 1280x720."""
+BOARD_SIZES = (ViewportSize(width=1920, height=1080), ViewportSize(width=1280, height=720))
+
+
+def assert_fits(page: Page, check: Callable[[ViewportSize], None] | None = None) -> None:
+    """Le tableau tient sans défilement en 1920x1080 et en 1280x720. `check`, s'il est donné,
+    fait ses propres vérifications à chacune de ces tailles."""
     # Après le démarrage, la page se charge à nouveau : mesurer avant sa feuille de style
     # donnerait n'importe quoi (des formes SVG sans taille occupent toute la largeur).
     page.wait_for_load_state("load")
-    for width, height in ((1920, 1080), (1280, 720)):
-        size = ViewportSize(width=width, height=height)
+    for size in BOARD_SIZES:
         page.set_viewport_size(size)
         overflow = page.evaluate(
             "() => document.documentElement.scrollHeight - document.documentElement.clientHeight"
         )
         assert overflow <= 0, (size, overflow)
+        if check:
+            check(size)

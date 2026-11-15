@@ -28,7 +28,8 @@ window.qcm = {
     const render = () => {
       const left = Math.max(0, deadline - performance.now());
       const seconds = Math.ceil(left / 1000);
-      element.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+      const text = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+      if (element.textContent !== text) element.textContent = text; // écrit une fois par seconde
       if (bar) bar.value = left;
     };
     render();
@@ -39,10 +40,10 @@ window.qcm = {
   // Dès que l'état annonce un autre jeton, la page se recharge, avec un léger décalage
   // aléatoire pour étaler les requêtes d'une classe entière. Sinon, le compte à rebours
   // se recale et onState reçoit l'état.
-  // Le minuteur et la barre du temps peuvent être hors de `root`, dans le bandeau.
+  // `root` est le <body> : le minuteur et la barre du temps (data-countdown) sont dans le bandeau.
   follow(root, onState) {
-    const timer = document.querySelector("[role=timer]");
-    const bar = document.querySelector("progress.timebar");
+    const timer = root.querySelector("[role=timer]");
+    const bar = root.querySelector("progress[data-countdown]");
     if (timer) this.countdown(timer, Number(timer.dataset.remainingMs), bar);
     this.poll(root.dataset.stateUrl, (state) => {
       if (state.page !== root.dataset.page) {

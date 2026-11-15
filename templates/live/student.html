@@ -4,7 +4,7 @@
 {% block body_class %}phone{% if color %} colored color-{{ color }}{% endif %}{% endblock %}
 {# Le téléphone garde sa présentation jusqu'à sa refonte (I11) : pas encore de bandeau. #}
 {% block header %}{% endblock %}
-{% block main_attrs %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
+{% block body_attrs %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
 {% block content %}
   {% if not color %}<h1>Session {{ session.code }}</h1>{% endif %}
   {% if state.phase == "ended" %}

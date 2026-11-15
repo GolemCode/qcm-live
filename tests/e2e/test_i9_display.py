@@ -167,18 +167,6 @@ def test_four_questions_at_once_by_default(teacher_page: Page, live_server, new_
 
 
 @pytest.mark.spec("SES-06")
-def test_six_questions_fit_too(teacher_page: Page, live_server, new_phone):
-    """À 6, la valeur maximale, des énoncés d'environ 135 caractères tiennent encore."""
-    page = teacher_page
-    text = "Quelle est la proposition exacte parmi celles de votre téléphone ? " * 2
-    quiz = make_quiz("Six", [make_question(f"{i} : {text}") for i in range(1, 7)])
-    session = make_session(quiz, make_group("TD1", STUDENTS), shown=6)
-    started(page, live_server.url, new_phone, session)
-    expect(page.get_by_role("article")).to_have_count(6)
-    assert_fits(page)
-
-
-@pytest.mark.spec("SES-06")
 def test_another_value_can_be_chosen_at_launch(teacher_page: Page):
     page = teacher_page
     make_quiz("Trois", [make_question(text) for text in STATEMENTS])

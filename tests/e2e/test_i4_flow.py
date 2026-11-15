@@ -262,24 +262,28 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
     with page.expect_response(re.compile(r"/etat/$")):  # le tableau a vu ces réponses
         pass
 
-    # Liste blanche (hors barre de navigation) : le titre, le temps restant, les questions.
-    allowed = {f"Session {session.code}", "Gérer les connectés", "1", "2"}
+    # Liste blanche de toute la page, bandeau compris : le logo, le code de session, la place
+    # du groupe dans le QCM, le temps restant, les boutons et les énoncés.
+    code = session.code
+    allowed = {"QCM Live", ": sessions", "Session", code[:3], code[3:], "Gérer les connectés"}
+    allowed.add("Questions 1\N{EN DASH}2 sur 2")  # place du groupe (VIS-02)
     allowed.add("+10 s")  # bouton de l'enseignant (TPS-01)
+    allowed |= {"1", "2"}  # numéros des couleurs
     allowed.add("Plusieurs réponses possibles")  # mention des questions multiples (AFF-02)
     allowed |= set(list(QUESTIONS)[:2])
-    shown = page.locator("main").evaluate(
-        """main => {
-            const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+    shown = page.locator("body").evaluate(
+        """body => {
+            const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
             const texts = [];
             while (walker.nextNode()) {
-                const text = walker.currentNode.textContent.trim();
-                const inMenu = walker.currentNode.parentElement.closest("header");
-                if (text && !inMenu) texts.push(text);
+                const node = walker.currentNode;
+                const text = node.textContent.trim();
+                if (text && !node.parentElement.closest("script")) texts.push(text);
             }
             return texts;
         }"""
     )
-    extra = [t for t in shown if t not in allowed and not re.fullmatch(r"\d+ s", t)]
+    extra = [t for t in shown if t not in allowed and not re.fullmatch(r"\d+:\d{2}", t)]
     assert extra == []
 
 

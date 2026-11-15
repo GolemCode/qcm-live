@@ -19,7 +19,7 @@ import pytest
 from PIL import Image
 from playwright.sync_api import Browser, Locator, Page, ViewportSize, expect
 
-from tests.e2e.a11y import axe_violations, keyboard_problems, low_contrasts
+from tests.e2e.a11y import PAGE_JS, axe_violations, keyboard_problems, low_contrasts
 from tests.e2e.live_setup import STUDENTS, make_live, open_board, started
 from tests.e2e.live_ui import (
     LIVE_MS,
@@ -28,8 +28,8 @@ from tests.e2e.live_ui import (
     card,
     connected_count,
     connected_names,
-    join_hint,
     join_qr,
+    join_region,
     join_url,
     start,
     timer,
@@ -63,21 +63,23 @@ def statement(number: int, length: int) -> str:
 
 # --- VIS-01 : police servie par l'application -------------------------------------------
 
-FONT_PROBLEMS = """async (family) => {
+FONT_PROBLEMS = (
+    "async (family) => {"
+    + PAGE_JS
+    + """
   await document.fonts.ready;
   const clean = s => s.replaceAll('"', "").trim();
   const problems = [];
   const loaded = [...document.fonts].some(f => clean(f.family) === family && f.status === "loaded");
   if (!loaded) problems.push("police non chargée");
-  for (const el of document.body.querySelectorAll("*")) {
-    const text = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
-    if (!text || !el.checkVisibility() || el.closest("code, pre, kbd, samp")) continue;
+  for (const el of textElements()) {
+    if (el.closest("code, pre, kbd, samp")) continue;
     const first = clean(getComputedStyle(el).fontFamily.split(",")[0]);
-    const label = el.textContent.trim().slice(0, 30);
-    if (first !== family) problems.push(`${el.tagName} « ${label} » : ${first}`);
+    if (first !== family) problems.push(`${el.tagName} « ${name(el)} » : ${first}`);
   }
   return problems.slice(0, 10);
 }"""
+)
 
 
 def font_problems(screen: Page) -> list[str]:
@@ -204,6 +206,7 @@ def statement_size(page: Page) -> float:
 
 
 @pytest.mark.spec("VIS-02")
+@pytest.mark.spec("SES-06")  # 4 et 6 questions tiennent à l'écran
 @pytest.mark.parametrize("shown", range(1, 7))
 def test_board_fits_from_one_to_six_questions(
     teacher_page: Page, live_server, new_phone, shown: int
@@ -214,10 +217,11 @@ def test_board_fits_from_one_to_six_questions(
     session = make_session(quiz, make_group("TD1", STUDENTS), shown=shown)
     started(page, live_server.url, new_phone, session)
     expect(page.get_by_role("article")).to_have_count(shown)
-    assert_fits(page)
-    for width, height in ((1920, 1080), (1280, 720)):
-        page.set_viewport_size(ViewportSize(width=width, height=height))
-        assert statement_size(page) >= 0.025, (width, height, statement_size(page))
+
+    def large_enough(size: ViewportSize) -> None:
+        assert statement_size(page) >= 0.025, (size, statement_size(page))
+
+    assert_fits(page, large_enough)
 
 
 # --- VIS-03 : tableau en attente, pour une classe de 40 ---------------------------------
@@ -252,13 +256,13 @@ def test_waiting_board_holds_a_class_of_forty(teacher_page: Page, live_server):
 
     # L'adresse, puis le code en deux groupes de trois chiffres, bien séparés.
     expect(join_url(page)).to_have_text(f"{live_server.url}/")
-    groups = join_hint(page).get_by_text(re.compile(r"^\d{3}$"))
+    groups = join_region(page).get_by_text(re.compile(r"^\d{3}$"))
     expect(groups).to_have_text([session.code[:3], session.code[3:]])
     left, right = groups.nth(0).bounding_box(), groups.nth(1).bounding_box()
     assert left and right
     assert right["x"] - (left["x"] + left["width"]) >= 0.2 * left["height"], (left, right)
     for text in ("Algorithmique — Partiel 2", "TC-3A G2", "4 questions à la fois", "30 s par"):
-        expect(join_hint(page)).to_contain_text(text)
+        expect(join_region(page)).to_contain_text(text)
     expect(page.get_by_text("ou scannez", exact=True)).to_be_visible()
 
     # Le décompte et sa barre, mis à jour en direct.
@@ -271,13 +275,13 @@ def test_waiting_board_holds_a_class_of_forty(teacher_page: Page, live_server):
     expect_fill(people_bar(page), 1.0, tolerance=0.03)
 
     # Tout tient à l'écran, sans défilement : noms, QR code et « Démarrer ».
-    assert_fits(page)
-    for width, height in ((1920, 1080), (1280, 720)):
-        page.set_viewport_size(ViewportSize(width=width, height=height))
-        expect(page.get_by_role("button", name="Démarrer")).to_be_in_viewport()
-        expect(join_qr(page)).to_be_in_viewport()
-        for name in connected_names(page).all():
-            expect(name).to_be_in_viewport()
+    def all_in_view(size: ViewportSize) -> None:
+        expect(page.get_by_role("button", name="Démarrer")).to_be_in_viewport(ratio=1)
+        expect(join_qr(page)).to_be_in_viewport(ratio=1)
+        names = page.get_by_role("list", name="Étudiants connectés")
+        expect(names).to_be_in_viewport(ratio=1)
+
+    assert_fits(page, all_in_view)
 
     # À la fin : « Session terminée. » et le lien vers les résultats.
     start(page)

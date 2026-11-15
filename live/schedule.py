@@ -62,10 +62,14 @@ class Schedule:
         return slots
 
     @cached_property
+    def lengths(self) -> list[int]:
+        """Durée de chaque créneau, temps ajouté compris."""
+        return [self.seconds + self.extra.get(slot.index, 0) for slot in self.slots]
+
+    @cached_property
     def deadlines(self) -> list[int]:
         """Fin de chaque créneau, en secondes après le démarrage, temps ajouté compris."""
-        lengths = (self.seconds + self.extra.get(slot.index, 0) for slot in self.slots)
-        return list(itertools.accumulate(lengths))
+        return list(itertools.accumulate(self.lengths))
 
     @property
     def duration(self) -> int:
@@ -77,8 +81,7 @@ class Schedule:
         index = bisect.bisect_right(self.deadlines, elapsed)  # une échéance ouvre le suivant
         if index >= len(self.slots):
             return None
-        length = self.seconds + self.extra.get(index, 0)
-        return Position(self.slots[index], self.deadlines[index] - elapsed, length)
+        return Position(self.slots[index], self.deadlines[index] - elapsed, self.lengths[index])
 
     def question_for(self, slot: Slot, rank: int) -> int:
         """Indice, dans le QCM, de la question de l'étudiant de rang `rank` pendant ce créneau."""

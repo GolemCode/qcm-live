@@ -32,9 +32,10 @@ def contrast(a, b) -> float:
     return (high + 0.05) / (low + 0.05)
 
 
-# Fonctions JavaScript communes : lecture d'une couleur, mélange, et fond tel qu'affiché derrière
-# un élément, composé à travers les fonds semi-transparents de ses ancêtres.
-_COLORS_JS = """
+# Fonctions JavaScript communes : lecture d'une couleur, mélange, fond tel qu'affiché derrière un
+# élément (composé à travers les fonds semi-transparents de ses ancêtres), nom d'un élément, et
+# éléments visibles qui portent eux-mêmes du texte.
+PAGE_JS = """
   const WHITE = [255, 255, 255];
   const parse = s => s.match(/[\\d.]+/g).map(Number);
   const mix = (under, over, alpha) => under.map((v, i) => v * (1 - alpha) + over[i] * alpha);
@@ -50,6 +51,9 @@ _COLORS_JS = """
   };
   const name = e => (e.getAttribute("aria-label") || e.textContent || e.name || e.tagName)
     .trim().slice(0, 40);
+  const ownText = el => [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+  const textElements = () => [...document.body.querySelectorAll("*")]
+    .filter(el => ownText(el) && el.checkVisibility());
 """
 
 # Pour chaque élément visible qui porte du texte, ou pour chaque forme : couleur du texte et
@@ -57,12 +61,11 @@ _COLORS_JS = """
 # l'opacité de l'élément ou d'un ancêtre (un bouton estompé, par exemple).
 READ_COLORS = (
     "() => {"
-    + _COLORS_JS
+    + PAGE_JS
     + """
   const found = [];
   for (const el of document.body.querySelectorAll("*")) {
-    const text = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
-    if (!(text || el.matches("svg[role=img]")) || !el.checkVisibility()) continue;
+    if (!(ownText(el) || el.matches("svg[role=img]")) || !el.checkVisibility()) continue;
     const box = el.getBoundingClientRect();
     if (box.width < 2 || box.height < 2) continue;
     let group = null, opacity = 1;
@@ -74,9 +77,8 @@ READ_COLORS = (
     const inside = compose(el, group, behind);
     const [r, g, b, a = 1] = parse(getComputedStyle(el).color);
     const ink = mix(inside, [r, g, b], a);
-    const label = el.getAttribute("aria-label") || el.textContent.trim();
     found.push({
-      label: label.slice(0, 40),
+      label: name(el),
       fg: mix(behind, ink, opacity),
       bg: mix(behind, inside, opacity),
     });
@@ -101,14 +103,13 @@ def axe_violations(screen: Page) -> list[str]:
     tout script inline, reste en place pendant le contrôle."""
     screen.wait_for_load_state("load")
     screen.evaluate(AXE_SOURCE)
-    violations = screen.evaluate(
+    return screen.evaluate(
         """async (tags) => {
           const result = await axe.run(document, { runOnly: { type: "tag", values: tags } });
           return result.violations.map(v => `${v.id} : ${v.nodes.map(n => n.target).join(" ; ")}`);
         }""",
         WCAG_TAGS,
     )
-    return violations
 
 
 FOCUSABLE = (
@@ -120,7 +121,7 @@ FOCUSABLE = (
 # avec le fond tel qu'affiché autour de l'élément (le contour est dessiné à l'extérieur).
 _FOCUS_JS = (
     "() => {"
-    + _COLORS_JS
+    + PAGE_JS
     + """
   const el = document.activeElement;
   const style = getComputedStyle(el);
@@ -144,7 +145,7 @@ def keyboard_problems(screen: Page) -> list[str]:
     screen.wait_for_load_state("load")
     expected = screen.evaluate(
         "(selector) => {"
-        + _COLORS_JS
+        + PAGE_JS
         + """
           const items = [...document.querySelectorAll(selector)].filter(e => e.checkVisibility());
           items.forEach((e, i) => { e.dataset.kbd = String(i); });

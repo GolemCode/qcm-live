@@ -28,7 +28,6 @@ from django.views.decorators.http import require_POST
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
 from live.results import csv_rows, decimal_fr, max_total
-from live.schedule import Slot
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
@@ -69,14 +68,13 @@ def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
     )
 
 
-def _position_label(session: Session, slot: Slot) -> str:
+def _position_label(group: list[int], total: int) -> str:
     """VIS-02 : place du groupe affiché dans le QCM (« Questions 5 à 8 sur 24 », avec un tiret
     demi-cadratin)."""
-    group = session.schedule.groups[slot.group]
     first, last = group[0] + 1, group[-1] + 1
     if first == last:
-        return f"Question {first} sur {session.n_questions}"
-    return f"Questions {first}\N{EN DASH}{last} sur {session.n_questions}"
+        return f"Question {first} sur {total}"
+    return f"Questions {first}\N{EN DASH}{last} sur {total}"
 
 
 # --- Enseignant ---------------------------------------------------------------------------
@@ -135,7 +133,7 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
                 {"color": color, "text": question["text"], "multiple": question["multiple"]}
                 for color, question in enumerate(questions, start=1)
             ],
-            "position_label": _position_label(session, state.position.slot),
+            "position_label": _position_label(group, session.n_questions),
             "remaining_ms": _ms(state.position.remaining),
             "slot_ms": _ms(state.position.length),
         }

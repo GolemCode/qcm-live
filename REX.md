@@ -844,3 +844,26 @@ Audit spec-auditor : 9877dafc970d7d06b801f72e4d417793ad5a5db0
 - **Les simulations ne remplacent pas un essai.** Le modèle de projecteur est grossier, et aucune personne daltonienne n'a vu l'écran. À vérifier en salle, avec le vrai projecteur.
 - **Deux voisins peuvent voir une proposition au même endroit** (ETU-05) : c'est accepté, et la rotation (N = 4) le rend plus rare.
 - **eduroam reste le risque principal** avant un premier cours (SPEC §5).
+
+---
+
+## I10 — Refonte visuelle : socle et tableau
+
+### Objectif
+Après I9, le commanditaire a demandé une refonte visuelle. J'ai proposé trois directions sur des maquettes statiques (tableau, téléphone, espace enseignant), avec les mêmes données fictives. Il a retenu la direction B, « Signalétique » : encre sur papier, bandeau noir, filets épais, police Atkinson Hyperlegible. Le découpage proposé a été validé : socle et tableau (I10), téléphone (I11). L'espace enseignant (I12) attend l'import AMC, qui en changera le contenu.
+
+**Réponses du commanditaire, consignées dans SPEC.md :**
+- formules, code et images : styles prêts seulement, contenu avec l'import AMC ;
+- recherche et filtres de la banque : à revoir en I12, avec un filtre par QCM d'origine et un filtre « déjà posée à tel groupe » ;
+- réseau lent : renvoi automatique, et une réponse arrivée après la fin de son créneau jamais affichée comme enregistrée (I11) ;
+- « Questions 5–8 sur 24 », barres du temps restant, numéro à côté du nom : validés ;
+- « Vos réponses ont été transmises » seulement si toutes ont été confirmées par le serveur (FIN-02, I11).
+
+**Pas de plan mode.** La procédure le demande pour un choix de conception. Ici, le choix venait d'être fait par le commanditaire, sur les maquettes et le découpage, et il a demandé d'enchaîner I10 puis I11. Les choix qui restaient (graisse des énoncés, outil d'accessibilité) lui avaient été délégués ou relevaient de la technique.
+
+### La graisse des énoncés
+Le commanditaire m'a demandé de vérifier au tableau un énoncé d'environ 200 caractères, et d'abandonner le gras s'il l'alourdissait. J'ai fait deux captures du même tableau, 4 énoncés de 178 à 190 caractères, l'une en gras, l'autre en graisse normale, en 1920x1080 et en 1280x720.
+- **À taille réelle**, le gras tasse les mots et noircit le paragraphe. La graisse normale garde des formes de lettres ouvertes et se lit mieux.
+- **En simulation de projecteur vu du fond de la salle** (image réduite au quart, légèrement floutée, voile de lumière ambiante), la graisse normale perd un peu de corps sur le vert et le bleu ciel, sans devenir illisible. Le gras y reste plus dense, mais ses lettres commencent à se confondre.
+- **Décision :** graisse normale pour les énoncés, gras pour les numéros, les étiquettes et les titres. Le gras ne tient plus dans les deux cas. Si l'essai en salle montre un texte trop fin, la police, à graisse variable, permet une graisse intermédiaire (500) sans autre fichier : c'est un réglage d'une ligne, à décider sur place.
+- Les énoncés ont ensuite été agrandis selon le nombre de questions affichées : un énoncé de 200 caractères (135 à 5 et 6) occupe environ les deux tiers de sa carte, et il reste de la place pour un énoncé plus long.

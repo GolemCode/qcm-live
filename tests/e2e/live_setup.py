@@ -31,7 +31,7 @@ def question_of(choices: list[str]) -> str:
 
 def expect_slot(phone: Page, slot: int, timeout: float = LIVE_MS) -> None:
     """Le téléphone affiche le créneau `slot` (jeton de page « running:<slot> »)."""
-    expect(phone.locator("main")).to_have_attribute("data-page", f"running:{slot}", timeout=timeout)
+    expect(phone.locator("body")).to_have_attribute("data-page", f"running:{slot}", timeout=timeout)
 
 
 def make_live(

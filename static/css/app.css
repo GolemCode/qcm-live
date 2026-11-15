@@ -49,12 +49,19 @@
   --surface: #ffffff;    /* champs, cartes de l'espace enseignant */
   --muted: #4a4a48;      /* texte secondaire : 8:1 sur le papier */
   --soft-line: #c9c7bf;  /* filets secondaires, piste des barres */
-  --signal: #f0e442;     /* jaune signal : minuteur et barre du temps, sur l'encre */
+  --signal: #f0e442;     /* jaune signal (la couleur 1) : minuteur et barre du temps, sur l'encre */
   --on-ink: #ffffff;
   --error: #a61b0f;
   --error-bg: #fdeceb;
   --ok: #0b5a28;
   --ok-bg: #e6f2e9;
+  /* Palette d'Okabe et Ito, dans l'ordre des couleurs de questions (AFF-04). */
+  --color-1: #f0e442;
+  --color-2: #0072b2;
+  --color-3: #009e73;
+  --color-4: #56b4e9;
+  --color-5: #cc79a7;
+  --color-6: #e69f00;
   --rule: 3px;           /* filet épais */
   --radius: 0.3rem;
   --font: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -103,7 +110,7 @@ a:hover { text-decoration-thickness: 2px; }
 /* Logo : les couleurs 1 à 4, dans l'ordre de la palette (AFF-04). */
 .logo {
   display: inline-block; flex: none; width: 1.25em; height: 1.25em; border: 2px solid currentColor;
-  background: conic-gradient(#0072b2 0 25%, #56b4e9 0 50%, #009e73 0 75%, #f0e442 0);
+  background: conic-gradient(var(--color-2) 0 25%, var(--color-4) 0 50%, var(--color-3) 0 75%, var(--color-1) 0);
 }
 .digits + .digits { margin-left: 0.3em; }
 
@@ -190,19 +197,19 @@ pre { background: var(--surface); border: 2px solid var(--soft-line); border-rad
    Palette d'Okabe et Ito, ordonnée pour que les 4 premières restent distinctes pour les
    daltoniens et en niveaux de gris. Chacune a aussi son numéro et sa forme (AFF-03). Texte
    sombre, sauf sur le bleu : contraste d'au moins 4,5:1. */
-.color-1 { background: #f0e442; color: var(--ink); }
-.color-2 { background: #0072b2; color: #fff; }
-.color-3 { background: #009e73; color: var(--ink); }
-.color-4 { background: #56b4e9; color: var(--ink); }
-.color-5 { background: #cc79a7; color: var(--ink); }
-.color-6 { background: #e69f00; color: var(--ink); }
+.color-1 { background: var(--color-1); color: var(--ink); }
+.color-2 { background: var(--color-2); color: #fff; }
+.color-3 { background: var(--color-3); color: var(--ink); }
+.color-4 { background: var(--color-4); color: var(--ink); }
+.color-5 { background: var(--color-5); color: var(--ink); }
+.color-6 { background: var(--color-6); color: var(--ink); }
 .shape { width: 1em; height: 1em; vertical-align: -0.125em; fill: currentColor; }
 
 /* --- Tableau projeté ----------------------------------------------------------------------
    Toutes les tailles suivent la hauteur de l'écran (1 em = 1,5 % de la hauteur) : la même
    mise en page vaut en 1920x1080 et en 1280x720. */
 body.board { display: flex; flex-direction: column; min-height: 100vh; font-size: max(1.5vh, 9px); }
-.board .band { gap: 0.5em 2.2em; padding: 0.8em 1.6em; font-size: 1em; }
+.board .band { gap: 0.5em 2.2em; padding: 0.8em 1.6em; }
 .board .brand { font-size: 1.4em; }
 .board .band-title { margin: 0; font-size: 1.5em; font-weight: 400; }
 .board .band-title .digits { font-weight: 700; }
@@ -216,17 +223,16 @@ body.board { display: flex; flex-direction: column; min-height: 100vh; font-size
 .board .page { display: flex; flex: 1; flex-direction: column; width: 100%; max-width: none; min-height: 0; padding: 1.2em 1.6em; }
 .board .page > .messages { font-size: 1.3em; }
 
-/* Barre du temps restant (VIS-02) : jaune sur l'encre, elle se vide jusqu'à l'échéance. */
-progress { display: block; width: 100%; border: 0; appearance: none; }
-progress.timebar { height: 0.6em; background: #3a3a38; }
-progress.timebar::-webkit-progress-bar { background: #3a3a38; }
-progress.timebar::-webkit-progress-value { background: var(--signal); }
-progress.timebar::-moz-progress-bar { background: var(--signal); }
-/* Barre de remplissage des connectés : encre sur filet clair. */
-progress.fill { height: 0.6em; background: var(--soft-line); }
-progress.fill::-webkit-progress-bar { background: var(--soft-line); }
-progress.fill::-webkit-progress-value { background: var(--ink); }
-progress.fill::-moz-progress-bar { background: var(--ink); }
+/* Barres : une piste (--track) et une valeur (--value). Celle du temps restant (VIS-02), jaune
+   sur l'encre, se vide jusqu'à l'échéance ; celle des connectés est d'encre sur un filet clair. */
+progress {
+  --track: var(--soft-line); --value: var(--ink);
+  display: block; width: 100%; height: 0.6em; border: 0; appearance: none; background: var(--track);
+}
+progress::-webkit-progress-bar { background: var(--track); }
+progress::-webkit-progress-value { background: var(--value); }
+progress::-moz-progress-bar { background: var(--value); }
+progress.timebar { --track: #3a3a38; --value: var(--signal); }
 
 /* En attente (VIS-03) : adresse et code à gauche, QR code et « Démarrer » à droite, puis les
    connectés en colonnes. Tient en 1280x720 pour une classe de 40. */
