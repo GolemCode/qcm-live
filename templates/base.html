@@ -5,11 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}QCM Live{% endblock %}</title>
   <link rel="icon" href="data:,">
+  <link rel="preload" href="{% static 'fonts/atkinson-hyperlegible-next-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
+  {% block header %}
+    <header class="band">
+      {% block brand %}<a class="brand" href="{% url 'home' %}">{% include "logo.html" %}QCM Live</a>{% endblock %}
+    </header>
+  {% endblock %}
+  {% block after_header %}{% endblock %}
   <main class="page"{% block main_attrs %}{% endblock %}>
-    {% block header %}{% endblock %}
     {% if messages %}
       <div class="messages" role="status">{% for message in messages %}<p>{{ message }}</p>{% endfor %}</div>
     {% endif %}
