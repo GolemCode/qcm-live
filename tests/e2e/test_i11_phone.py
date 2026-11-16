@@ -280,13 +280,17 @@ def test_answer_received_without_confirmation_counts(
     teacher_page: Page, live_server, new_phone, networks
 ):
     """Le serveur enregistre la réponse, mais sa confirmation se perd : le téléphone ne l'affiche
-    pas comme enregistrée, puis apprend du serveur qu'elle est arrivée à temps."""
+    pas comme enregistrée, puis apprend du serveur, à l'échéance, qu'elle est arrivée à temps.
+    L'état du direct se perd aussi : le téléphone reste sur ce créneau, et on lit ce qu'il y
+    affiche à l'échéance."""
     session = make_live(2, shown=1)
     (phone,) = started(teacher_page, live_server.url, new_phone, session, ["00123"])
     expect_slot(phone, 0)
     jump_to(session, 24)
+    # Le compte à rebours doit s'être recalé avant que l'état du direct ne se perde.
+    expect(timer(phone)).to_have_text(re.compile(r"^0:0[4-6]$"), timeout=LIVE_MS)
     watch_status(phone)
-    network = networks(phone, ANSWERS)
+    network = networks(phone, re.compile(r"/s/\d{6}/(reponse|etat)/$"))
     network.lose()
 
     choose(phone, "Paris")
@@ -295,16 +299,57 @@ def test_answer_received_without_confirmation_counts(
     expect(save_status(phone)).to_have_text(SENDING)
     assert SAVED not in statuses(phone)
 
-    expect_slot(phone, 1, timeout=8_000)
+    # À l'échéance, toujours sur ce créneau : le serveur dit l'avoir reçue.
+    expect(save_status(phone)).to_have_text(SAVED, timeout=8_000)
+    expect(phone.locator("body")).to_have_attribute("data-page", "running:0")
+    assert TOO_LATE not in statuses(phone)
+
+    network.restore()
+    expect_slot(phone, 1, timeout=LIVE_MS + 1_000)
     phone.wait_for_timeout(1_500)  # le temps de demander au serveur ce qu'il a enregistré
     expect(phone.get_by_text(PREVIOUS_LOST)).to_have_count(0)
-    network.restore()
     choose(phone, "Bleu")
     expect(save_status(phone)).to_have_text(SAVED)
 
     jump_to(session, 61)
     expect(end_message(phone)).to_contain_text(TRANSMITTED, timeout=LIVE_MS)
     wait_recorded(phone, session, "00123", {CAPITAL: ["Paris"], SKY: ["Bleu"]})
+
+
+@pytest.mark.spec("ETU-10")
+@pytest.mark.spec("FIN-02")
+def test_next_screen_and_end_ask_the_server(teacher_page: Page, live_server, new_phone, networks):
+    """La réponse arrive au serveur, sa confirmation se perd, puis tout le réseau tombe avant
+    l'échéance : le téléphone ne peut rien savoir sur le moment. Le réseau revenu, l'écran
+    suivant (premier créneau), puis la fin (dernier créneau) demandent au serveur, et ne
+    signalent aucune perte."""
+    session = make_live(2, shown=1)
+    (phone,) = started(teacher_page, live_server.url, new_phone, session, ["00123"])
+
+    for slot, (choice, recorded_so_far) in enumerate(
+        [("Paris", {CAPITAL: ["Paris"]}), ("Bleu", {CAPITAL: ["Paris"], SKY: ["Bleu"]})]
+    ):
+        expect_slot(phone, slot, timeout=LIVE_MS + 1_000)
+        jump_to(session, 30 * slot + 24)
+        expect(timer(phone)).to_have_text(re.compile(r"^0:0[4-6]$"), timeout=LIVE_MS)
+        lost = networks(phone, ANSWERS)
+        lost.lose()
+        choose(phone, choice)
+        wait_recorded(phone, session, "00123", recorded_so_far)
+        lost.restore()
+        down = networks(phone, EVERYTHING)
+        down.cut()
+        expect(save_status(phone)).to_have_text(TOO_LATE, timeout=8_000)  # il ne peut savoir
+        if slot == 1:
+            jump_to(session, 61)  # la session se termine pendant la coupure
+        down.restore()
+        if slot == 0:
+            expect_slot(phone, 1, timeout=LIVE_MS + 1_000)
+            phone.wait_for_timeout(1_500)  # le temps de demander au serveur
+            expect(phone.get_by_text(PREVIOUS_LOST)).to_have_count(0)
+
+    expect(end_message(phone)).to_contain_text(TRANSMITTED, timeout=LIVE_MS + 1_000)
+    expect(end_message(phone)).not_to_contain_text("pas pu être transmise")
 
 
 @pytest.mark.spec("ETU-10")
@@ -373,11 +418,23 @@ def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, ne
     phone.wait_for_timeout(1_500)  # le téléphone suit le direct
     expect(offline_alert(phone)).to_have_count(0)
 
-    # En attente : plus de réseau du tout.
+    # En attente : plus de réseau du tout. L'alerte paraît 3 s après la dernière réponse du
+    # serveur, mesurées dans la page (l'alerte est vérifiée tous les quarts de seconde).
+    phone.evaluate(
+        """() => {
+          const alert = document.querySelector("[role=alert]");
+          new MutationObserver(() => {
+            if (!alert.hidden && window.lostAfter === undefined)
+              window.lostAfter = performance.now() - window.qcm.lastContact;
+          }).observe(alert, { attributes: true });
+        }"""
+    )
     phone.context.set_offline(True)
     phone.wait_for_timeout(1_500)
     expect(offline_alert(phone)).to_have_count(0)  # pas avant 3 secondes
     expect(offline_alert(phone)).to_be_visible(timeout=3_000)
+    lost_after = phone.evaluate("window.lostAfter")
+    assert 3_000 <= lost_after <= 3_400, lost_after
     phone.context.set_offline(False)
     expect(offline_alert(phone)).to_have_count(0, timeout=LIVE_MS)
 
@@ -608,6 +665,15 @@ def test_running_phone_layout(teacher_page: Page, live_server, new_phone, networ
     assert (background(third), style(third, "color")) == (INK_CSS, WHITE_CSS)
     for i in (0, 1, 3):
         assert background(choices.nth(i)) != INK_CSS, i
+    # Elle suit la réponse : une autre choisie, puis plus aucune après l'effacement.
+    choices.nth(1).click()
+    expect(save_status(phone)).to_have_text(SAVED)
+    assert [background(choices.nth(i)) == INK_CSS for i in range(8)] == [i == 1 for i in range(8)]
+    clear_answer(phone)
+    expect(save_status(phone)).to_have_text(CLEARED)
+    assert not any(background(choices.nth(i)) == INK_CSS for i in range(8))
+    third.click()
+    expect(save_status(phone)).to_have_text(SAVED)
 
     # L'état de l'envoi et « Effacer ma réponse » restent en bas de l'écran pendant le défilement.
     status = save_status(phone)
@@ -704,6 +770,7 @@ def test_every_phone_state_is_accessible(teacher_page: Page, live_server, new_ph
         expect_slot(screen, 0)
         colors.add(phone_color(screen))
         assert_accessible(screen, f"déroulement, couleur {phone_color(screen)}")
+        assert_phone_layout(screen, "propositions courtes")  # 48 px même pour « Choix 1a »
     assert colors == set(range(1, 7))
 
     # Sur un téléphone à question simple : choisie, effacée, envoi, connexion perdue.
