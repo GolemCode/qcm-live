@@ -203,6 +203,7 @@ def test_multiple_mz_all_or_floor():
     assert score(item, frozenset({0, 1})) == 3
     assert score(item, frozenset({0})) == 0  # p = 0 par défaut
     assert score(multi("mz=3,p=-1"), frozenset({0})) == -1
+    assert score(multi("mz=3,p=-5"), frozenset({0})) == -5  # m = -(3 + 5 + 1), plancher -5
     assert max_score(item) == 3
 
 

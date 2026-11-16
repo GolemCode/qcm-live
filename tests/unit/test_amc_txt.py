@@ -222,6 +222,7 @@ def test_duplicates_inside_the_file():
     # Mêmes énoncé et propositions, autre barème ou autre réponse juste : pas un doublon.
     assert len(read("* Q ?\n" + YES_NO + "\n*{b=2} Q ?\n" + YES_NO).questions) == 2
     assert len(read("* Q ?\n" + YES_NO + "\n* Q ?\n- Oui\n+ Non\n").questions) == 2
+    assert len(read("* Q ?\n" + YES_NO + "\n*[ordered] Q ?\n" + YES_NO).questions) == 2
     # Seule l'étiquette diffère : doublon.
     grouped = "* Q ?\n" + YES_NO + "*([group=g]\n* Q ?\n" + YES_NO + "*)\n"
     assert skipped(grouped) == [(5, "doublon de la question de la ligne 1")]
@@ -231,9 +232,9 @@ def test_duplicates_inside_the_file():
 
 
 def test_scoring_of_the_question_replaces_the_default():
-    text = "DefaultScoringS: b=3\n\n*{b=2,m=-1} Q ?\n" + YES_NO + "\n* R ?\n" + YES_NO
+    text = "DefaultScoringS: b=3,v=-1\n\n*{b=2,m=-1} Q ?\n" + YES_NO + "\n* R ?\n" + YES_NO
     first, second = read(text).questions
-    assert (first.scoring, second.scoring) == ("b=2,m=-1", "b=3")
+    assert (first.scoring, second.scoring) == ("b=2,m=-1", "b=3,v=-1")
 
 
 def test_default_scoring_of_multiple_questions():

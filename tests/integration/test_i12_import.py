@@ -70,6 +70,19 @@ def test_identical_question_of_the_bank_is_shared():
     assert Question.objects.count() == 4
 
 
+def test_options_are_part_of_the_identity():
+    # Mêmes énoncé, propositions et barème ; seuls « Aucune… » ou l'ordre fixe diffèrent.
+    make_question("Lesquels ?", [("A", True), ("B", False)], multiple=True, scoring="haut=2")
+    make_question("Capitale ?", [("Rome", True), ("Milan", False)])
+    data = b"** Lesquels ?\n+ A\n- B\n\n*[ordered] Capitale ?\n+ Rome\n- Milan\n"
+    found = preview(data, "options.txt")
+    assert [shared for _, shared in found.rows()] == [False, False]
+    assert [(q.none_of_these, q.ordered) for q in found.parsed.questions] == [
+        (True, False),
+        (False, True),
+    ]
+
+
 def test_the_oldest_identical_question_is_chosen():
     older = make_question("Capitale de l'Italie ?", [("Rome", True), ("Milan", False)])
     make_question("Capitale de l'Italie ?", [("Rome", True), ("Milan", False)])

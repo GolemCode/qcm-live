@@ -96,8 +96,9 @@ def test_question_scoring_in_form(teacher_page: Page):
 
 # --- BAR-01 : les notes d'une session --------------------------------------------------------
 
-# Q1 simple b=2,m=-1,MAX=3, B porte -3 ; Q2 multiple haut=2 ; Q3 multiple mz=3,v=-1 ;
-# Q4 multiple sans barème, aucune proposition juste : « Aucune… » est la bonne réponse.
+# Q1 simple b=2,m=-1,MAX=3, B porte -3 ; Q2 multiple haut=2 ; Q3 multiple mz=3,v=-1, avec
+# « Aucune… », fausse puisque 3 est juste ; Q4 multiple sans barème, aucune proposition
+# juste : « Aucune… » est la bonne réponse.
 GRADED = [
     ("Capitale de l'Italie ?", [("Rome", True), ("Milan", False, "-3"), ("Turin", False)], False),
     ("Lesquels sont pairs ?", [("2", True), ("4", True), ("7", False), ("9", False)], True),
@@ -105,6 +106,7 @@ GRADED = [
     ("Lesquels sont négatifs ?", [("5", False), ("6", False)], True),
 ]
 GRADED_SCORING = ["b=2,m=-1,MAX=3", "haut=2", "mz=3,v=-1", ""]
+NONE_QUESTIONS = {"Lesquels sont premiers ?", "Lesquels sont négatifs ?"}
 # Réponses par question : texte des propositions cochées, et leurs indices dans la banque.
 GRADED_ANSWERS = {
     "00123": [["Milan"], ["2"], ["3"], [NONE_OF_THESE]],
@@ -126,7 +128,7 @@ def test_grades_follow_the_amc_scoring_of_each_question(teacher_page: Page, live
             choices,
             multiple=multiple,
             scoring=scoring,
-            none_of_these=text == "Lesquels sont négatifs ?",
+            none_of_these=text in NONE_QUESTIONS,
         )
         for (text, choices, multiple), scoring in zip(GRADED, GRADED_SCORING, strict=True)
     ]

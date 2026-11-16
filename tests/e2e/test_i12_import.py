@@ -188,7 +188,7 @@ def test_unsupported_questions_are_listed_before_confirmation(teacher_page: Page
 
 
 SCORED = """Title: Barèmes
-DefaultScoringS: b=3
+DefaultScoringS: b=3,v=-1
 
 * Simple, barème du fichier ?
 + Oui
@@ -227,12 +227,12 @@ def test_scoring_comes_from_the_file(teacher_page: Page):
     import_amc(page, SCORED)
     import_amc(page, SCORED_M, name="multiples.txt")
     # Le barème de la question remplace celui par défaut du fichier, sans s'y ajouter.
-    assert scoring_of(page, "Simple, barème du fichier ?") == "b=3"
+    assert scoring_of(page, "Simple, barème du fichier ?") == "b=3,v=-1"
     assert scoring_of(page, "Simple, son propre barème ?") == "b=2,m=-1"
     # Sans DefaultScoringM : le défaut implicite d'AMC pour une multiple.
     assert scoring_of(page, "Multiple, sans barème ?") == "haut=2"
     assert scoring_of(page, "Multiple, barème par défaut du fichier ?") == "b=1,m=-0.5"
-    assert scoring_of(page, "Simple, valeur d'une proposition ?") == "b=3"
+    assert scoring_of(page, "Simple, valeur d'une proposition ?") == "b=3,v=-1"
     expect(page.get_by_label("Points de la proposition B", exact=True)).to_have_value("-2")
 
 
