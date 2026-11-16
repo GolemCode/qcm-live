@@ -244,7 +244,9 @@ def test_running_the_install_again_updates_and_keeps_the_data(tmp_path: Path, pa
     assert hashlib.sha256((data(home) / "reglages.env").read_bytes()).hexdigest() == secret
 
     with launch(home, browser) as server:
-        login(page, server.local_url)
+        # Toujours connecté : la clé secrète gardée, la session de l'enseignant reste valide
+        # (les cookies ne dépendent pas du port).
+        page.goto(f"{server.local_url}/prof/")
         open_groups(page)
         expect(page.get_by_role("link", name="TD1")).to_be_visible()
 

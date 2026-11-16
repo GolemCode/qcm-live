@@ -119,7 +119,7 @@ def serve(
     adresse: str | None,
     port: int,
     *,
-    before_migrate: Callable[[], None] | None = None,
+    before_migrate: Callable[[], object] | None = None,
     on_ready: Callable[[str], None] | None = None,
 ) -> int:  # pragma: no cover — testé de bout en bout (CLA-01, INS-03)
     """Prépare l'environnement, applique les migrations et sert l'application jusqu'à Ctrl+C.

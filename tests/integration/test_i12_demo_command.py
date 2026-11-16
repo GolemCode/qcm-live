@@ -4,7 +4,7 @@ import re
 from io import StringIO
 
 import pytest
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from django.core.management import call_command
 
 from bank.models import Quiz
@@ -31,3 +31,12 @@ def test_demo_creates_then_reuses_and_changes_the_password():
     assert authenticate(username="demo", password=first) is None
     assert authenticate(username="demo", password=second)
     assert (Quiz.objects.get(), StudentGroup.objects.get()) == (quiz, group)
+
+
+def test_demo_without_account_creates_only_the_quiz_and_the_group():
+    """À l'installation (INS-01), l'enseignant a déjà son compte."""
+    out = StringIO()
+    call_command("demo", "--sans-compte", stdout=out)
+    assert "Mot de passe" not in out.getvalue()
+    assert not get_user_model().objects.exists()
+    assert Quiz.objects.count() == StudentGroup.objects.count() == 1

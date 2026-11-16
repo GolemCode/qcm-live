@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>QCM Live</title>
+  <!-- Le logo de l'application (templates/logo.html) : quatre carrés des couleurs 1 à 4. -->
+  <rect x="2" y="2" width="60" height="60" fill="#111"/>
+  <rect x="6" y="6" width="26" height="26" fill="#f0e442"/>
+  <rect x="32" y="6" width="26" height="26" fill="#0072b2"/>
+  <rect x="32" y="32" width="26" height="26" fill="#56b4e9"/>
+  <rect x="6" y="32" width="26" height="26" fill="#009e73"/>
+</svg>

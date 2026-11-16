@@ -148,7 +148,9 @@ def test_save_then_restore_round_trip(home, env, teacher, page: Page, tmp_path):
     assert group_names(backups(home) / after[-1], tmp_path) == []
 
     with launched(env) as server:
-        login(page, server.local_url)
+        # Toujours connecté : la session de l'enseignant fait partie des données restaurées
+        # (les cookies ne dépendent pas du port).
+        page.goto(f"{server.local_url}/prof/")
         open_groups(page)
         expect(page.get_by_role("link", name="TD1")).to_be_visible()
 
