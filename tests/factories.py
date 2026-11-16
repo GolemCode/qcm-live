@@ -31,13 +31,28 @@ def _saved(form):
 
 
 def make_question(
-    text: str, choices: Sequence[tuple[str, bool]] = YES_NO, *, multiple: bool = False
+    text: str,
+    choices: Sequence[tuple[str, bool] | tuple[str, bool, str]] = YES_NO,
+    *,
+    multiple: bool = False,
+    scoring: str = "",
+    none_of_these: bool = False,
+    ordered: bool = False,
 ) -> Question:
+    """Question enregistrée par le formulaire. Une proposition peut porter ses propres points
+    (troisième élément, questions simples : BAR-01) ; `scoring` : directives AMC du barème."""
     data = {"text": text, "kind": Question.Kind.MULTIPLE if multiple else Question.Kind.SIMPLE}
-    for letter, (label, correct) in zip(LETTERS, choices, strict=False):
+    data["scoring"] = scoring
+    if none_of_these:
+        data["none_of_these"] = "on"
+    if ordered:
+        data["ordered"] = "on"
+    for letter, (label, correct, *points) in zip(LETTERS, choices, strict=False):
         data[f"choice_{letter}"] = label
         if correct:
             data[f"correct_{letter}"] = "on"
+        if points:
+            data[f"points_{letter}"] = points[0]
     return _saved(QuestionForm(data))
 
 
