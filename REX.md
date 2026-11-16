@@ -1276,3 +1276,60 @@ Audit spec-auditor : 828113b
 - **Les règles d'AMC ont été lues, pas exécutées** : aucun test ne compare une note à celle qu'AMC calcule.
 - **Un test tout vert ne vérifiait pas tout** : quatre règles de notes passaient sous mutation (voir l'audit). Je n'ai essayé de casser que ce que l'auditeur avait vu ; d'autres faiblesses du même genre peuvent rester.
 - **`make demo` sur un compte existant** : rien n'empêche de nommer `demo` un vrai compte, dont le mot de passe serait remplacé. Seul le README le signale.
+
+## I13 — Lancement en classe, sauvegarde, Note /20
+
+### Objectif
+Retour du test réel du commanditaire après I12 : il s'est perdu entre `make run`, `make classe` et `make demo` ; sous Windows, en partage de connexion, le mode classe a annoncé 127.0.0.1 ; rien ne signalait un pare-feu. Il demandait aussi la Note /20 au CSV, une liste des élèves, le réimport AMC et une composition par cases à cocher.
+
+**Questions posées avant de concevoir**, en une fois, puis une seconde série sur l'identification (point D). Réponses reportées dans SPEC.md (exigences et journal §6). Elles fixent :
+- Linux d'abord, Windows en second ; installation par une ligne curl, sans sudo ; relancée, elle met à jour ;
+- un seul lancement, toujours le mode classe, qui ouvre le navigateur ; démonstration proposée à l'installation ;
+- adresse choisie au tableau sans redémarrer ; pare-feu signalé, jamais ouvert par l'application ; bouton « Tester avec mon téléphone » ;
+- sauvegarde à chaque lancement, 10 gardées, commandes `sauvegarder` et `restaurer` ;
+- Note /20 : total ÷ maximum × 20, au centième, bornée entre 0 et 20, vide pour un absent ;
+- page Résultats ouverte notes masquées (l'écran du PC est dupliqué au projecteur) ;
+- **jamais de numéro projeté** : l'identification par la liste (I14) devait répondre au but sans exposer les numéros (risque d'usurpation signalé au commanditaire).
+
+**Découpage validé jusqu'à I19** : I13 lancement en classe, sauvegarde et Note /20 ; I14 identification par la liste ; I15 composition, réimport, cases à cocher ; I16 séance (terminer le créneau, « déjà posée », année du groupe) ; I17 formules, code, images, ZIP ; I18 LaTeX AMC ; I19 espace enseignant « Signalétique ». Les incréments prévus de SPEC.md ont été renumérotés en conséquence.
+
+**Plan mode** pour la conception (emplacements des données, installation, lanceur, choix d'adresse, sauvegarde), approuvé avant les tests.
+
+### Tests d'acceptation
+Écrits avant le code et lancés aussitôt : tous les tests d'I13 en échec, chacun pour la raison attendue (pas de `install.sh` ni de `GUIDE.md`, pas de page « Réseau », pas de colonne `note /20`, tableau des notes visible). Quatre tests de résultats d'incréments passés échouaient aussi, comme prévu : leurs en-têtes attendus incluaient déjà la nouvelle colonne.
+
+Les tests d'installation reproduisent l'usage réel sans réseau : une archive est bâtie depuis l'arbre de travail, `install.sh` est lancé dans un `HOME` jetable, hors de tout terminal (`QCM_LIVE_ARCHIVE`, uv hors ligne sur son cache), puis la commande `qcm-live` installée démarre le serveur, qu'un téléphone Playwright joint. La mise à jour réinstalle une archive modifiée et vérifie que le groupe créé et le compte restent.
+
+### Problèmes rencontrés
+- **Deux tests rouges se trompaient** : après une restauration et après une mise à jour, ils attendaient la page de connexion. Or le navigateur était toujours connecté : les cookies ne dépendent pas du port, et la clé secrète comme la session en base sont gardées. Le comportement est le bon (la mise à jour ne déconnecte pas l'enseignant) ; les tests ouvrent désormais l'espace enseignant directement. Corrigé dans le commit de code, avec un commentaire ; le reste de ces tests échouait déjà pour la bonne raison.
+- **Un commit parti avec quatre erreurs de types** (bf2a8b8, tests du mode classe) : pre-commit ne lance que ruff, et je n'avais pas lancé pyright avant ce commit. Vu au passage suivant, corrigé dans un commit à part (52fef30). CLAUDE.md le rappelle désormais.
+- **Une commande refusée par `guard_bash.py`** : un pipe sans `pipefail`. Refaite.
+- **Écart au plan** : `scripts/gen_env.py` devait réutiliser la fonction qui écrit `reglages.env`. Il ne le fait pas : il s'exécute avec `uv run --no-project`, sans le projet dans son chemin d'import, et les deux fichiers n'ont pas le même contenu (`.env` de développement contre `reglages.env` de l'enseignant). Laissé ainsi.
+- **L'essai réel de l'installation au clavier** (pseudo-terminal, `cat install.sh | sh`, `HOME` jetable) a montré ce que les tests sans terminal ne voyaient pas :
+  - `createsuperuser` posait ses questions en partie en anglais (« Password: », « Error: Your passwords didn't match. ») et proposait le compte système comme identifiant ;
+  - ma ligne d'introduction finissait par « : », comme une question ;
+  - la sortie de `uv sync` (41 paquets listés) noyait les questions.
+
+  Corrigé : les questions du compte sont posées par QCM Live, en français (`prompt_account`, commun à l'installation et à `qcm-live compte`), avec les validateurs de Django, dont les refus sont déjà traduits ; `uv sync --quiet`. Rejoué ensuite : compte créé après une confirmation volontairement fausse, démonstration ajoutée, lancement par la commande installée, essai d'un téléphone réussi.
+- **Le contexte de la session a été résumé** pendant l'implémentation ; le travail a repris sur le plan et l'état du dépôt.
+
+### Choix techniques et leur raison
+- **Le code et les données sont séparés** : `app/` est remplacé à chaque mise à jour, `venv/`, la base et `reglages.env` restent à côté, dans un dossier en 700. La nouvelle version est préparée dans `app.new` et l'environnement Python mis à jour avant l'échange : un échec avant l'échange laisse l'ancienne version en place.
+- **uv seulement à l'installation.** La commande `qcm-live` lance directement le Python de l'environnement : pas de résolution ni de réseau au lancement, en classe.
+- **Les questions de l'installation lisent `/dev/tty`** : sous `curl | sh`, l'entrée standard est le script. Sans terminal, les réponses viennent de l'environnement (tests).
+- **La logique de l'installation est en Python** (`config/install.py`), commune à `install.sh` et `install.ps1` : les deux scripts se bornent à placer le code, préparer l'environnement et l'appeler. Elle se teste en unitaire et de bout en bout.
+- **Sauvegarde par l'API `sqlite3.backup`**, cohérente même si la base est ouverte ; archive zip pour que les images y entrent en I17. La sauvegarde du lancement se fait **avant** les migrations, pour qu'une migration ratée se rattrape.
+- **Une archive est entièrement vérifiée avant toute écriture** (zip lisible, `db.sqlite3`, `integrity_check`, aucune migration inconnue de cette version), et seul le membre `db.sqlite3` est lu, par son nom : un chemin choisi par l'archive n'est jamais écrit. Les données remplacées sont sauvegardées d'abord.
+- **Le choix d'adresse vit dans le cache en mémoire**, pas en base : il dépend des cartes du PC à ce lancement. Seules les adresses détectées au démarrage sont acceptées, déjà dans `ALLOWED_HOSTS` : rien n'est modifié pendant que le serveur tourne.
+- **Le pare-feu est détecté par des sondes en lecture seule** (fichier de ufw, `systemctl is-active`, `Get-NetConnectionProfile`). Un test unitaire vérifie qu'aucune autre commande n'est lancée.
+- **Note /20 en `Decimal`**, arrondie au demi-centième vers le haut, comme les autres nombres du CSV ; vide plutôt que 0 pour un absent.
+- **Notes masquées par un `<details>` fermé**, sans JS (CSP), et le CSV se télécharge sans rien afficher.
+- **Icône SVG** reprenant les quatre carrés du logo ; aucune dépendance nouvelle dans l'application.
+
+### Ce qui n'est garanti que par la consigne ou reste à vérifier
+- **Windows n'est pas vérifié.** `install.ps1` n'a été que soumis à l'analyseur syntaxique de PowerShell (aucune erreur, texte ASCII pour PowerShell 5.1) ; il n'a jamais été exécuté. La détection des adresses et du pare-feu sous Windows ne s'appuie que sur la lecture de vraies sorties de `powershell.exe`, en lecture seule. Le raccourci du menu Démarrer n'a pas d'icône (un `.ico` serait nécessaire). L'essai revient au commanditaire.
+- **La cause du 127.0.0.1 n'a pas été reproduite** : l'enseignant peut désormais choisir l'adresse, et l'adresse d'un point d'accès ouvert par le PC passe en tête, mais rien ne prouve que la détection Windows la trouve.
+- **Le choix d'adresse n'est pas gardé d'un lancement à l'autre**, et une carte apparue après le lancement demande de relancer (la page le dit).
+- **Depuis WSL**, l'adresse n'est joignable qu'en réseau « mirrored ».
+- **La restauration se fait QCM Live arrêté** : seul le guide le dit ; rien n'empêche de restaurer pendant qu'un serveur tourne.
+- **`curl | sh`** exécute ce que sert GitHub au moment du téléchargement : l'enseignant fait confiance au dépôt, comme pour toute installation de ce genre. Le script est entièrement dans une fonction appelée à la dernière ligne, pour qu'un téléchargement interrompu n'exécute rien.
