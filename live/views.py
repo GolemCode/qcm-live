@@ -27,7 +27,7 @@ from django.views.decorators.http import require_POST
 
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
-from live.results import csv_rows, decimal_fr, max_total
+from live.results import csv_rows, decimal_fr, grade_20_text, max_total
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
@@ -205,14 +205,16 @@ def _is_over(session: Session) -> bool:
 
 @login_required
 def results(request: HttpRequest, code: str) -> HttpResponse:
-    """RES-01 : notes de la session, sur une page non projetée, une fois la session terminée."""
+    """RES-01 : notes de la session, une fois la session terminée. L'écran du PC peut être
+    dupliqué au projecteur : le tableau s'ouvre masqué (RES-04)."""
     session = get_object_or_404(Session, code=code)
     over = _is_over(session)
     context: dict = {"session": session, "over": over}
     if over:
+        top = max_total(session.content)
         context |= {
-            "rows": session.results(),
-            "maximum": decimal_fr(max_total(session.content)),
+            "rows": [(row, grade_20_text(row.total, top)) for row in session.results()],
+            "maximum": decimal_fr(top),
         }
     return render(request, "live/results.html", context)
 

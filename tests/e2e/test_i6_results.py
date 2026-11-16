@@ -47,7 +47,9 @@ from tests.e2e.live_ui import (
     phone_choices,
     phones_joined,
     results_rows,
+    results_table,
     save_status,
+    show_grades,
     start,
 )
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session
@@ -147,7 +149,8 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     open_results(page)
     expect(page.get_by_role("main")).to_contain_text("Contrôle")
     expect(page.get_by_role("main")).to_contain_text("TD1")
-    headers = page.get_by_role("table", name="Résultats").get_by_role("columnheader")
+    show_grades(page)  # masquées à l'ouverture (RES-04)
+    headers = results_table(page).get_by_role("columnheader")
     expect(headers).to_have_text(["Numéro", "Nom", "Note", "Note maximale", "Note /20"])
     assert results_rows(page) == [  # ordre du fichier du groupe, pas celui d'arrivée
         ["7", "Ng Anh", "1", MAX_TOTAL, "2,22"],  # -0,25 - 0,25 + 2 - 0,5

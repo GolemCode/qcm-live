@@ -7,19 +7,23 @@
   </div>
   <p class="muted">Session {{ session.code }} · {{ session.quiz_title }} · Groupe {{ session.group_name }}</p>
   {% if over %}
-    <table class="grid" aria-label="Résultats">
-      <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th><th scope="col" class="num">Note</th><th scope="col" class="num">Note maximale</th></tr></thead>
-      <tbody>
-        {% for result in rows %}
-          <tr>
-            <td>{{ result.number }}</td>
-            <td>{{ result.name }}</td>
-            <td class="num{% if result.marks is None %} muted{% endif %}">{{ result.total_text }}</td>
-            <td class="num">{{ maximum }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <details class="grades">
+      <summary>Afficher les notes</summary>
+      <table class="grid" aria-label="Résultats">
+        <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th><th scope="col" class="num">Note</th><th scope="col" class="num">Note maximale</th><th scope="col" class="num">Note /20</th></tr></thead>
+        <tbody>
+          {% for result, out_of_20 in rows %}
+            <tr>
+              <td>{{ result.number }}</td>
+              <td>{{ result.name }}</td>
+              <td class="num{% if result.marks is None %} muted{% endif %}">{{ result.total_text }}</td>
+              <td class="num">{{ maximum }}</td>
+              <td class="num">{{ out_of_20 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
   {% else %}
     <p>Les résultats seront disponibles à la fin de la session.</p>
   {% endif %}
