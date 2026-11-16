@@ -105,7 +105,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Avant d'expliquer un test intermittent, mesurer (sonde horloge murale contre monotone). Une CI verte ne dit rien de ce défaut.
 - **Le test de CLA-01 dépend du réseau du PC.** Sans route, le mode classe annonce `127.0.0.1` sur ce PC (ailleurs, il essaie d'abord les adresses non locales), et le test échoue sur cette adresse. Vérifier le réseau avant de chercher ailleurs.
 - **SQLite sous la charge d'une classe.** Une transaction ordinaire lit puis demande le verrou d'écriture : si une autre écrit déjà, SQLite refuse aussitôt (« database is locked »), sans attendre. 40 téléphones qui valident leur numéro au même instant donnaient des erreurs 500. D'où `transaction_mode: IMMEDIATE` dans `DATABASES` : ne pas le retirer.
-- **Ne jamais rendre la main pendant un `make verify` en arrière-plan** : le hook Stop lance `make check`, donc un second pytest sur la même base de test (I7 : 8 tests en erreur, « no such table »). Lancer `make verify` au premier plan.
+- **Ne jamais rendre la main pendant un `pytest` en arrière-plan dans le dépôt** (`make verify`, contre-épreuves) : le hook Stop lance `make check`, donc un second pytest sur la même base de test (I7 : 8 tests en erreur, « no such table » ; I11 : « readonly database » sur une contre-épreuve). Lancer au premier plan, ou attendre la fin au premier plan (`tail --pid=<pid> -f /dev/null`).
 - **Tests du mode classe** (`tests/e2e/test_i7_classroom.py`).
   - Ils lancent `make classe` dans un autre processus, sur la base de test (`DJANGO_DB_PATH`), et non `live_server`.
   - Ce serveur ne connaît pas le hachage MD5 des tests : le module redéfinit `_fast_password_hasher` pour hacher comme en production.

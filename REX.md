@@ -1022,6 +1022,38 @@ Le réseau du téléphone est simulé par Playwright, en trois modes vérifiés 
   - CLAUDE.md décrivait encore l'ancien téléphone : corrigé.
   - Trois tests ajoutés (verrouillage, stockage refusé, réponse effacée), chacun en échec sur le code d'avant ces corrections, pour la raison attendue.
 - **`/security-review` : aucun constat.** La nouvelle route ne lit l'identité que dans la session Django, et ne renvoie que des indices de propositions. Les textes sont insérés avec `textContent`, et la CSP est inchangée.
+- **`spec-auditor`, premier passage (commit 231fbf0) : trois réserves bloquantes, toutes dans les tests.** Aucune erreur dans le code, mais 6 mutations sur 21 survivaient (dont 2 équivalentes). Copie jetable au bon commit ; le dépôt principal n'a pas bougé (`git status` vide, aucune copie oubliée).
+  - **La question au serveur.** Elle est posée à trois moments : à l'échéance, à l'écran suivant, à la fin. Chacune pouvait être retirée seule sans qu'un test échoue. Sans la première, un étudiant dont la réponse était bien arrivée lisait « Temps écoulé : réponse non enregistrée ». Le test de la confirmation perdue lit désormais l'écran à l'échéance. Un nouveau test coupe tout le réseau avant l'échéance, pour que l'écran suivant, puis la fin, aient seuls à demander.
+  - **La proposition choisie restait noire après un changement de réponse** : le test ne regardait que le premier choix. Il vérifie désormais un changement et un effacement.
+  - **Les 48 px des propositions n'étaient mesurés qu'avec des textes de plusieurs lignes.** Ils le sont aussi sur les six téléphones du test d'accessibilité, aux propositions courtes.
+  - Non bloquante, corrigée : un délai de 4 s pour « Connexion perdue » passait. Le délai est désormais mesuré dans la page, depuis la dernière réponse du serveur : entre 3 s et 3,4 s.
+  - Non bloquantes, laissées :
+    - la correspondance entre créneau et question de la nouvelle route n'est vérifiée qu'en intégration, avec rotation ;
+    - aucun test ne couvre un envoi qui doit reprendre quand du temps est ajouté après l'échéance du téléphone (cas rare : il faut que le téléphone ait perdu l'état du direct au moment du « +10 s »).
+  - **Mon premier renforcement était faux.** Le test coupait l'état du direct juste après avoir avancé le déroulement, avant que le téléphone ait recalé son compte à rebours, qui croyait donc avoir encore 28 s. Une sonde a montré que le code faisait ce qu'il fallait ; le test attend désormais le recalage.
+  - Contre-épreuves refaites après correction : les six mutations survivantes sont toutes détectées, chacune pour la raison attendue.
+- **`spec-auditor`, second passage (commit 2a4df6d) : une réserve bloquante.** Les six mutations du premier passage sont détectées ; 22 nouvelles l'ont été aussi, sauf six. Fichier stable (trois passages complets). Copie au bon commit ; le dépôt principal n'a pas bougé.
+  - **Bloquante : la confirmation d'une réponse remplacée** pouvait valoir pour la suivante sans qu'un test échoue. L'étudiant passe de « Paris » à « Lyon » pendant un envoi lent ; « Paris » arrive, « Lyon » jamais. Le code était juste, mais une ligne déplacée aurait fait afficher « transmises » à la fin. Le test de l'envoi lent relâchait les deux envois, et ne pouvait pas le voir. Un test retient désormais « Lyon » jusqu'à l'échéance.
+  - Non bloquantes, corrigées :
+    - le bandeau rouge de « Connexion perdue » pouvait rester visible, vide (le test cherchait son texte) ;
+    - l'alerte « toujours à l'écran » était vérifiée sur une page trop courte pour défiler ;
+    - une clé de trace commune à toutes les sessions passait : un même téléphone peut servir deux fois dans la journée ;
+    - le grand numéro de couleur n'était pas vérifié ;
+    - l'état verrouillé à l'échéance n'était pas contrôlé par ACC-02.
+  - Non bloquant, laissé : la perte d'une réponse peut être rappelée sur les écrans suivants, ce que la spec n'interdit pas.
+  - **Un test en échec bloquait au démontage.** Sous la mutation, le nouveau test échouait bien, puis la fixture attendait sans fin. Le réseau du premier `Network` attendait des requêtes retenues par le second. La fixture relâche désormais toutes les requêtes retenues avant de couper les interceptions. Le défaut aurait figé la CI au premier vrai échec de ce test.
+  - **Deux fois, j'ai rendu la main pendant mes contre-épreuves en arrière-plan.** Le hook Stop a lancé `make check` sur la même base de test, alors qu'un `pytest` tournait sur du code muté. Un résultat est tombé sur « attempt to write a readonly database » ; un autre venait d'une exécution que j'avais arrêtée. Les deux ont été refaits seuls, au premier plan. CLAUDE.md l'interdisait déjà pour `make verify` : la règle vaut pour tout `pytest` lancé en arrière-plan dans le dépôt.
+  - Contre-épreuves refaites après correction : toutes détectées, chacune pour la raison attendue. Le fichier passe deux fois de suite.
+- **`spec-auditor`, troisième passage (commit 0d8ab6a) : aucune réserve bloquante.**
+  - Toutes les mutations des passages précédents sont détectées, chacune pour la raison attendue, ainsi que quatre nouvelles : un renvoi après l'échéance, une barre d'envoi qui ne colle plus, une réponse changée qui garde l'ancienne confirmation, un état verrouillé estompé.
+  - L'auditeur a provoqué un échec à trois endroits où des requêtes sont retenues : le démontage ne bloque plus.
+  - Fichier stable : deux passages complets, plus un troisième. Copie au bon commit ; le dépôt principal n'a pas bougé.
+  - Non bloquantes, laissées :
+    - la question au serveur n'est vérifiée de bout en bout que pour un téléphone de rang 0, avec une question à la fois, où créneau et question coïncident ; la rotation n'est vérifiée qu'en intégration ;
+    - rien ne vérifie que la perte d'une réponse n'est signalée qu'une fois : la spec dit « dès l'écran suivant », sans plus ;
+    - un envoi qui doit reprendre quand du temps est ajouté après l'échéance du téléphone.
+
+Audit spec-auditor : 0d8ab6a60a5fdeffb87e9d56615ac2b350040408
 
 ### Choix techniques et leur raison
 - **Le téléphone tient une trace de ses envois, le serveur reste l'arbitre.** Le téléphone ne peut pas savoir seul si une réponse sans confirmation est arrivée : la requête a pu atteindre le serveur et seule la réponse se perdre. Plutôt que de deviner, il compare sa trace à ce que le serveur a enregistré, par une route qui ne donne que des indices de propositions par créneau. C'est elle qui décide à l'échéance, à l'écran suivant et à la fin. Aucune nouvelle table, aucun nouvel état côté serveur : `Answer` suffisait.
