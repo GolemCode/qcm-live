@@ -25,13 +25,17 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 5. **Simplicité.** Rien hors spec. Toute nouvelle dépendance doit répondre à un besoin concret, consigné dans REX.md. Aujourd'hui l'application dépend de Django, de segno (QR code de jonction, I8), de waitress et de whitenoise (mode classe, I7), et sert elle-même la police Atkinson Hyperlegible (`static/fonts/`, licence OFL, I10). En test seulement : zxing-cpp et Pillow décodent le QR code ; axe-core (`tests/e2e/vendor/`, MPL-2.0, I10) contrôle l'accessibilité.
 6. **Git.**
    - Jamais de commit ni de push sur `main`, qui est protégée : on passe par une PR.
-   - Une branche `inc/<n>-<slug>` par incrément (`inc/r-<slug>` et tag `inc-r` pour la correction de l'audit externe).
+   - Une branche `inc/<n>-<slug>` par incrément. Les incréments sans exigence portent une lettre : `inc/r-<slug>` et tag `inc-r` pour la correction de l'audit externe, `inc/m-<slug>` et tag `inc-m` pour l'incrément de méthode. Le hook Stop reconnaît les deux formes.
    - Commits Conventional Commits en français (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`), avec le trailer Co-Authored-By.
    - Fusion par `gh pr merge --merge`, puis tag `inc-<n>`.
    - Jamais de `--no-verify` ni de push forcé. Le hook `guard_bash.py` refuse les formes courantes, pas toutes (`git -c core.hooksPath=…`) : la règle s'applique quand même.
 7. **Langue.** Code et identifiants en anglais. Interface, docs, commits et PR en français.
    - **La conversation avec le commanditaire se tient en français, du premier au dernier message**, messages intermédiaires compris, même dans une très longue session (dérive constatée en I0-I4).
    - Les prompts de `/simplify`, `/code-review` et `/security-review` sont en anglais, comme les réponses d'outils : cela ne change pas la langue de mes messages.
+   - **Moyens (incrément M), au-delà de cette consigne.** La règle n'a pas suffi : 71 messages sur 75 en anglais en I11 (REX, section M).
+     - `"language": "french"` dans `.claude/settings.json` : la consigne passe dans le prompt système. Cela reste une consigne.
+     - `.claude/hooks/language.py` : en hook PostToolUse, il m'avertit en cours de tour quand le message qui précède un appel d'outil est en anglais ; dans le hook Stop, il renvoie au travail un tour qui contient un message anglais, une fois par arrêt. **Détection heuristique, après coup** : le message est déjà affiché, et un message court ou mêlé de français peut passer.
+     - Si l'un de ces rappels arrive : redire brièvement en français ce que j'annonçais, et continuer en français.
 8. **Mémoire.** Le savoir durable va dans ce fichier, dans SPEC.md ou dans REX.md, versionnés, jamais dans la mémoire locale de Claude.
 9. **Codes de retour.** Le code de retour d'une vérification (`make check`, `pytest`, `pyright`, `ruff`…) doit rester celui de la commande entière. Un pipe vers `tail`, un `;` puis `echo` ou `|| true` l'effacent : deux incidents (I5, un commit parti avec un test en échec ; I6, `exit 0` annoncé sur 16 erreurs pyright).
    - Enchaîner avec `&&`, ou écrire `set -o pipefail` avant le pipe.
@@ -41,6 +45,8 @@ QCM d'évaluation en direct en Django : les questions sont projetées, les étud
 
 ## Procédure d'un incrément
 Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
+
+**Audit borné (incrément M) : deux passages de `spec-auditor` au plus.** Le second ne vérifie que les réserves bloquantes du premier. Ce qui reste ensuite va dans le REX, sous « Réserves ouvertes », sauf une réserve qui touche la justesse des notes ou la séparation énoncé/propositions (AFF-01) : je la corrige et je refais moi-même les contre-épreuves de l'auditeur, sans troisième passage. Rien ne l'impose techniquement : le hook Stop ne voit que la ligne `Audit spec-auditor : <commit>`.
 
 ## Architecture (cible)
 - `config/` : réglages lus depuis l'environnement, urls, vues transverses (accueil, espace enseignant). On y trouve aussi `forms.py`, les briques communes des formulaires enseignant (`TeacherForm`, `table_field`).
@@ -97,7 +103,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Détecté, pas empêché : gitleaks en pre-commit (une fois `make setup` fait) et en CI (après le push).
   - Consigne seulement : `guard_bash.py` refuse toute commande qui nomme `.env` en argument ou la charge par `uv run --env-file` (sauf `ls`, `test`, `make`, `uv` sans `--env-file`, `git commit`, `git status`…, dont certaines peuvent le lire), mais pas `python3 -c` ni `bash -c`. Claude Code tourne avec les droits de l'utilisateur.
   - Sandbox de Claude Code évalué et **écarté** (raison et conditions de réévaluation dans le REX). Sans `socat`, il ne démarre pas ; sans `failIfUnavailable`, les commandes tournent alors hors sandbox, sans bloquer. Un test de CLA-01 ne peut pas passer dans un réseau isolé.
-- **Le hook Stop vérifie aussi la procédure.** Sur une branche d'incrément, il renvoie au travail une fois par arrêt tant que manquent la section du REX, sa ligne `Audit spec-auditor : <commit>`, la PR ou la fusion. Il revient à chaque arrêt, même sans nouveau commit : l'arrêt de I6 survenait justement après une revue sans commit. S'il se déclenche alors qu'on attend vraiment le commanditaire ou la CI, le redire clairement et s'arrêter. Un rapport de revue n'est jamais un message final.
+- **Le hook Stop vérifie aussi la procédure.** Sur une branche d'incrément, il renvoie au travail une fois par arrêt tant que manquent la section du REX, sa ligne `Audit spec-auditor : <commit>`, la PR ou la fusion. Il revient à chaque arrêt, même sans nouveau commit : l'arrêt de I6 survenait justement après une revue sans commit. S'il se déclenche alors qu'on attend vraiment le commanditaire ou la CI, le redire clairement et s'arrêter. Un rapport de revue n'est jamais un message final. Il vérifie aussi la langue du tour (règle 7).
 - **Agent `spec-auditor` : il n'est pas en lecture seule.** Il a Bash et modifie du code pour ses contre-épreuves, dans un worktree jetable (`isolation: worktree`, `worktree.baseRef: head`). Cette isolation fixe son dossier de départ, sans empêcher un chemin absolu : contrôler après son passage que le dépôt principal n'a pas bougé.
 - **Horloge système : elle peut reculer** (REX section R). Sur le PC de développement sous WSL2, elle recule d'environ 1,4 à 2 s toutes les 32 s, parfois davantage (`systemd-timesyncd`). Un test à moins de 2 s de marge y échoue au hasard.
   - `tests/conftest.py::_steady_clock` donne au serveur de test une horloge sans saut. Les tests du mode classe la désactivent : leur serveur, lancé à part, lit l'horloge système, et `jump_to` doit lire la même.
@@ -105,7 +111,10 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Avant d'expliquer un test intermittent, mesurer (sonde horloge murale contre monotone). Une CI verte ne dit rien de ce défaut.
 - **Le test de CLA-01 dépend du réseau du PC.** Sans route, le mode classe annonce `127.0.0.1` sur ce PC (ailleurs, il essaie d'abord les adresses non locales), et le test échoue sur cette adresse. Vérifier le réseau avant de chercher ailleurs.
 - **SQLite sous la charge d'une classe.** Une transaction ordinaire lit puis demande le verrou d'écriture : si une autre écrit déjà, SQLite refuse aussitôt (« database is locked »), sans attendre. 40 téléphones qui valident leur numéro au même instant donnaient des erreurs 500. D'où `transaction_mode: IMMEDIATE` dans `DATABASES` : ne pas le retirer.
-- **Ne jamais rendre la main pendant un `pytest` en arrière-plan dans le dépôt** (`make verify`, contre-épreuves) : le hook Stop lance `make check`, donc un second pytest sur la même base de test (I7 : 8 tests en erreur, « no such table » ; I11 : « readonly database » sur une contre-épreuve). Lancer au premier plan, ou attendre la fin au premier plan (`tail --pid=<pid> -f /dev/null`).
+- **Plusieurs pytest dans le dépôt (incrément M).** Avant M, ils partageaient une seule base de test : le hook Stop lançait `make check` pendant un pytest en arrière-plan (I7 : 8 tests en erreur, « no such table » ; I11 : deux fois, dont « readonly database »).
+  - **Mécanisme :** chaque processus a sa base, `.test-db-<pid>.sqlite3` (`config/settings.py`). `tests/conftest.py` supprime au démarrage celles dont le processus n'existe plus (pytest tué). Un test lance deux pytest à la fois.
+  - **En plus :** le hook Stop ne lance pas `make check` quand un pytest tourne sous le projet (worktrees compris, lu dans `/proc`) : il ne prend pas de processeur aux E2E à faible marge et ne vérifie pas du code en cours de mutation. Le contrôle se fait à l'arrêt suivant. Sans `/proc`, ce garde ne voit rien.
+  - Rendre la main pendant un pytest en arrière-plan n'est donc plus dangereux pour la base. Attendre sa fin au premier plan reste préférable pour en lire le résultat (`tail --pid=<pid> -f /dev/null`).
 - **Tests du mode classe** (`tests/e2e/test_i7_classroom.py`).
   - Ils lancent `make classe` dans un autre processus, sur la base de test (`DJANGO_DB_PATH`), et non `live_server`.
   - Ce serveur ne connaît pas le hachage MD5 des tests : le module redéfinit `_fast_password_hasher` pour hacher comme en production.
@@ -114,8 +123,7 @@ Suivre le skill **`increment`** (`.claude/skills/increment/SKILL.md`).
   - Toute interception doit cesser avant la fin du test (`unroute_all(behavior="wait")`) : sinon, des avertissements « coroutine never awaited » apparaissent à la fermeture du navigateur.
   - Un `page.evaluate` qui renvoie la promesse d'une requête retenue attend sa fin et bloque le test : lancer la requête sans renvoyer sa promesse.
   - Sur la couleur 1, le fond de la page a la couleur de la barre du temps : une mesure « après la dernière ligne jaune » tombe sur le fond.
-- **Jamais deux exécutions de pytest en parallèle dans le même dépôt** : elles partagent la base de test en fichier (« no such table »). Un agent qui fait des contre-épreuves travaille dans un worktree jetable.
-- **Base de test SQLite en fichier** (`DATABASES["default"]["TEST"]["NAME"]`), pas en mémoire. En mémoire partagée, un accès concurrent entre le test et le serveur de test échoue aussitôt (« table is locked ») : un test E2E qui écrit en base pendant que les téléphones interrogent le serveur devenait intermittent (1 fois sur 10).
+- **Base de test SQLite en fichier** (`DATABASES["default"]["TEST"]["NAME"]`), pas en mémoire, un fichier par processus (voir plus haut). En mémoire partagée, un accès concurrent entre le test et le serveur de test échoue aussitôt (« table is locked ») : un test E2E qui écrit en base pendant que les téléphones interrogent le serveur devenait intermittent (1 fois sur 10).
 - **Enchaîner les commits avec `&&`, jamais avec `;`.** Un commit refusé par pre-commit laisse ses fichiers indexés, et le commit suivant les emporte sous un message faux.
 - **Imports et ruff.** ruff ne classe un import parmi ceux du projet que si le module existe. D'où la liste `known-first-party` dans `pyproject.toml` : y ajouter toute nouvelle application **avant** d'écrire ses tests rouges.
 - **`gh pr edit` échoue** avec le `gh` 2.45 de la machine (requête GraphQL sur les « Projects classic » obsolètes). Modifier une PR par l'API REST : `gh api -X PATCH repos/GolemCode/qcm-live/pulls/<n> -F body=@fichier.md`. Pour sortir une PR du brouillon : `gh pr ready <n>`, qui fonctionne. Vérifier le numéro de la PR avant toute modification.

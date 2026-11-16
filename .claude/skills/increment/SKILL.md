@@ -34,7 +34,10 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 
 1. `/simplify` sur le diff de la branche.
 2. `/code-review` sur le diff. Si l'incrément touche aux entrées, à l'authentification, aux sessions ou aux réglages : `/security-review`.
-3. Lancer l'agent **`spec-auditor`** avec l'incrément n et le commit à auditer. Il travaille dans un worktree jetable. Il ne doit rester aucune réserve bloquante.
+3. Lancer l'agent **`spec-auditor`** avec l'incrément n et le commit à auditer. Il travaille dans un worktree jetable. **Deux passages au plus** (incrément M) :
+   - premier passage : audit complet ;
+   - second passage, facultatif : lui transmettre la liste des réserves bloquantes du premier ; il ne vérifie que celles-là ;
+   - ensuite, ce qui reste va dans la section du REX, sous « Réserves ouvertes ». **Exception** : une réserve qui touche la justesse des notes ou la séparation énoncé/propositions (AFF-01) reste bloquante ; la corriger, puis refaire soi-même les contre-épreuves de l'auditeur, sans troisième passage.
 4. Contrôler ensuite que le dépôt principal n'a pas bougé : `git status --short` vide, même `HEAD` qu'avant, et `git worktree list` sans copie oubliée.
 
 ## 6. Documenter
