@@ -338,10 +338,12 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
   overflow-wrap: anywhere; cursor: pointer;
 }
 .phone .answer span { min-width: 0; }
-/* La proposition choisie : noir plein, texte blanc. */
-.phone .answer:has(input:checked) { background: var(--ink); color: var(--on-ink); }
-.phone .answer:has(input:checked) input { accent-color: var(--on-ink); }
-.phone .answer:has(input:checked) :focus-visible { outline-color: var(--on-ink); }
+/* La proposition choisie (classe posée par la page, puis par static/js/phone.js) : noir plein,
+   texte blanc. Les propositions se verrouillent à l'échéance. */
+.phone .answer.chosen { background: var(--ink); color: var(--on-ink); }
+.phone .answer.chosen input { accent-color: var(--on-ink); }
+.phone .answer.chosen :focus-visible { outline-color: var(--on-ink); }
+.phone .answers:disabled .answer { cursor: default; }
 
 /* État de l'envoi et « Effacer ma réponse » : collés au bas de l'écran pendant le défilement. */
 .answer-bar {

@@ -251,6 +251,10 @@ def test_answer_lost_at_the_deadline_is_reported(
     # À l'échéance, le téléphone, toujours sur ce créneau, dit que la réponse est perdue.
     expect(save_status(phone)).to_have_text(TOO_LATE, timeout=7_000)
     expect(phone.locator("body")).to_have_attribute("data-page", "running:0")
+    # Les propositions sont verrouillées : aucun autre choix ne peut partir ni être compté.
+    for label in phone_choices(phone):
+        expect(phone.get_by_label(label, exact=True)).to_be_disabled()
+    expect(phone.get_by_role("button", name="Effacer ma réponse")).to_be_disabled()
     sent = len(network.posts)
     phone.wait_for_timeout(2_000)
     assert len(network.posts) == sent, "renvoi après la fin du créneau"
@@ -301,6 +305,33 @@ def test_answer_received_without_confirmation_counts(
     jump_to(session, 61)
     expect(end_message(phone)).to_contain_text(TRANSMITTED, timeout=LIVE_MS)
     wait_recorded(phone, session, "00123", {CAPITAL: ["Paris"], SKY: ["Bleu"]})
+
+
+@pytest.mark.spec("ETU-10")
+@pytest.mark.spec("FIN-02")
+def test_refused_storage_still_reports_on_the_moment(
+    teacher_page: Page, live_server, new_phone, networks
+):
+    """Stockage local refusé (navigation privée stricte, mémoire pleine) : le créneau affiché
+    dit quand même que la réponse est perdue ; la fin, sans trace, n'affirme rien."""
+    session = make_live(1, shown=1)
+    phone = new_phone()
+    phone.add_init_script("Storage.prototype.setItem = () => { throw new Error('plein'); };")
+    (phone,) = started(teacher_page, live_server.url, lambda: phone, session, ["00123"])
+    expect_slot(phone, 0)
+    jump_to(session, 25)
+    expect(timer(phone)).to_have_text(re.compile(r"^0:0[3-5]$"), timeout=LIVE_MS)
+    network = networks(phone, EVERYTHING)
+    network.cut()
+    choose(phone, "Paris")
+    expect(save_status(phone)).to_have_text(SENDING)
+    expect(save_status(phone)).to_have_text(TOO_LATE, timeout=7_000)
+    network.restore()
+    expect(end_message(phone)).to_have_text(
+        re.compile(r"^\s*Session terminée\.\s*$"), timeout=LIVE_MS + 1_000
+    )
+    phone.wait_for_timeout(1_000)
+    expect(end_message(phone)).to_have_text(re.compile(r"^\s*Session terminée\.\s*$"))
 
 
 @pytest.mark.spec("ETU-10")
@@ -403,16 +434,23 @@ def test_end_counts_the_answers_not_transmitted(
 
 @pytest.mark.spec("FIN-02")
 def test_end_affirms_nothing_it_cannot_know(teacher_page: Page, live_server, new_phone):
-    """Aucune réponse donnée, ou trace des envois perdue : « Session terminée. » seulement."""
+    """Aucune réponse donnée (rien choisi, ou tout effacé), ou trace des envois perdue :
+    « Session terminée. » seulement."""
     session = make_live(1, shown=1)
-    silent, forgetful = started(teacher_page, live_server.url, new_phone, session, ["00123", "42"])
+    silent, forgetful, hesitant = started(
+        teacher_page, live_server.url, new_phone, session, ["00123", "42", "7"]
+    )
     expect_slot(forgetful, 0)
     choose(forgetful, phone_choices(forgetful)[0])
     expect(save_status(forgetful)).to_have_text(SAVED)
     forgetful.evaluate("() => localStorage.clear()")  # stockage effacé par le navigateur
+    choose(hesitant, phone_choices(hesitant)[0])
+    expect(save_status(hesitant)).to_have_text(SAVED)
+    clear_answer(hesitant)
+    expect(save_status(hesitant)).to_have_text(CLEARED)
 
     jump_to(session, 31)
-    for phone in (silent, forgetful):
+    for phone in (silent, forgetful, hesitant):
         expect(end_message(phone)).to_have_text(re.compile(r"^\s*Session terminée\.\s*$"))
         phone.wait_for_timeout(1_000)  # rien n'est ajouté ensuite
         expect(end_message(phone)).to_have_text(re.compile(r"^\s*Session terminée\.\s*$"))

@@ -9,8 +9,9 @@ window.qcm = {
   // millisecondes (une requête perdue par le réseau ne bloque pas les suivantes), et notée
   // comme un contact dès que le serveur répond, quel que soit le statut.
   async request(url, options = {}, ms = 5000) {
-    const signal = AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined;
-    const response = await fetch(url, { cache: "no-store", signal, ...options });
+    const controller = new AbortController(); // AbortSignal.timeout manque sur iOS 15
+    setTimeout(() => controller.abort(), ms); // sans effet sur une requête déjà terminée
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal, ...options });
     this.lastContact = performance.now();
     return response;
   },

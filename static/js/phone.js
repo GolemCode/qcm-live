@@ -28,20 +28,24 @@
   const qcm = window.qcm;
   if (!body.dataset.trace) return; // téléphone non identifié
 
-  // --- Trace des envois, dans le stockage local (absente en navigation privée refermée) ---
+  // --- Trace des envois ----------------------------------------------------------------------
+  // Tenue en mémoire pour la page affichée, et recopiée dans le stockage local pour la page
+  // suivante. Si le stockage est refusé ou plein, le créneau affiché fonctionne quand même ;
+  // seule la page suivante n'en saura rien (FIN-02 : elle n'affirme alors rien).
   const traceKey = `qcm-live:${body.dataset.trace}`;
-  function readTrace() {
-    try {
-      return JSON.parse(localStorage.getItem(traceKey)) || {};
-    } catch {
-      return {};
-    }
+  let current = {};
+  try {
+    current = JSON.parse(localStorage.getItem(traceKey)) || {};
+  } catch {
+    // stockage illisible ou refusé : trace vide
   }
+  const readTrace = () => JSON.parse(JSON.stringify(current));
   function writeTrace(trace) {
+    current = trace;
     try {
       localStorage.setItem(traceKey, JSON.stringify(trace));
     } catch {
-      // stockage refusé : le téléphone n'affirmera rien à la fin (FIN-02)
+      // stockage refusé ou plein
     }
   }
   function updateTrace(slot, changes) {
@@ -98,6 +102,8 @@
       if (pending.length) trace = await reconcileSoon(pending);
       if (trace === null) return;
       const lost = unconfirmed(trace).length;
+      // Tout effacé et confirmé : l'étudiant n'a donné aucune réponse.
+      if (!lost && !Object.values(trace).some((entry) => entry.given.length)) return;
       transmission.classList.toggle("error", lost > 0);
       reveal(transmission, lost ? TEXT.notTransmitted(lost) : TEXT.transmitted);
     })();
@@ -118,9 +124,15 @@
   const status = document.getElementById("save-status");
   const { saved, cleared, tooLate } = status.dataset;
   const clear = document.getElementById("clear-answer");
+  const fieldset = form.querySelector("fieldset");
   const inputs = [...form.querySelectorAll("input[name=choice]")];
   const show = (text) => {
     status.textContent = text;
+  };
+  // Proposition choisie en noir plein (VIS-04) : une classe, que tout navigateur applique.
+  const mark = () => {
+    for (const input of inputs) input.closest("label").classList.toggle("chosen", input.checked);
+    if (clear) clear.disabled = fieldset.disabled || !inputs.some((input) => input.checked);
   };
   const chosen = () =>
     inputs
@@ -168,7 +180,7 @@
   }
 
   function changed() {
-    if (clear) clear.disabled = !inputs.some((input) => input.checked);
+    mark();
     updateTrace(slot, { given: chosen(), ok: false });
     show(TEXT.sending);
     send();
@@ -181,46 +193,63 @@
     });
   }
 
-  // À l'échéance, une réponse non confirmée est signalée comme non enregistrée, sauf si le
-  // serveur dit l'avoir reçue à temps (sa confirmation s'était perdue).
-  const watch = setInterval(async () => {
-    if (!ended()) return;
-    clearInterval(watch);
-    clearTimeout(retry);
+  // À l'échéance du téléphone, les propositions se verrouillent : plus aucun choix ne part. Une
+  // réponse non confirmée est alors signalée comme non enregistrée, sauf si le serveur dit
+  // l'avoir reçue à temps (sa confirmation s'était perdue). Si le serveur annonce ensuite du
+  // temps ajouté (TPS-01), elles se déverrouillent, et l'envoi reprend.
+  let over = false;
+  setInterval(async () => {
+    if (ended() === over) return;
+    over = !over;
+    fieldset.disabled = over;
+    mark();
     const entry = readTrace()[slot];
     if (!entry || entry.ok) return;
+    if (!over) {
+      show(TEXT.sending);
+      send();
+      return;
+    }
+    clearTimeout(retry);
+    let checked = null;
     try {
-      if ((await reconcile([slot]))[slot].ok) {
-        show(entry.given.length ? saved : cleared);
-        return;
-      }
+      checked = (await reconcile([slot]))[slot];
     } catch {
       // pas de réseau : le téléphone ne peut pas savoir
     }
-    show(tooLate);
+    if (checked?.ok) show(checked.given.length ? saved : cleared);
+    else show(tooLate);
   }, 250);
 
   // --- Au chargement : rechargement en cours d'envoi, créneaux précédents --------------------
+  // Ce que le serveur a enregistré est ce que la page cochait à son arrivée (defaultChecked) :
+  // un navigateur qui restaure l'état du formulaire au rechargement ne doit pas le masquer.
+  const onServer = inputs
+    .filter((input) => input.defaultChecked)
+    .map((input) => Number(input.value))
+    .sort((a, b) => a - b);
   const trace = readTrace();
   const entry = trace[slot];
-  if (entry && !entry.ok) {
-    if (same(entry.given, chosen())) {
-      updateTrace(slot, { ok: true }); // le serveur l'a reçue : la page l'affiche
-    } else {
-      // Envoi encore en attente : le dernier choix est réaffiché et renvoyé (décision I11).
-      for (const input of inputs) input.checked = entry.given.includes(Number(input.value));
-      changed();
-    }
+  const pending = entry && !entry.ok && !same(entry.given, onServer);
+  // Envoi encore en attente : le dernier choix est réaffiché et renvoyé (décision I11) ;
+  // sinon, la réponse enregistrée (ETU-07).
+  const shown = pending ? entry.given : onServer;
+  for (const input of inputs) input.checked = shown.includes(Number(input.value));
+  if (pending) changed();
+  else {
+    if (entry && !entry.ok) updateTrace(slot, { ok: true }); // le serveur l'a reçue
+    mark();
   }
-  // Réponse d'un créneau précédent jamais confirmée : on demande au serveur, puis on le dit
-  // sur cet écran, le premier qui suit (et sur lui seulement, s'il est rechargé).
-  const earlier = unconfirmed(trace, (other) => other < Number(slot));
+  // Réponse d'un créneau précédent jamais confirmée, et pas encore signalée : on demande au
+  // serveur, puis on le dit sur cet écran, le premier qui suit (et sur lui seulement, s'il
+  // est rechargé).
+  const earlier = unconfirmed(trace, (other) => other < Number(slot)).filter((other) =>
+    [undefined, slot].includes(trace[other].told),
+  );
   if (earlier.length) {
     reconcileSoon(earlier).then((updated) => {
       if (updated === null) return;
-      const lost = earlier.filter(
-        (other) => !updated[other].ok && [undefined, slot].includes(updated[other].told),
-      );
+      const lost = earlier.filter((other) => !updated[other].ok);
       if (lost.length === 0) return;
       for (const other of lost) updated[other].told = slot;
       writeTrace(updated);

@@ -40,13 +40,14 @@
     </div>
     {% comment %}ETU-10 : rempli par static/js/phone.js si la réponse d'un créneau précédent n'a pas été enregistrée.{% endcomment %}
     <p id="previous-lost" class="notice" role="alert" hidden></p>
-    <form id="answer-form" method="post" action="{% url 'student-answer' session.code %}">
+    {% comment %}autocomplete="off" : le navigateur ne restaure pas, au rechargement, des cases que le serveur n'a pas enregistrées (ETU-07, ETU-10).{% endcomment %}
+    <form id="answer-form" method="post" action="{% url 'student-answer' session.code %}" autocomplete="off">
       {% csrf_token %}
       <input type="hidden" name="slot" value="{{ slot.index }}">
       <fieldset class="answers">
         <legend class="visually-hidden">Propositions</legend>
         {% for index, text in choices %}
-          <label class="answer"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if index in saved %} checked{% endif %}> <span>{{ text }}</span></label>
+          <label class="answer{% if index in saved %} chosen{% endif %}"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if index in saved %} checked{% endif %}> <span>{{ text }}</span></label>
         {% endfor %}
       </fieldset>
       {% comment %}À portée du pouce, toujours visibles pendant le défilement (VIS-04).{% endcomment %}
