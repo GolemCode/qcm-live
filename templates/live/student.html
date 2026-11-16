@@ -46,8 +46,8 @@
       <input type="hidden" name="slot" value="{{ slot.index }}">
       <fieldset class="answers">
         <legend class="visually-hidden">Propositions</legend>
-        {% for index, text in choices %}
-          <label class="answer{% if index in saved %} chosen{% endif %}"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if index in saved %} checked{% endif %}> <span>{{ text }}</span></label>
+        {% for index, text, none in choices %}
+          <label class="answer{% if index in saved %} chosen{% endif %}"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if none %} data-none{% endif %}{% if index in saved %} checked{% endif %}> <span>{{ text }}</span></label>
         {% endfor %}
       </fieldset>
       {% comment %}À portée du pouce, toujours visibles pendant le défilement (VIS-04).{% endcomment %}

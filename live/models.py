@@ -14,7 +14,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
-from live.results import StudentResult, results
+from live.results import StudentResult, none_index, results
 from live.schedule import Position, Schedule, Slot, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
@@ -185,9 +185,16 @@ class Participant(models.Model):
         return index, self.session.questions[index]
 
     def choice_order(self, question: int) -> list[int]:
-        """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05)."""
-        n_choices = len(self.session.questions[question]["choices"])
-        return shuffled(n_choices, f"{self.session.code}:{self.pk}:{question}")
+        """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05) :
+        inchangé pour une question sans « Aucune… » ni ordre fixe, celles d'avant I12."""
+        frozen = self.session.questions[question]
+        n_choices = len(frozen["choices"])
+        if frozen["ordered"]:  # BAN-10 : l'ordre de la banque
+            return list(range(n_choices))
+        seed = f"{self.session.code}:{self.pk}:{question}"
+        if (none := none_index(frozen)) is not None:  # ETU-12 : « Aucune… » reste en dernier
+            return [*shuffled(none, seed), none]
+        return shuffled(n_choices, seed)
 
     def answer_map(self) -> dict[int, list[int]]:
         """Propositions choisies, par indice de question ; une question absente : pas de réponse."""

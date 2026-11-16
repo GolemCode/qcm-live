@@ -4,8 +4,6 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.bank_ui import (
-    MULTIPLE,
-    SIMPLE,
     create_quiz,
     fill_question,
     fill_quiz,
@@ -14,8 +12,6 @@ from tests.e2e.bank_ui import (
     open_quizzes,
     question_card,
     quiz_question_items,
-    scale_input,
-    scale_row,
 )
 from tests.factories import make_question, make_quiz
 
@@ -151,43 +147,6 @@ def test_question_reused_in_two_quizzes(teacher_page: Page):
     expect(question_card(page, "Q-propre")).to_contain_text("Utilisée dans : QCM A")
 
 
-@pytest.mark.spec("BAR-01")
-def test_quiz_scale_defaults_and_custom_values(teacher_page: Page):
-    page = teacher_page
-    make_question("Q-barème")
-    open_quizzes(page)
-    page.get_by_role("link", name="Nouveau QCM").click()
-
-    # Valeurs par défaut d'AMC : b=1, m=0, v=0, plancher p vide.
-    for group in (SIMPLE, MULTIPLE):
-        for key, expected in (("b", 1), ("m", 0), ("v", 0)):
-            assert float(scale_input(page, group, key).input_value()) == expected
-    expect(scale_input(page, MULTIPLE, "p")).to_have_value("")
-    expect(page.get_by_role("group", name=SIMPLE).get_by_label("p —")).to_have_count(0)
-
-    # Défauts enregistrés tels quels : p vide signifie « pas de plancher » (pas 0).
-    fill_quiz(page, "Défauts", ["Q-barème"])
-    expect(page.get_by_role("heading", name="Défauts", level=1)).to_be_visible()
-    expect(scale_row(page, SIMPLE)).to_have_text(["1", "0", "0", "—"])
-    expect(scale_row(page, MULTIPLE)).to_have_text(["1", "0", "0", "—"])
-
-    # Valeurs négatives et décimales.
-    open_quizzes(page)
-    page.get_by_role("link", name="Nouveau QCM").click()
-    fill_quiz(
-        page,
-        "Examen",
-        ["Q-barème"],
-        {
-            SIMPLE: {"b": "2", "m": "-0.5", "v": "0"},
-            MULTIPLE: {"b": "0.5", "m": "-0.25", "v": "-1", "p": "-2"},
-        },
-    )
-    expect(page.get_by_role("heading", name="Examen", level=1)).to_be_visible()
-    expect(scale_row(page, SIMPLE)).to_have_text(["2", "-0,50", "0", "—"])
-    expect(scale_row(page, MULTIPLE)).to_have_text(["0,50", "-0,25", "-1", "-2"])
-
-
 @pytest.mark.spec("BAN-05")
 def test_edit_question(teacher_page: Page):
     page = teacher_page
@@ -233,21 +192,18 @@ def test_edit_question(teacher_page: Page):
 def test_edit_quiz(teacher_page: Page):
     page = teacher_page
     q1, q2, _ = (make_question(text) for text in ("Q1", "Q2", "Q3"))
-    make_quiz("Partiel", [q1, q2], multiple_p="-1")
+    make_quiz("Partiel", [q1, q2])
     open_quiz(page, "Partiel")
 
     page.get_by_role("link", name="Modifier").click()
     expect(page.get_by_label("Titre")).to_have_value("Partiel")
     expect(page.get_by_label("Ordre de la question : Q1", exact=True)).to_have_value("1")
     expect(page.get_by_label("Ordre de la question : Q2", exact=True)).to_have_value("2")
-    expect(scale_input(page, MULTIPLE, "p")).to_have_value("-1.00")
-    fill_quiz(page, "Partiel v2", ["Q3", "Q1"], {SIMPLE: {"b": "3"}, MULTIPLE: {"p": ""}})
+    fill_quiz(page, "Partiel v2", ["Q3", "Q1"])
 
     expect(page.get_by_role("heading", name="Partiel v2", level=1)).to_be_visible()
     expect(quiz_question_items(page)).to_have_count(2)
     expect(quiz_question_items(page)).to_contain_text(["Q3", "Q1"])
-    expect(scale_row(page, SIMPLE)).to_have_text(["3", "0", "0", "—"])
-    expect(scale_row(page, MULTIPLE)).to_have_text(["1", "0", "0", "—"])  # plancher retiré
     open_quizzes(page)
     expect(page.get_by_role("link", name="Partiel", exact=True)).to_have_count(0)
 

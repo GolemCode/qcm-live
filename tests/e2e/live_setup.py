@@ -40,15 +40,21 @@ def make_live(
     seconds: int = 30,
     *,
     students=STUDENTS,
-    scale: dict[str, str] | None = None,
+    scoring: dict[bool, str] | None = None,
 ) -> Session:
-    """Session lancée sur les `n_questions` premières questions, avec le barème `scale`."""
+    """Session lancée sur les `n_questions` premières questions ; `scoring` donne le barème
+    des questions multiples (clé True) et simples (clé False)."""
     questions = [
-        make_question(text, choices, multiple=text in MULTIPLE)
+        make_question(
+            text,
+            choices,
+            multiple=text in MULTIPLE,
+            scoring=(scoring or {}).get(text in MULTIPLE, ""),
+        )
         for text, choices in list(QUESTIONS.items())[:n_questions]
     ]
     group = make_group("TD1", students)
-    quiz = make_quiz("Contrôle", questions, **(scale or {}))
+    quiz = make_quiz("Contrôle", questions)
     return make_session(quiz, group, shown=shown, seconds=seconds)
 
 

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from bank.scoring import LETTERS, Scale, max_score, score
+from bank.scoring import LETTERS, Item, max_score, parse_scoring, score
 
 if TYPE_CHECKING:
     from live.snapshot import FrozenQuestion, FrozenQuiz, FrozenStudent
@@ -57,40 +57,36 @@ def letters(choices: Iterable[int]) -> str:
     return "".join(LETTERS[i] for i in sorted(choices))
 
 
-def _scales(quiz: FrozenQuiz) -> dict[str, Scale]:
-    return {kind: Scale.from_json(scale) for kind, scale in quiz["scales"].items()}
+def none_index(question: FrozenQuestion) -> int | None:
+    """Indice de « Aucune de ces réponses n'est correcte », toujours la dernière (BAN-09)."""
+    choices = question["choices"]
+    return len(choices) - 1 if choices and choices[-1]["none"] else None
 
 
-def _kind(question: FrozenQuestion) -> str:
-    return "multiple" if question["multiple"] else "simple"
+def item(question: FrozenQuestion) -> Item:
+    """Ce que le calcul de la note demande de la question figée (barème compris)."""
+    choices = question["choices"]
+    return Item(
+        multiple=question["multiple"],
+        n_choices=len(choices),
+        correct=frozenset(i for i, choice in enumerate(choices) if choice["correct"]),
+        scoring=parse_scoring(question["scoring"]),
+        points={i: Decimal(c["points"]) for i, c in enumerate(choices) if c["points"] is not None},
+        none=none_index(question),
+    )
 
 
 def grade(quiz: FrozenQuiz, answers: Answers) -> list[Mark]:
     """Réponse et points de chaque question du QCM, dans son ordre."""
-    scales = _scales(quiz)
     marks = []
     for index, question in enumerate(quiz["questions"]):
         chosen = frozenset(answers.get(index, ()))
-        points = score(
-            multiple=question["multiple"],
-            n_choices=len(question["choices"]),
-            correct=frozenset(i for i, c in enumerate(question["choices"]) if c["correct"]),
-            chosen=chosen,
-            scale=scales[_kind(question)],
-        )
-        marks.append(Mark(letters(chosen), points))
+        marks.append(Mark(letters(chosen), score(item(question), chosen)))
     return marks
 
 
 def max_total(quiz: FrozenQuiz) -> Decimal:
-    scales = _scales(quiz)
-    return sum(
-        (
-            max_score(multiple=q["multiple"], n_choices=len(q["choices"]), scale=scales[_kind(q)])
-            for q in quiz["questions"]
-        ),
-        Decimal(0),
-    )
+    return sum((max_score(item(q)) for q in quiz["questions"]), Decimal(0))
 
 
 def results(

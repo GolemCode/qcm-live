@@ -8,9 +8,10 @@ from django import forms
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max
 
-from bank.models import Quiz
+from bank.models import NONE_OF_THESE, Quiz
 from config.forms import PlainForm
 from live.models import CODE_LENGTH, Participant, Session, random_code
+from live.results import none_index
 from live.snapshot import FrozenQuestion, freeze_group, freeze_quiz
 from roster.csv_import import MAX_NUMBER_LENGTH
 from roster.models import StudentGroup
@@ -19,6 +20,7 @@ MAX_SHOWN = 6  # SES-01 : de 1 à 6 questions affichées en même temps
 DEFAULT_SHOWN = 4  # SES-06
 MIN_SECONDS, MAX_SECONDS = 5, 600
 CODE_ATTEMPTS = 20  # un million de codes : une collision est rare, vingt d'affilée impossible
+INVALID_ANSWER = "Réponse invalide."
 RANK_ATTEMPTS = 10  # arrivées simultanées : une tentative par conflit de rang
 
 
@@ -156,16 +158,26 @@ class IdentifyForm(PlainForm):
 class AnswerForm(PlainForm):
     """Propositions choisies (indices canoniques) pour la question du créneau en cours."""
 
-    choice = forms.TypedMultipleChoiceField(coerce=int, required=False)
+    choice = forms.TypedMultipleChoiceField(
+        coerce=int,
+        required=False,
+        error_messages={"invalid_choice": INVALID_ANSWER, "invalid_list": INVALID_ANSWER},
+    )
 
     def __init__(self, *args, question: FrozenQuestion, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.multiple = question["multiple"]
+        choices = question["choices"]
+        self.none = none_index(question)
         field = cast(forms.TypedMultipleChoiceField, self.fields["choice"])
-        field.choices = [(i, i) for i in range(len(question["choices"]))]
+        field.choices = [(i, i) for i in range(len(choices))]
 
     def clean_choice(self) -> list[int]:
         chosen = sorted(set(self.cleaned_data["choice"]))
         if not self.multiple and len(chosen) > 1:
             raise forms.ValidationError("Une seule proposition pour cette question.")
+        if self.none in chosen and len(chosen) > 1:  # ETU-12
+            raise forms.ValidationError(
+                f"« {NONE_OF_THESE} » ne se combine pas avec une autre proposition."
+            )
         return chosen

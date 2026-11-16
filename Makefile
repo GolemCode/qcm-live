@@ -9,7 +9,7 @@ CHECK_RUN := uv run --env-file .env.test
 PYTEST := $(CHECK_RUN) pytest
 
 .DEFAULT_GOAL := help
-.PHONY: help setup run classe superuser lint test e2e check verify verify-tests accept
+.PHONY: help setup run classe demo superuser lint test e2e check verify verify-tests accept
 
 help: ## Liste des commandes
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -29,6 +29,10 @@ run: .env ## Serveur de développement (http://localhost:8000)
 
 classe: $(ENV_FILE) ## Mode classe : serveur de production, ouvert aux téléphones du réseau local
 	$(RUN) python -m config.classroom $(if $(filter command line,$(origin PORT)),--port $(PORT)) $(if $(ADRESSE),--adresse $(ADRESSE))
+
+demo: $(ENV_FILE) ## Démonstration : compte « demo » (mot de passe affiché), groupe et QCM fictifs
+	$(RUN) python manage.py migrate
+	$(RUN) python manage.py demo
 
 superuser: .env ## Crée un compte enseignant
 	$(RUN) python manage.py createsuperuser

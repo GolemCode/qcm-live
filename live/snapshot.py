@@ -8,23 +8,27 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from bank.models import Quiz
+from bank.models import NONE_OF_THESE, Question, Quiz
+from bank.scoring import format_points
 from roster.models import StudentGroup
 
 
 class FrozenChoice(TypedDict):
     text: str
     correct: bool
+    points: str | None  # valeur propre (décimal en texte), question simple ; None : b ou m
+    none: bool  # « Aucune de ces réponses n'est correcte » (BAN-09), toujours en dernier
 
 
 class FrozenQuestion(TypedDict):
     text: str
     multiple: bool
+    ordered: bool  # BAN-10 : propositions non mélangées sur les téléphones
+    scoring: str  # directives AMC, relues par bank.scoring.parse_scoring
     choices: list[FrozenChoice]  # ordre canonique, celui de la banque : A, B, C…
 
 
 class FrozenQuiz(TypedDict):
-    scales: dict[str, dict[str, str | None]]  # bank.scoring.Scale.to_json, par type
     questions: list[FrozenQuestion]  # ordre du QCM
 
 
@@ -33,21 +37,31 @@ class FrozenStudent(TypedDict):
     name: str
 
 
-def freeze_quiz(quiz: Quiz) -> FrozenQuiz:
+def freeze_question(question: Question) -> FrozenQuestion:
+    choices: list[FrozenChoice] = [
+        {
+            "text": choice.text,
+            "correct": choice.correct,
+            "points": format_points(choice.points) or None,
+            "none": False,
+        }
+        for choice in question.choices.all()
+    ]
+    if question.none_of_these:
+        right = question.none_is_correct
+        choices.append({"text": NONE_OF_THESE, "correct": right, "points": None, "none": True})
     return {
-        "scales": {kind: scale.to_json() for kind, scale in quiz.scales().items()},
-        "questions": [
-            {
-                "text": question.text,
-                "multiple": question.kind == question.Kind.MULTIPLE,
-                "choices": [
-                    {"text": choice.text, "correct": choice.correct}
-                    for choice in question.choices.all()
-                ],
-            }
-            for question in quiz.ordered_questions().prefetch_related("choices")
-        ],
+        "text": question.text,
+        "multiple": question.kind == question.Kind.MULTIPLE,
+        "ordered": question.ordered,
+        "scoring": question.scoring,
+        "choices": choices,
     }
+
+
+def freeze_quiz(quiz: Quiz) -> FrozenQuiz:
+    questions = quiz.ordered_questions().prefetch_related("choices")
+    return {"questions": [freeze_question(question) for question in questions]}
 
 
 def freeze_group(group: StudentGroup) -> list[FrozenStudent]:

@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from bank.forms import QuestionForm
 from bank.models import Question, Quiz
+from bank.scoring import SCORING_MAX_LENGTH
 from tests.factories import make_question, make_quiz
 
 pytestmark = pytest.mark.django_db
@@ -27,6 +28,8 @@ def bank_urls(quiz):
         reverse("quiz-detail", args=[quiz.pk]),
         reverse("quiz-update", args=[quiz.pk]),
         reverse("quiz-delete", args=[quiz.pk]),
+        reverse("quiz-import"),
+        reverse("quiz-import-recap", args=["jeton"]),
     ]
 
 
@@ -59,12 +62,6 @@ def test_invalid_order_number_reports_only_its_own_error(admin_client):
         reverse("quiz-create"),
         {
             "title": "T",
-            "simple_b": 1,
-            "simple_m": 0,
-            "simple_v": 0,
-            "multiple_b": 1,
-            "multiple_m": 0,
-            "multiple_v": 0,
             f"order_{first.pk}": "0",
             f"order_{second.pk}": "",
         },
@@ -82,3 +79,25 @@ def test_save_without_commit_writes_nothing():
     question = form.save(commit=False)
     assert question.pk is None
     assert Question.objects.count() == 0
+
+
+def simple_question(scoring: str) -> dict[str, str]:
+    return {
+        "text": "Q",
+        "kind": "simple",
+        "scoring": scoring,
+        "choice_A": "a",
+        "correct_A": "on",
+        "choice_B": "b",
+    }
+
+
+def test_scoring_length_is_checked_once_rewritten():
+    limit = "b=." + "0" * 195 + "1"  # 199 caractères ; 200 une fois réécrit en 0.000…1
+    form = QuestionForm(simple_question(limit))
+    assert form.is_valid(), form.errors
+    assert len(form.cleaned_data["scoring"]) == SCORING_MAX_LENGTH
+    form = QuestionForm(simple_question("b=." + "0" * 196 + "1"))
+    assert form.errors["scoring"] == [
+        f"Au plus {SCORING_MAX_LENGTH} caractères une fois réécrit (201 ici)."
+    ]

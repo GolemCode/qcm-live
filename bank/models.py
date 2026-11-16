@@ -1,20 +1,20 @@
-"""Banque de questions réutilisables et QCM (sélection ordonnée de questions + barème)."""
+"""Banque de questions réutilisables, chacune avec son barème AMC, et QCM (sélection ordonnée)."""
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from django.conf import settings
 from django.db import models
 
-from bank.scoring import Scale
+from bank.amc_txt import CHOICE_MAX_LENGTH, GROUP_LABEL_MAX_LENGTH, TITLE_MAX_LENGTH
+from bank.scoring import SCORING_MAX_LENGTH
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
 
-CHOICE_MAX_LENGTH = 200
-TITLE_MAX_LENGTH = 200
-AMC_DEFAULTS = Scale()  # b=1, m=0, v=0, pas de plancher : source unique des valeurs par défaut
+SOURCE_NAME_MAX_LENGTH = 255
+NONE_OF_THESE = "Aucune de ces réponses n'est correcte"
 
 
 class Question(models.Model):
@@ -24,6 +24,11 @@ class Question(models.Model):
 
     text = models.TextField("énoncé")
     kind = models.CharField("type", max_length=8, choices=Kind.choices, default=Kind.SIMPLE)
+    # Directives AMC (bank.scoring) ; vide : la base, b=1, m=0, v=0 (BAR-01).
+    scoring = models.CharField("barème", max_length=SCORING_MAX_LENGTH, blank=True)
+    none_of_these = models.BooleanField(NONE_OF_THESE, default=False)  # BAN-09
+    ordered = models.BooleanField("ordre fixe", default=False)  # BAN-10
+    amc_group = models.CharField("étiquette", max_length=GROUP_LABEL_MAX_LENGTH, blank=True)
 
     if TYPE_CHECKING:  # relations inverses, déclarées pour le typage statique
         choices: RelatedManager[Choice]
@@ -35,6 +40,11 @@ class Question(models.Model):
     def __str__(self) -> str:
         return self.text
 
+    @property
+    def none_is_correct(self) -> bool:
+        """« Aucune de ces réponses n'est correcte » est la bonne réponse (BAN-09)."""
+        return self.none_of_these and not any(choice.correct for choice in self.choices.all())
+
 
 class Choice(models.Model):
     """Une proposition ; `position` donne l'ordre canonique (A, B, C… au tableau)."""
@@ -42,6 +52,8 @@ class Choice(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="choices")
     text = models.CharField("proposition", max_length=CHOICE_MAX_LENGTH)
     correct = models.BooleanField("juste", default=False)
+    # Valeur propre de la proposition (question simple, AMC-TXT « -{-2} ») ; None : b ou m.
+    points = models.DecimalField(max_digits=9, decimal_places=3, null=True, blank=True)
     position = models.PositiveSmallIntegerField()
 
     class Meta:
@@ -54,39 +66,18 @@ class Choice(models.Model):
         return self.text
 
 
-def scale_field(default: Decimal | None) -> models.DecimalField:
-    """Une directive du barème ; sans défaut, elle est facultative (plancher p)."""
-    return models.DecimalField(
-        max_digits=6, decimal_places=2, default=default, null=default is None, blank=default is None
-    )
-
-
 class Quiz(models.Model):
     title = models.CharField("titre", max_length=TITLE_MAX_LENGTH)
     questions = models.ManyToManyField(Question, through="QuizItem", related_name="quizzes")
-    # Barème AMC : une échelle pour les questions simples, une pour les multiples.
-    simple_b = scale_field(AMC_DEFAULTS.b)
-    simple_m = scale_field(AMC_DEFAULTS.m)
-    simple_v = scale_field(AMC_DEFAULTS.v)
-    multiple_b = scale_field(AMC_DEFAULTS.b)
-    multiple_m = scale_field(AMC_DEFAULTS.m)
-    multiple_v = scale_field(AMC_DEFAULTS.v)
-    multiple_p = scale_field(AMC_DEFAULTS.p)
+    # Fichier AMC d'origine (IMP-01, IMP-07) ; vides pour un QCM composé dans l'application.
+    source_name = models.CharField(max_length=SOURCE_NAME_MAX_LENGTH, blank=True)
+    source_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
 
     class Meta:
         ordering = ["title", "pk"]
 
     def __str__(self) -> str:
         return self.title
-
-    def scales(self) -> dict[str, Scale]:
-        """Le barème du QCM : une échelle par type de question."""
-        return {
-            "simple": Scale(b=self.simple_b, m=self.simple_m, v=self.simple_v),
-            "multiple": Scale(
-                b=self.multiple_b, m=self.multiple_m, v=self.multiple_v, p=self.multiple_p
-            ),
-        }
 
     def ordered_questions(self) -> models.QuerySet[Question]:
         return self.questions.order_by("quizitem__position")
@@ -106,3 +97,18 @@ class QuizItem(models.Model):
 
     def __str__(self) -> str:
         return f"{self.quiz} #{self.position} : {self.question}"
+
+
+class PendingImport(models.Model):
+    """Dernier fichier AMC-TXT envoyé par un enseignant, gardé jusqu'à sa confirmation (IMP-01).
+
+    Un nouvel envoi le remplace ; la confirmation, l'annulation ou un refus le suppriment.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    token = models.CharField(max_length=32)  # désigne cet envoi dans l'adresse du récapitulatif
+    name = models.TextField()  # nom du fichier, tel qu'envoyé
+    data = models.BinaryField()
+
+    def __str__(self) -> str:
+        return self.name

@@ -277,8 +277,9 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             "slot": slot,
             "color": slot.color(participant.rank),
             "multiple": question["multiple"],
-            "choices": [
-                (i, question["choices"][i]["text"]) for i in participant.choice_order(index)
+            "choices": [  # (indice canonique, texte, « Aucune… », ETU-12)
+                (i, question["choices"][i]["text"], question["choices"][i]["none"])
+                for i in participant.choice_order(index)
             ],
             "saved": saved.first() or [],
             "remaining_ms": _ms(state.position.remaining),
@@ -321,7 +322,7 @@ def student_answer(request: HttpRequest, code: str) -> JsonResponse:
     index, question = participant.question_at(position.slot)
     form = AnswerForm(request.POST, question=question)
     if not form.is_valid():
-        return JsonResponse({"message": "Réponse invalide."}, status=400)
+        return JsonResponse({"message": form.errors["choice"][0]}, status=400)
     if chosen := form.cleaned_data["choice"]:
         try:
             with transaction.atomic():

@@ -4,7 +4,6 @@ from decimal import Decimal as D
 
 import pytest
 
-from bank.scoring import Scale
 from live.results import (
     ABSENT,
     Mark,
@@ -19,21 +18,33 @@ from live.results import (
 )
 from live.snapshot import FrozenQuestion, FrozenQuiz, FrozenStudent
 
-SIMPLE = Scale(b=D(2), m=D("-0.5"), v=D("0.25"))
-MULTIPLE = Scale(b=D(1), m=D(-1), v=D("0.5"), p=D(0))
+SIMPLE = "b=2,m=-0.5,v=0.25"
+MULTIPLE = "m=-1,v=0.5,p=0"
 
 
-def question(multiple: bool, *correct: bool) -> FrozenQuestion:
+def question(
+    multiple: bool, *correct: bool, scoring: str = "", points=(), none: bool = False
+) -> FrozenQuestion:
+    """Question figée ; `points` : valeur propre de chaque proposition (None : b ou m) ;
+    `none` : la dernière proposition est « Aucune de ces réponses n'est correcte »."""
+    values = list(points) + [None] * (len(correct) - len(points))
     return {
         "text": "?",
         "multiple": multiple,
-        "choices": [{"text": str(i), "correct": c} for i, c in enumerate(correct)],
+        "ordered": False,
+        "scoring": scoring,
+        "choices": [
+            {"text": str(i), "correct": c, "points": v, "none": none and i == len(correct) - 1}
+            for i, (c, v) in enumerate(zip(correct, values, strict=True))
+        ],
     }
 
 
 QUIZ: FrozenQuiz = {
-    "scales": {"simple": SIMPLE.to_json(), "multiple": MULTIPLE.to_json()},
-    "questions": [question(False, True, False, False), question(True, True, True, False)],
+    "questions": [
+        question(False, True, False, False, scoring=SIMPLE),
+        question(True, True, True, False, scoring=MULTIPLE),
+    ],
 }
 STUDENTS: list[FrozenStudent] = [
     {"number": "00123", "name": "DURAND Élise"},
@@ -41,7 +52,7 @@ STUDENTS: list[FrozenStudent] = [
 ]
 
 
-def test_grade_uses_the_scale_of_each_kind():
+def test_grade_uses_the_scoring_of_each_question():
     assert grade(QUIZ, {0: [1], 1: [0, 2]}) == [Mark("B", D("-0.5")), Mark("AC", D(0))]
     assert grade(QUIZ, {0: [0], 1: [1]}) == [Mark("A", D(2)), Mark("B", D(1))]
 
@@ -118,3 +129,17 @@ def test_letters_follow_the_bank_order():
     assert letters([0]) == "A"
     assert letters([3, 1]) == "BD"
     assert letters(range(8)) == "ABCDEFGH"
+
+
+def test_grade_uses_the_points_of_a_choice():
+    quiz: FrozenQuiz = {"questions": [question(False, True, False, points=[None, "-2"])]}
+    assert grade(quiz, {0: [1]}) == [Mark("B", D(-2))]
+    assert grade(quiz, {0: [0]}) == [Mark("A", D(1))]
+    assert max_total(quiz) == D(1)
+
+
+def test_none_of_these_has_the_letter_after_the_last_choice():
+    quiz: FrozenQuiz = {"questions": [question(True, False, False, True, none=True)]}
+    assert grade(quiz, {0: [2]}) == [Mark("C", D(2))]  # A et B non cochées, justes : 1 + 1
+    assert grade(quiz, {0: [0, 2]}) == [Mark("AC", D(0))]  # « Aucune » combinée : e
+    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {"00123": {0: [2]}}))[1][4:] == ["C", "2"]

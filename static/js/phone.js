@@ -179,13 +179,26 @@
     else if (!ended()) retry = setTimeout(send, RETRY_MS);
   }
 
+  // ETU-12 : « Aucune de ces réponses n'est correcte » exclut les autres cases. La cocher
+  // décoche les autres ; cocher une autre case la décoche.
+  function exclusive(target) {
+    if (!inputs.includes(target) || !target.checked) return;
+    const none = "none" in target.dataset;
+    for (const input of inputs) {
+      if (input !== target && "none" in input.dataset !== none) input.checked = false;
+    }
+  }
+
   function changed() {
     mark();
     updateTrace(slot, { given: chosen(), ok: false });
     show(TEXT.sending);
     send();
   }
-  form.addEventListener("change", changed);
+  form.addEventListener("change", (event) => {
+    exclusive(event.target);
+    changed();
+  });
   if (clear) {
     clear.addEventListener("click", () => {
       for (const input of inputs) input.checked = false;

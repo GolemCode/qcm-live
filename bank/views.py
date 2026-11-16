@@ -1,19 +1,28 @@
 """Pages enseignant : banque de questions et QCM (création, modification, suppression)."""
 
+import secrets
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.defaultfilters import pluralize
 
-from bank.forms import QuestionForm, QuizForm
-from bank.models import Question, Quiz
+from bank.amc_txt import MAX_BYTES, AmcSyntaxError
+from bank.forms import AmcUploadForm, QuestionForm, QuizForm
+from bank.importer import AlreadyImported, Preview, import_quiz, preview
+from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz
 
 
 @login_required
 def question_list(request: HttpRequest) -> HttpResponse:
     questions = Question.objects.prefetch_related("choices", "quizzes")
-    return render(request, "bank/question_list.html", {"questions": questions})
+    return render(
+        request,
+        "bank/question_list.html",
+        {"questions": questions, "none_of_these": NONE_OF_THESE},
+    )
 
 
 @login_required
@@ -70,3 +79,69 @@ def quiz_delete(request: HttpRequest, pk: int) -> HttpResponse:
         messages.success(request, "QCM supprimé.")
         return redirect("quiz-list")
     return render(request, "bank/quiz_confirm_delete.html", {"quiz": quiz})
+
+
+# --- Import AMC-TXT (IMP-01) : envoi, récapitulatif, confirmation ------------------------------
+
+EXPIRED = "Cet import n'est plus disponible : envoyez de nouveau le fichier."
+
+
+def _analyse(data: bytes, name: str) -> Preview | list[str]:
+    """Le récapitulatif, ou les raisons du refus."""
+    try:
+        return preview(data, name)
+    except AmcSyntaxError as error:
+        return error.messages
+    except AlreadyImported as error:
+        return [str(error)]
+
+
+@login_required
+def quiz_import(request: HttpRequest) -> HttpResponse:
+    form = AmcUploadForm(request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        upload = form.cleaned_data["file"]
+        data, name = upload.read(MAX_BYTES + 1), upload.name or ""
+        found = _analyse(data, name)
+        if isinstance(found, list):
+            form.add_error(None, found)
+        else:
+            token = secrets.token_urlsafe(16)
+            PendingImport.objects.update_or_create(
+                user=request.user, defaults={"token": token, "name": name, "data": data}
+            )
+            return redirect("quiz-import-recap", token=token)
+    return render(request, "bank/quiz_import.html", {"form": form})
+
+
+@login_required
+def quiz_import_recap(request: HttpRequest, token: str) -> HttpResponse:
+    pending = PendingImport.objects.filter(user=request.user, token=token).first()
+    if pending is None:
+        messages.error(request, EXPIRED)
+        return redirect("quiz-import")
+    data, name = bytes(pending.data), pending.name
+    if request.method == "POST":
+        # Seule la requête qui efface l'envoi le traite : un double clic retombe sur EXPIRED.
+        deleted, _ = PendingImport.objects.filter(pk=pending.pk, token=token).delete()
+        if not deleted:
+            messages.error(request, EXPIRED)
+            return redirect("quiz-import")
+        if request.POST.get("action") != "import":
+            messages.success(request, "Import annulé.")
+            return redirect("quiz-list")
+        try:
+            quiz = import_quiz(data, name)
+        except ValueError as error:  # refus de l'analyse, ou fichier importé entre-temps
+            messages.error(request, str(error))
+            return redirect("quiz-import")
+        n = quiz.questions.count()
+        messages.success(request, f"QCM importé : {n} question{pluralize(n)}.")
+        return redirect("quiz-detail", pk=quiz.pk)
+    found = _analyse(data, name)
+    if isinstance(found, list):  # fichier importé entre-temps
+        pending.delete()
+        for message in found:
+            messages.error(request, message)
+        return redirect("quiz-import")
+    return render(request, "bank/quiz_import_recap.html", {"found": found, "name": name})

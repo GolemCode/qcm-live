@@ -24,7 +24,7 @@ make superuser    # crée un compte enseignant (identifiant + mot de passe)
 make run          # http://localhost:8000
 ```
 
-`make setup` génère `.env` avec une clé secrète aléatoire propre à votre installation. Ce fichier n'est jamais versionné, et seuls `make setup`, `make run`, `make classe` et `make superuser` le lisent. Les vérifications (`make check`, `make verify`, CI) utilisent `.env.test`, versionné et sans valeur : un clone neuf peut tout vérifier sans clé.
+`make setup` génère `.env` avec une clé secrète aléatoire propre à votre installation. Ce fichier n'est jamais versionné, et seuls `make setup`, `make run`, `make classe`, `make demo` et `make superuser` le lisent. Les vérifications (`make check`, `make verify`, CI) utilisent `.env.test`, versionné et sans valeur : un clone neuf peut tout vérifier sans clé.
 
 ### Windows sans make (PowerShell)
 
@@ -60,6 +60,32 @@ Points à vérifier avant le premier cours :
 - **WSL.** Lancer le mode classe depuis Windows et non depuis WSL : l'adresse d'une machine WSL n'est pas joignable depuis les téléphones (sauf réseau WSL en mode « mirrored »).
 - **Wi-Fi d'école.** Certains réseaux isolent les appareils entre eux : les téléphones ne joignent alors pas le PC. Essayer avant le cours depuis un téléphone. Voir SPEC.md, §5.
 
+## Premier cours
+
+### Se faire la main : `make demo`
+
+```bash
+make demo
+```
+
+La commande crée un compte enseignant `demo`, un groupe « Démo » de six étudiants fictifs et le QCM du fichier [demo/qcm-demo.txt](demo/qcm-demo.txt), au format AMC-TXT. Elle affiche le mot de passe du compte : il change à chaque lancement, et la commande réutilise le groupe et le QCM déjà créés. Si un compte `demo` existe déjà, son mot de passe est remplacé : ne pas donner ce nom à un vrai compte. Ensuite, `make run`, connexion sur `http://localhost:8000/prof/`, et le parcours ci-dessous, avec un téléphone, ou plusieurs onglets du navigateur, pour jouer les étudiants.
+
+Sous Windows sans make : `uv run --env-file .env python manage.py migrate`, puis `uv run --env-file .env python manage.py demo`.
+
+### Le parcours réel
+
+1. **Avant le cours, essayer un vrai fichier.** L'import AMC a été construit sans fichier réel (SPEC.md, §5). Importer au moins un ancien QCM, relire le récapitulatif et comparer quelques notes avec celles d'AMC.
+2. **Importer le QCM.** Espace enseignant, « QCM », puis « Importer un fichier AMC » : choisir le fichier `.txt` d'AMC, puis « Analyser ».
+   - Une erreur de syntaxe refuse le fichier, avec la ligne et la raison.
+   - Sinon, un récapitulatif liste les questions à importer, celles qui sont écartées (question ouverte, formule, image…, avec la ligne et la raison) et les textes ignorés. « Importer » crée le QCM, dans l'ordre du fichier, avec le barème du fichier.
+   - Le QCM se relit et se modifie ensuite depuis sa fiche ; les questions sont dans la « Banque de questions ».
+3. **Importer le groupe.** « Groupes », puis « Importer un groupe » : un CSV `numéro;nom` par ligne.
+4. **Lancer le mode classe.** Sur le PC relié au vidéoprojecteur et à eduroam : `make classe`. Vérifier que l'adresse affichée pour les téléphones est bien celle d'eduroam (de la forme `172.x.x.x`), sinon `make classe ADRESSE=…`. Ouvrir l'espace enseignant par `http://localhost:8000/prof/`, sur ce PC. Voir « En classe » ci-dessus, et le risque principal : un Wi-Fi qui isole les appareils (SPEC.md, §5).
+5. **Faire passer.** « Sessions », puis « Lancer une session » : QCM, groupe, nombre de questions affichées à la fois et durée par question, puis « Lancer ».
+   - Le tableau projette l'adresse et le QR code ; les étudiants s'identifient par leur numéro, et leur nom apparaît au tableau.
+   - « Démarrer » quand tout le monde est là. « +10 s » ajoute du temps à la question en cours.
+6. **Exporter les résultats.** À la fin, « Résultats » : les notes, jamais projetées, puis « Télécharger le CSV ».
+
 ## Vérifier
 
 | Commande | Ce qu'elle vérifie |
@@ -77,12 +103,14 @@ La CI GitHub Actions lance les mêmes commandes à chaque PR. Elle analyse aussi
 
 ```
 config/     réglages (lus depuis l'environnement), routes, vues transverses, mode classe (classroom.py)
-bank/       banque de questions, QCM, barème AMC (scoring.py : calcul pur)
+bank/       banque de questions, QCM, barème AMC (scoring.py : calcul pur),
+            import AMC-TXT (amc_txt.py : analyse pure ; importer.py), commande demo
 roster/     groupes d'étudiants, import CSV
 live/       sessions en direct : QR code de jonction, déroulement, réponses, résultats
 templates/  gabarits HTML          static/  CSS et JS, sans script ni style inline
 tests/      unit/ · integration/ · e2e/ (Playwright) · spec_trace.py (traçabilité SPEC.md)
             factories.py (données de test fictives, créées via les formulaires)
 scripts/    gen_env.py (création du .env local)
+demo/       qcm-demo.txt (fichier AMC-TXT fictif de démonstration)
 .claude/    environnement de l'agent : réglages, hooks, procédure d'incrément, auditeur de spec
 ```

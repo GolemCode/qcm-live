@@ -7,12 +7,13 @@
   </div>
   {% for question in questions %}
     <article class="card">
-      <h2>{{ question.text }}</h2>
-      <p class="muted">{{ question.get_kind_display }}</p>
+      <h2 class="text">{{ question.text }}</h2>
+      <p class="muted">{{ question.get_kind_display }}{% if question.scoring %} · Barème : {{ question.scoring }}{% endif %}{% if question.ordered %} · Ordre fixe{% endif %}{% if question.amc_group %} · Étiquette : {{ question.amc_group }}{% endif %}</p>
       <ol class="choices" type="A">
         {% for choice in question.choices.all %}
-          <li>{{ choice.text }}{% if choice.correct %} <strong>(juste)</strong>{% endif %}</li>
+          <li><span class="text">{{ choice.text }}</span>{% if choice.correct %} <strong>(juste)</strong>{% endif %}{% if choice.points is not None %} <span class="muted">({{ choice.points|floatformat:"-3" }} pt)</span>{% endif %}</li>
         {% endfor %}
+        {% if question.none_of_these %}<li>{{ none_of_these }}{% if question.none_is_correct %} <strong>(juste)</strong>{% endif %}</li>{% endif %}
       </ol>
       <p class="muted">
         {% with quizzes=question.quizzes.all %}

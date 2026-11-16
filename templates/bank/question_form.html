@@ -7,6 +7,7 @@
     {% include "form_errors.html" %}
     {{ form.text.label_tag }}
     {{ form.text }}
+    <p class="muted">Une ligne vide sépare deux paragraphes.</p>
     <fieldset>
       <legend>Type</legend>
       <p class="muted">Simple : une seule bonne réponse. Multiple : une ou plusieurs.</p>
@@ -14,14 +15,24 @@
     </fieldset>
     <fieldset>
       <legend>Propositions : de 2 à 8, laissez vides celles qui ne servent pas</legend>
+      <p class="muted">Points : facultatifs, pour une question simple seulement. Ils remplacent le barème quand cette proposition est choisie.</p>
       <table class="grid">
-        <thead><tr><th scope="col">Lettre</th><th scope="col">Proposition</th><th scope="col">Juste</th></tr></thead>
+        <thead><tr><th scope="col">Lettre</th><th scope="col">Proposition</th><th scope="col">Juste</th><th scope="col">Points</th></tr></thead>
         <tbody>
-          {% for letter, text, correct in form.choice_rows %}
-            <tr><th scope="row">{{ letter }}</th><td>{{ text }}</td><td class="center">{{ correct }}</td></tr>
+          {% for letter, text, correct, points in form.choice_rows %}
+            <tr><th scope="row">{{ letter }}</th><td>{{ text }}</td><td class="center">{{ correct }}</td><td class="points">{{ points }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
+      <label class="inline">{{ form.none_of_these }} {{ form.none_of_these.label }}</label>
+      <p class="muted" id="{{ form.none_of_these.auto_id }}_helptext">{{ form.none_of_these.help_text }}</p>
+      <label class="inline">{{ form.ordered }} {{ form.ordered.label }}</label>
+    </fieldset>
+    <fieldset>
+      <legend>Barème (logique d'Auto Multiple Choice)</legend>
+      {{ form.scoring.label_tag }}
+      {{ form.scoring }}
+      <p class="muted" id="{{ form.scoring.auto_id }}_helptext">{{ form.scoring.help_text }}</p>
     </fieldset>
     <p class="actions">
       <button type="submit">Enregistrer</button>
