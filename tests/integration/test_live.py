@@ -217,6 +217,32 @@ def test_clearing_a_single_answer_means_no_answer(client, running):
     assert answer(client, running, slot="1").json() == {"message": CLEARED}  # déjà vide
 
 
+def answers_by_slot(client, session):
+    return client.get(reverse("student-answers", args=[session.code]))
+
+
+def test_recorded_answers_are_given_by_slot(client, running):
+    """ETU-10 : le téléphone apprend ce que le serveur a enregistré, par créneau, en indices
+    de propositions seulement (AFF-01). Rang 1 : la rotation lui donne Q1 au créneau 0 et Q2
+    au créneau 1, à l'inverse du rang 0."""
+    other = Client()
+    other.post(reverse("student-session", args=[running.code]), {"number": "2"})
+    Participant.objects.filter(number="2").update(rank=1)
+    assert answers_by_slot(other, running).json() == {"answers": {}}
+
+    assert answer(other, running, 1).status_code == 200  # créneau 0 : Q1, simple
+    assert answer(client, running, 0, 2).status_code == 200  # créneau 0 : Q2, multiple
+    rewind(running, 20)
+    assert answer(other, running, 0, 1, slot="1").status_code == 200  # créneau 1 : Q2
+    assert answers_by_slot(other, running).json() == {"answers": {"0": [1], "1": [0, 1]}}
+    assert answers_by_slot(client, running).json() == {"answers": {"0": [0, 2]}}
+    assert b"Q1" not in answers_by_slot(client, running).content
+
+
+def test_recorded_answers_require_identity(running):
+    assert answers_by_slot(Client(), running).status_code == 403
+
+
 def test_answer_for_another_slot_is_too_late(client, running):
     response = answer(client, running, 0, slot="1")
     assert response.status_code == 409

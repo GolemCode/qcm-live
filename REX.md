@@ -960,3 +960,122 @@ Audit spec-auditor : eea9965f9ba485a5f6dd8d8079e6bee66ea945de
 - **La graisse normale au vidéoprojecteur.** Ma simulation suggère une petite perte de corps sur le vert et le bleu ciel. À vérifier en salle ; une graisse de 500 se règle en une ligne.
 - **Un contrôle automatique ne trouve qu'une partie des défauts d'accessibilité.** Aucun essai n'a été fait avec un lecteur d'écran.
 - **Le tableau n'est vérifié qu'en 16:9** (1920x1080 et 1280x720). Un projecteur en 4:3 (1024x768) peut faire défiler les énoncés longs, comme le prévoit SES-06.
+
+## I11 — Refonte du téléphone et réseau lent
+
+### Objectif
+Seconde partie de la refonte visuelle (direction « Signalétique ») : le téléphone dans tous ses états (VIS-04) et son accessibilité (ACC-02). S'y ajoutent les réponses du commanditaire sur le réseau lent (ETU-10), la perte de connexion (ETU-11) et le message de fin (FIN-02, précisée). Les exigences étaient déjà rédigées et validées dans SPEC.md, non commitées, au début de la session.
+
+**Question posée avant d'écrire les tests.** ETU-07 veut qu'un téléphone rechargé réaffiche « la réponse enregistrée » ; ETU-10, qu'il renvoie seul la dernière réponse et garde la trace de ses envois après un rechargement. Les deux se contredisent quand un envoi est en attente au moment du rechargement. Réponse : le téléphone réaffiche ce dernier choix et continue de l'envoyer. Elle est consignée sous ETU-10 et dans le journal des décisions.
+
+**Pas de plan mode.** Le fonctionnel était tranché par le commanditaire. Le seul choix de conception (comment le téléphone apprend ce que le serveur a enregistré) est technique : il est décrit ci-dessous.
+
+### Tests d'acceptation
+Écrits avant le code et lancés aussitôt : 13 échecs sur 13, chacun pour la raison attendue.
+- « Envoi en cours… » absent (7 tests d'ETU-10, de FIN-02 et d'ACC-02).
+- Aucune alerte « Connexion perdue » (ETU-11, et l'écran de perte de connexion de VIS-04).
+- Pas de bandeau sur le téléphone (VIS-04, et le message de fin qui le suppose).
+- Le test de FIN-02 d'I8, précisé : pas de phrase « Vos réponses ont été transmises ».
+
+Avant tout code, ACC-02 passait sur tous les états existants du téléphone ; il n'échouait qu'à l'état « envoi », qui n'existait pas. C'est un garde-fou plus qu'un test rouge.
+
+Le réseau du téléphone est simulé par Playwright, en trois modes vérifiés d'abord sur un script jetable :
+- requête coupée ;
+- requête retenue puis relâchée plus tard depuis le test ;
+- requête qui atteint le serveur, mais dont la réponse se perd.
+
+`set_offline` coupe tout le réseau du navigateur. Piège rencontré dans ce script jetable : un `page.evaluate` qui renvoie la promesse d'un `fetch` retenu attend sa fin, et bloque le test. Le script a tourné deux minutes avant que je l'arrête.
+
+### Problèmes rencontrés
+- **Trois régressions trouvées par la suite existante, une seule cause.** Le téléphone en déroulement n'affichait plus « Vous êtes … ». Or un étudiant arrivé après le démarrage (ETU-08) arrive directement sur cet écran, et c'est sa seule confirmation d'identité (ETU-01). Trois tests d'I4 et d'I6 sont tombés. Le pied porte désormais « Vous êtes NOM · N° numéro », ce qui répond aussi à VIS-04. Comme en I10, ce sont les anciens tests, et non les nouveaux, qui ont trouvé la régression.
+- **La barre du temps disparaissait sur la couleur 1** (contrôle visuel des captures). Le jaune de la barre est celui de la couleur 1 : sur ce fond, on ne voyait que la partie déjà écoulée. Le test de VIS-04 mesurait la barre seule, sans son entourage. Un filet d'encre la sépare désormais du fond, et un test mesure ce contraste ; il échoue sans le filet. Ma première version de cette mesure était fausse : elle cherchait le filet « après la dernière ligne jaune », qui était le fond de la page, jaune lui aussi.
+- **Le test de FIN-02 d'I8 a dû changer.** Il exigeait que le téléphone n'affiche que « Session terminée. ». FIN-02, précisée en I11, ajoute la phrase sur la transmission, et le bandeau ajoute « QCM Live » et le code. Le test vérifie toujours l'absence de QR code, de réponses et de note, et le texte exact de la page.
+- **Avertissements à la fermeture du navigateur.** Des interceptions réseau encore actives à la fin d'un test produisaient des « coroutine never awaited ». Chaque test rétablit désormais le réseau du téléphone en attendant la fin des interceptions en cours, et le fichier passe avec ces avertissements traités en erreurs.
+- **Deux commandes refusées par les garde-fous** (`guard_bash.py`) : un pipe après `pyright`, puis un `;` après `pytest`. Les deux ont été refaites avec `pipefail` et `&&`, et aucun code de retour n'a été perdu. La première, refusée en entier, emportait une correction de lint que j'ai crue appliquée, d'où un second passage de ruff qui échouait sur les mêmes lignes.
+- **Un remplacement global a cassé la fixture `networks`** : `Network(` remplacé par `networks(` jusque dans la fixture elle-même, qui s'appelait donc elle-même. Neuf tests en échec, vus aussitôt et corrigés avant le commit.
+
+### Ce que les revues ont trouvé
+- **Contrôle visuel** (captures Pixel 7 et 360 px de chaque état) : la barre sur la couleur 1 (ci-dessus), « N° » séparé du numéro en fin de ligne, et le message des réponses non transmises, peu visible pour un avertissement. Les trois sont corrigés.
+- **`/simplify`, quatre relecteurs, rien de bloquant.**
+  - Corrigé :
+    - une seule fonction de requête dans `poll.js` (délai d'abandon, contact noté) ;
+    - l'échéance du compte à rebours, que le téléphone lit au lieu d'en tenir une copie ;
+    - les messages communs avec le serveur, lus dans la page au lieu d'être recopiés en JavaScript ;
+    - la question au serveur, qui cesse sur un refus au lieu de réessayer sans fin ;
+    - l'avertissement de fin, sur la classe `.error` existante ;
+    - les règles CSS et la classe mortes, retirées ;
+    - côté tests : les constantes de `live.views` et `background()` réutilisées, les groupes de boutons radio rattachés à l'élément formulaire.
+  - Écarté :
+    - fusionner `wait_recorded` avec `wait_answer` : le premier compare toutes les réponses par leur texte, le second une question par ses indices ;
+    - éviter la seconde question au serveur, à l'écran suivant, quand l'échéance l'a déjà posée : une requête de plus, seulement pour un téléphone qui a perdu une réponse ;
+    - remplacer les attentes fixes du test d'ETU-11 : elles laissent au téléphone le temps d'interroger le serveur avant la coupure.
+- **`/code-review`, neuf constats, huit corrigés dans le code et un dans la documentation.**
+  - **Le plus sérieux** : au rechargement, un navigateur qui restaure l'état du formulaire (Firefox) aurait fait passer pour reçue une réponse jamais envoyée. C'est la fausse confirmation qu'ETU-10 interdit. Le téléphone compare désormais sa trace à ce que la page cochait à son arrivée (`defaultChecked`), et le formulaire n'est plus restauré (`autocomplete="off"`). Pas de test : Chromium ne restaure pas ce formulaire, et la suite ne tourne que sous Chromium.
+  - Un choix fait après l'échéance du téléphone restait en « Envoi en cours… », ou effaçait de la trace une réponse confirmée. Les propositions se verrouillent désormais à l'échéance, et se déverrouillent si le serveur annonce du temps ajouté.
+  - Avec le stockage refusé, la réponse perdue n'était pas signalée sur le moment. La trace vit désormais en mémoire et se recopie dans le stockage.
+  - Une réponse choisie puis effacée valait « Vos réponses ont été transmises ». Ce n'est pas une réponse : le téléphone n'affiche plus que « Session terminée. ».
+  - Sans `AbortSignal.timeout` (iOS 15), une requête perdue bloquait tous les envois suivants. La requête est désormais abandonnée par un minuteur.
+  - Corrigés aussi :
+    - le message après la question au serveur, tiré de la réponse effectivement confirmée ;
+    - les pertes déjà signalées, qui ne sont plus redemandées au serveur ;
+    - la proposition choisie, marquée par une classe plutôt que par `:has()`, absent des navigateurs anciens.
+  - CLAUDE.md décrivait encore l'ancien téléphone : corrigé.
+  - Trois tests ajoutés (verrouillage, stockage refusé, réponse effacée), chacun en échec sur le code d'avant ces corrections, pour la raison attendue.
+- **`/security-review` : aucun constat.** La nouvelle route ne lit l'identité que dans la session Django, et ne renvoie que des indices de propositions. Les textes sont insérés avec `textContent`, et la CSP est inchangée.
+- **`spec-auditor`, premier passage (commit 231fbf0) : trois réserves bloquantes, toutes dans les tests.** Aucune erreur dans le code, mais 6 mutations sur 21 survivaient (dont 2 équivalentes). Copie jetable au bon commit ; le dépôt principal n'a pas bougé (`git status` vide, aucune copie oubliée).
+  - **La question au serveur.** Elle est posée à trois moments : à l'échéance, à l'écran suivant, à la fin. Chacune pouvait être retirée seule sans qu'un test échoue. Sans la première, un étudiant dont la réponse était bien arrivée lisait « Temps écoulé : réponse non enregistrée ». Le test de la confirmation perdue lit désormais l'écran à l'échéance. Un nouveau test coupe tout le réseau avant l'échéance, pour que l'écran suivant, puis la fin, aient seuls à demander.
+  - **La proposition choisie restait noire après un changement de réponse** : le test ne regardait que le premier choix. Il vérifie désormais un changement et un effacement.
+  - **Les 48 px des propositions n'étaient mesurés qu'avec des textes de plusieurs lignes.** Ils le sont aussi sur les six téléphones du test d'accessibilité, aux propositions courtes.
+  - Non bloquante, corrigée : un délai de 4 s pour « Connexion perdue » passait. Le délai est désormais mesuré dans la page, depuis la dernière réponse du serveur : entre 3 s et 3,4 s.
+  - Non bloquantes, laissées :
+    - la correspondance entre créneau et question de la nouvelle route n'est vérifiée qu'en intégration, avec rotation ;
+    - aucun test ne couvre un envoi qui doit reprendre quand du temps est ajouté après l'échéance du téléphone (cas rare : il faut que le téléphone ait perdu l'état du direct au moment du « +10 s »).
+  - **Mon premier renforcement était faux.** Le test coupait l'état du direct juste après avoir avancé le déroulement, avant que le téléphone ait recalé son compte à rebours, qui croyait donc avoir encore 28 s. Une sonde a montré que le code faisait ce qu'il fallait ; le test attend désormais le recalage.
+  - Contre-épreuves refaites après correction : les six mutations survivantes sont toutes détectées, chacune pour la raison attendue.
+- **`spec-auditor`, second passage (commit 2a4df6d) : une réserve bloquante.** Les six mutations du premier passage sont détectées ; 22 nouvelles l'ont été aussi, sauf six. Fichier stable (trois passages complets). Copie au bon commit ; le dépôt principal n'a pas bougé.
+  - **Bloquante : la confirmation d'une réponse remplacée** pouvait valoir pour la suivante sans qu'un test échoue. L'étudiant passe de « Paris » à « Lyon » pendant un envoi lent ; « Paris » arrive, « Lyon » jamais. Le code était juste, mais une ligne déplacée aurait fait afficher « transmises » à la fin. Le test de l'envoi lent relâchait les deux envois, et ne pouvait pas le voir. Un test retient désormais « Lyon » jusqu'à l'échéance.
+  - Non bloquantes, corrigées :
+    - le bandeau rouge de « Connexion perdue » pouvait rester visible, vide (le test cherchait son texte) ;
+    - l'alerte « toujours à l'écran » était vérifiée sur une page trop courte pour défiler ;
+    - une clé de trace commune à toutes les sessions passait : un même téléphone peut servir deux fois dans la journée ;
+    - le grand numéro de couleur n'était pas vérifié ;
+    - l'état verrouillé à l'échéance n'était pas contrôlé par ACC-02.
+  - Non bloquant, laissé : la perte d'une réponse peut être rappelée sur les écrans suivants, ce que la spec n'interdit pas.
+  - **Un test en échec bloquait au démontage.** Sous la mutation, le nouveau test échouait bien, puis la fixture attendait sans fin. Le réseau du premier `Network` attendait des requêtes retenues par le second. La fixture relâche désormais toutes les requêtes retenues avant de couper les interceptions. Le défaut aurait figé la CI au premier vrai échec de ce test.
+  - **Deux fois, j'ai rendu la main pendant mes contre-épreuves en arrière-plan.** Le hook Stop a lancé `make check` sur la même base de test, alors qu'un `pytest` tournait sur du code muté. Un résultat est tombé sur « attempt to write a readonly database » ; un autre venait d'une exécution que j'avais arrêtée. Les deux ont été refaits seuls, au premier plan. CLAUDE.md l'interdisait déjà pour `make verify` : la règle vaut pour tout `pytest` lancé en arrière-plan dans le dépôt.
+  - Contre-épreuves refaites après correction : toutes détectées, chacune pour la raison attendue. Le fichier passe deux fois de suite.
+- **`spec-auditor`, troisième passage (commit 0d8ab6a) : aucune réserve bloquante.**
+  - Toutes les mutations des passages précédents sont détectées, chacune pour la raison attendue, ainsi que quatre nouvelles : un renvoi après l'échéance, une barre d'envoi qui ne colle plus, une réponse changée qui garde l'ancienne confirmation, un état verrouillé estompé.
+  - L'auditeur a provoqué un échec à trois endroits où des requêtes sont retenues : le démontage ne bloque plus.
+  - Fichier stable : deux passages complets, plus un troisième. Copie au bon commit ; le dépôt principal n'a pas bougé.
+  - Non bloquantes, laissées :
+    - la question au serveur n'est vérifiée de bout en bout que pour un téléphone de rang 0, avec une question à la fois, où créneau et question coïncident ; la rotation n'est vérifiée qu'en intégration ;
+    - rien ne vérifie que la perte d'une réponse n'est signalée qu'une fois : la spec dit « dès l'écran suivant », sans plus ;
+    - un envoi qui doit reprendre quand du temps est ajouté après l'échéance du téléphone.
+
+Audit spec-auditor : 0d8ab6a60a5fdeffb87e9d56615ac2b350040408
+
+### Choix techniques et leur raison
+- **Le téléphone tient une trace de ses envois, le serveur reste l'arbitre.** Le téléphone ne peut pas savoir seul si une réponse sans confirmation est arrivée : la requête a pu atteindre le serveur et seule la réponse se perdre. Plutôt que de deviner, il compare sa trace à ce que le serveur a enregistré, par une route qui ne donne que des indices de propositions par créneau. C'est elle qui décide à l'échéance, à l'écran suivant et à la fin. Aucune nouvelle table, aucun nouvel état côté serveur : `Answer` suffisait.
+- **Une réponse par créneau, la dernière donnée.** La trace ne garde, par créneau, que la dernière réponse et sa confirmation. Une réponse confirmée puis remplacée par une autre qui ne passe pas compte comme non transmise, puisque ce n'est pas celle que l'étudiant voulait.
+- **Un seul envoi à la fois.** Chaque envoi part avec l'état du formulaire au départ, et le suivant ne part qu'à son retour. La dernière réponse arrive donc toujours en dernier, même sur un réseau lent, sans numéro de version ni horodatage côté serveur.
+- **Verrouillage à l'échéance du téléphone.** La fin du créneau est connue du téléphone par son compte à rebours, recalé chaque seconde sur le serveur. Au-delà, plus aucun choix ne part. Le serveur refuse de toute façon (ETU-07), mais le téléphone peut ainsi dire « non enregistrée » sans réseau.
+- **« Connexion perdue » mesure les réponses du serveur, pas les erreurs.** Une requête suspendue sans erreur, sur un réseau qui ne répond plus, compte comme une perte de contact. Toute réponse du serveur, même un refus, rétablit le contact.
+- **Aucune dépendance nouvelle.** Le stockage local et `AbortController` sont dans tous les navigateurs visés.
+
+### Ce qui a bien marché
+- **Essayer l'outil de test avant d'écrire les tests.** Un script jetable a confirmé que Playwright savait retenir une requête, puis la relâcher, ou la laisser atteindre le serveur sans réponse. Sans cela, les tests d'ETU-10 n'auraient pas pu reproduire le cas « reçue mais non confirmée ».
+- **Les captures d'écran, lues une à une.** Elles ont trouvé la barre invisible sur la couleur 1, qu'aucun test ne voyait.
+- **Une contre-épreuve pour chaque test ajouté après les revues** : chacun a été lancé sur le code d'avant la correction, et a échoué pour la raison attendue.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Une mesure d'élément ne dit rien de son entourage.** La barre était juste, mais invisible sur un fond de sa couleur. Tester un repère visuel, c'est aussi tester son contraste avec ce qui l'entoure.
+- **Le navigateur peut restaurer un formulaire au rechargement.** Toute logique qui lit l'état des cases au chargement doit lire ce que le serveur a envoyé (`defaultChecked`), pas ce que le navigateur a remis.
+- **Chercher qui dépend d'un texte avant de le déplacer.** « Vous êtes … » servait aussi de confirmation au retardataire : déjà la leçon d'I10, pour un élément déplacé.
+
+### Ce qui n'est garanti que par la consigne ou reste à vérifier
+- **Les tests ne tournent que sous Chromium.** La restauration du formulaire par Firefox, iOS 15 sans `AbortSignal.timeout` et les navigateurs sans `:has()` sont traités dans le code, mais aucun test ne les reproduit.
+- **Le réseau est simulé par Playwright.** Coupures, requêtes retenues et réponses perdues sont réalistes, mais ce ne sont pas les pertes d'un Wi-Fi d'école chargé. L'essai en classe sur eduroam reste le risque principal (SPEC §5).
+- **La trace des envois dépend du navigateur de l'étudiant.** Stockage effacé, navigation privée refermée ou autre navigateur : le téléphone n'affirme rien à la fin. C'est voulu (FIN-02), mais il ne peut pas non plus avertir.
+- **Le verrouillage suit l'horloge du téléphone, recalée sur le serveur.** Un choix fait dans la dernière fraction de seconde peut être verrouillé alors que le serveur l'aurait accepté. Il est alors signalé comme non enregistré, jamais l'inverse.
+- **Accessibilité : contrôle automatique seulement.** Aucun essai avec un lecteur d'écran sur téléphone (VoiceOver, TalkBack).

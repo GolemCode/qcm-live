@@ -11,6 +11,7 @@ urlpatterns = [
     path("s/<str:code>/", live_views.student_session, name="student-session"),
     path("s/<str:code>/etat/", live_views.student_state, name="student-state"),
     path("s/<str:code>/reponse/", live_views.student_answer, name="student-answer"),
+    path("s/<str:code>/reponses/", live_views.student_answers, name="student-answers"),
     path("prof/", views.teacher_home, name="teacher-home"),
     path("prof/connexion/", auth_views.LoginView.as_view(), name="login"),
     path("prof/deconnexion/", auth_views.LogoutView.as_view(), name="logout"),

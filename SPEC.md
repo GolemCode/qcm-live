@@ -86,6 +86,11 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[ETU-07]** (I4) L'étudiant peut changer sa réponse jusqu'à la fin du créneau ; c'est la dernière qui compte. Un téléphone rechargé réaffiche la réponse enregistrée. Après la fin du créneau, toute réponse est refusée par le serveur, et le téléphone le signale.
 - **[ETU-08]** (I4) Un étudiant peut rejoindre une session déjà commencée. Les créneaux qu'il a manqués comptent comme non-réponse.
 - **[ETU-09]** (I5) Sur une question simple, l'étudiant peut **effacer sa réponse** jusqu'à la fin du créneau, avec le bouton « Effacer ma réponse » : plus aucune proposition n'est choisie, le téléphone confirme l'effacement et la question compte comme non-réponse (v). Sur une question multiple, décocher toutes les cases revient au même. Après la fin du créneau, l'effacement est refusé comme toute réponse (ETU-07). *(dérivé : le téléphone affiche « Réponse effacée » ; le bouton est inactif quand aucune proposition n'est choisie)*
+- **[ETU-10]** (I11) **Réseau lent.** Chaque choix part aussitôt (ETU-04). Tant que le serveur ne l'a pas confirmé, le téléphone affiche « Envoi en cours… » ; « Réponse enregistrée » n'apparaît qu'après sa confirmation. Si l'envoi échoue faute de réseau, le téléphone renvoie seul la dernière réponse, chaque seconde, tant que le créneau dure. *(validé par le commanditaire)*
+  - Une réponse que le serveur n'a pas enregistrée avant la fin de son créneau est signalée clairement comme non enregistrée, jamais comme enregistrée. Si le téléphone affiche encore ce créneau, il le dit sur le moment (ETU-07) ; sinon, il le dit dès l'écran suivant : « Votre réponse précédente n'a pas été enregistrée. » *(décision du commanditaire ; message de l'écran suivant : dérivé)*
+  - Le téléphone garde la trace de ses envois dans le navigateur (stockage local), pour la retrouver après un rechargement ou au créneau suivant. Il demande au serveur ce qui a vraiment été enregistré : une réponse arrivée à temps compte comme transmise, même si le téléphone n'a pas vu la confirmation. *(dérivé)*
+  - Rechargé pendant le même créneau alors qu'un envoi est encore en attente, le téléphone réaffiche ce dernier choix, avec « Envoi en cours… », et continue de l'envoyer. Sans envoi en attente, il réaffiche la réponse enregistrée (ETU-07). *(décision du commanditaire, I11)*
+- **[ETU-11]** (I11) Quand le téléphone n'obtient plus de réponse du serveur depuis 3 secondes, il affiche « Connexion perdue ». Le message disparaît dès que la connexion revient. *(validé par le commanditaire ; délai : dérivé)*
 - **[DER-03]** (I4) Le tableau n'affiche ni la correction ni de statistiques pendant la session.
 
 - **[AFF-01]** (I9) **Une capture d'écran ou une photo ne contient jamais à la fois une question et ses réponses.** À aucun moment de la session, le tableau n'affiche ni ne reçoit une proposition de réponse, et le téléphone n'affiche ni ne reçoit un énoncé (ETU-04). Les pages des résultats et le CSV ne contiennent ni énoncé ni proposition.
@@ -116,12 +121,28 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
 
   Le téléphone suivra en I11, l'espace enseignant en I12. Un contrôle automatique ne trouve qu'une partie des défauts : il ne remplace pas un essai avec un lecteur d'écran, qui reste à faire. *(dérivé)*
 
+- **[VIS-04]** (I11) Le téléphone suit la direction « Signalétique » dans tous ses états : saisie du code et du numéro, attente, déroulement, envoi, perte de connexion, fin. *(validé par le commanditaire)*
+  - Un bandeau noir porte « QCM Live » et, dès que la session est connue, son code groupé par trois.
+  - En attente : « Vous êtes », le nom en grand, le numéro, puis « En attente du démarrage ».
+  - En déroulement :
+    - en haut, le numéro et la forme de la couleur, avec « Couleur N » ;
+    - le temps restant en minutes et secondes (VIS-02), avec une barre qui se vide jusqu'à l'échéance et tient compte du temps ajouté (TPS-01) ;
+    - la proposition choisie passe en noir plein, texte blanc ;
+    - l'état de l'envoi et « Effacer ma réponse » sont en bas de l'écran, à portée du pouce, et y restent visibles quand les propositions font défiler la page ;
+    - en pied, le nom et le numéro de l'étudiant.
+  - Toute cible tactile (proposition, bouton, champ) mesure au moins 48 px de haut et de large. *(dérivé)*
+  - Aucun défilement horizontal, en Pixel 7 comme sur un petit téléphone de 360 px de large. *(dérivé)*
+- **[ACC-02]** (I11) Les vérifications d'ACC-01 (axe-core, contraste, clavier) s'appliquent à tous les états du téléphone, sur un Pixel 7. *(dérivé)*
+
 ### Session : temps additionnel
 - **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée. Le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ; un clic arrivé après la fin du créneau n'ajoute rien. *(emplacement et clic tardif : dérivé)*
 
 ### Fin de session et résultats
 - *FIN-01 (livrée en I6, retirée en I8).* Le QR code des réponses, affiché en fin de session sur le téléphone, est retiré avec l'accord du professeur : son but n'avait jamais été établi. L'identifiant n'est pas réattribué.
-- **[FIN-02]** (I8) À la fin de la session, le téléphone indique seulement que la session est terminée : ni QR code, ni réponses, ni note.
+- **[FIN-02]** (I11) À la fin de la session, le téléphone indique que la session est terminée : ni QR code, ni réponses, ni note. *(livrée en I8, précisée en I11)*
+  - Il ajoute « Vos réponses ont été transmises à l'enseignant. » seulement si toutes les réponses de l'étudiant ont été confirmées par le serveur. Sinon, il indique combien n'ont pas pu être transmises et invite l'étudiant à le signaler à l'enseignant. *(décision du commanditaire, I11)*
+  - Une réponse compte une fois par créneau : c'est la dernière donnée qui doit avoir été enregistrée (ETU-07). *(dérivé)*
+  - Un téléphone qui n'a donné aucune réponse, ou dont le navigateur a perdu la trace de ses envois (stockage effacé, navigation privée refermée), n'affiche que « Session terminée. » : il ne peut rien affirmer. Un téléphone non identifié non plus. *(dérivé)*
 - **[RES-01]** (I6) L'enseignant voit le tableau des résultats de la session : numéro, nom, note et note maximale. La note suit le barème AMC du QCM (§3).
   - Les résultats sont sur une **page non projetée**, disponible une fois la session terminée. On l'ouvre depuis le tableau ou depuis la liste des sessions, qui indique l'état de chaque session (en attente, en cours, terminée). Avant la fin, la page n'affiche ni étudiant ni note. *(décision I6)*
   - Le lien « Résultats » n'apparaît, au tableau comme dans la liste des sessions, qu'une fois la session terminée. *(dérivé)*
@@ -260,3 +281,4 @@ Rien de ce qui suit n'est implémenté.
 | Réseau lent sur le téléphone (après I9) | Renvoi automatique pendant le créneau ; une réponse arrivée après la fin de son créneau est signalée comme non enregistrée, jamais comme enregistrée (I11) |
 | Ajouts au tableau et au téléphone (après I9) | « Questions 5–8 sur 24 » et barre du temps restant au tableau ; numéro à côté du nom et barre du temps restant sur le téléphone |
 | Message de fin sur le téléphone (après I9) | « Vos réponses ont été transmises à l'enseignant » seulement si toutes ont été confirmées par le serveur ; sinon, le nombre de réponses non transmises et l'invitation à le signaler (FIN-02, I11) |
+| Téléphone rechargé avec un envoi en attente (I11) | Il réaffiche ce dernier choix et continue de l'envoyer, plutôt que la réponse enregistrée (ETU-10) |

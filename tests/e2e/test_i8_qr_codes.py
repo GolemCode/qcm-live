@@ -109,15 +109,19 @@ def test_phone_only_says_the_session_is_over(teacher_page: Page, live_server, ne
     expect(save_status(phone)).to_have_text("Réponse enregistrée")
     jump_to(session, 61)  # la fin arrive seule, sans recharger à la main
 
-    def says_only_over(screen: Page, timeout: float = LIVE_MS) -> None:
-        # Ni QR code, ni réponses, ni note : le code de la session et la fin, rien d'autre.
-        over = re.compile(rf"^\s*Session {session.code}\s+Session terminée\.\s*$")
+    def says_only_over(screen: Page, then: str = "", timeout: float = LIVE_MS) -> None:
+        # Ni QR code, ni réponses, ni note : le bandeau, la fin et, au plus, la phrase `then`
+        # sur la transmission des réponses (précisée en I11).
+        over = re.compile(
+            rf"^\s*QCM Live\s+Session {session.code}\s+Session terminée\.\s*{re.escape(then)}\s*$"
+        )
         expect(screen.locator("body")).to_have_text(over, timeout=timeout)
         expect(images(screen)).to_have_count(0)
 
-    says_only_over(phone)
+    transmitted = "Vos réponses ont été transmises à l'enseignant."
+    says_only_over(phone, transmitted)
     phone.reload()  # téléphone rechargé, ou sorti de veille
-    says_only_over(phone)
+    says_only_over(phone, transmitted)
     stranger = new_phone()  # téléphone non identifié
     stranger.goto(f"{live_server.url}/s/{session.code}/")
     says_only_over(stranger)

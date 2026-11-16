@@ -141,14 +141,29 @@ _FOCUS_JS = (
 
 def keyboard_problems(screen: Page) -> list[str]:
     """Éléments interactifs visibles que la touche Tab n'atteint pas, ou dont le focus ne se
-    voit pas (contour de moins de 2 px, ou contraste sous 3:1 avec le fond)."""
+    voit pas (contour de moins de 2 px, ou contraste sous 3:1 avec le fond). Un groupe de
+    boutons radio compte pour un seul élément."""
     screen.wait_for_load_state("load")
     expected = screen.evaluate(
         "(selector) => {"
         + PAGE_JS
         + """
-          const items = [...document.querySelectorAll(selector)].filter(e => e.checkVisibility());
-          items.forEach((e, i) => { e.dataset.kbd = String(i); });
+          // Un groupe de boutons radio ne compte qu'une fois : Tab en atteint un seul (le coché,
+          // ou le premier), et les flèches passent de l'un à l'autre.
+          // Groupe : même formulaire (ou aucun) et même nom.
+          const items = [];
+          const groups = new Map(); // formulaire -> nom -> repère du premier bouton du groupe
+          for (const e of document.querySelectorAll(selector)) {
+            if (!e.checkVisibility()) continue;
+            const names = e.matches("input[type=radio]") ? groups.get(e.form) ?? new Map() : null;
+            if (names?.has(e.name)) {
+              e.dataset.kbd = names.get(e.name);
+              continue;
+            }
+            e.dataset.kbd = String(items.length);
+            if (names) groups.set(e.form, names.set(e.name, e.dataset.kbd));
+            items.push(e);
+          }
           document.activeElement?.blur();
           return items.map(name);
         }""",

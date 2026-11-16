@@ -1,14 +1,24 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Session {{ session.code }} — QCM Live{% endblock %}
-{% block body_class %}phone{% if color %} colored color-{{ color }}{% endif %}{% endblock %}
-{# Le téléphone garde sa présentation jusqu'à sa refonte (I11) : pas encore de bandeau. #}
-{% block header %}{% endblock %}
-{% block body_attrs %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
+{% block body_class %}phone{% if color %} color-{{ color }}{% endif %}{% endblock %}
+{% comment %}Téléphone de l'étudiant (VIS-04). Le logo n'est pas un lien : un doigt qui le touche par erreur ne quitte pas la session.{% endcomment %}
+{% block brand %}<span class="brand">{% include "logo.html" %}QCM Live</span>{% endblock %}
+{% block band %}<h1 class="band-title">Session {% include "live/code.html" with code=session.code %}</h1>{% endblock %}
+{% block after_header %}
+  {% comment %}ETU-11 : vide et caché tant que le serveur répond ; static/js/phone.js y écrit « Connexion perdue ».{% endcomment %}
+  {% if follow %}<p class="offline" role="alert" hidden></p>{% endif %}
+  {% if color %}<progress class="timebar" data-countdown aria-label="Part du créneau restante" max="{{ slot_ms }}" value="{{ remaining_ms }}"></progress>{% endif %}
+{% endblock %}
+{% comment %}data-trace : clé de la trace des envois dans le navigateur (ETU-10), propre à la session et au participant.{% endcomment %}
+{% block body_attrs %}{% if participant %} data-trace="{{ session.code }}:{{ participant.pk }}" data-answers-url="{% url 'student-answers' session.code %}"{% endif %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
 {% block content %}
-  {% if not color %}<h1>Session {{ session.code }}</h1>{% endif %}
   {% if state.phase == "ended" %}
-    <p class="identity">Session terminée.</p>
+    <section class="over">
+      <p class="over-title">Session terminée.</p>
+      {% comment %}FIN-02 : rempli par static/js/phone.js, d'après ce que le serveur a confirmé ; vide si le téléphone ne peut rien affirmer.{% endcomment %}
+      {% if participant %}<p id="transmission" class="transmission" hidden></p>{% endif %}
+    </section>
   {% elif not participant %}
     <form method="post" class="form" novalidate>
       {% csrf_token %}
@@ -18,29 +28,41 @@
       <button type="submit">Valider</button>
     </form>
   {% elif state.phase == "waiting" %}
-    <p class="identity">Vous êtes {{ participant.name }}</p>
-    <p>En attente du démarrage.</p>
+    <section class="whoami">
+      <p class="identity"><span class="label">Vous êtes</span> <span class="name">{{ participant.name }}</span></p>
+      <p class="number">N°&nbsp;{{ participant.number }}</p>
+      <p class="waiting-note">En attente du démarrage</p>
+    </section>
   {% else %}
     <div class="phone-head">
-      <p class="badge"><span>Couleur {{ color }}</span> {% include "live/shape.html" %}</p>
+      <p class="badge"><span class="badge-number" aria-hidden="true">{{ color }}</span> {% include "live/shape.html" %} <span class="badge-label">Couleur {{ color }}</span></p>
       <p class="timer" role="timer" aria-label="Temps restant" data-remaining-ms="{{ remaining_ms }}"></p>
     </div>
-    <form id="answer-form" method="post" action="{% url 'student-answer' session.code %}">
+    {% comment %}ETU-10 : rempli par static/js/phone.js si la réponse d'un créneau précédent n'a pas été enregistrée.{% endcomment %}
+    <p id="previous-lost" class="notice" role="alert" hidden></p>
+    {% comment %}autocomplete="off" : le navigateur ne restaure pas, au rechargement, des cases que le serveur n'a pas enregistrées (ETU-07, ETU-10).{% endcomment %}
+    <form id="answer-form" method="post" action="{% url 'student-answer' session.code %}" autocomplete="off">
       {% csrf_token %}
       <input type="hidden" name="slot" value="{{ slot.index }}">
       <fieldset class="answers">
         <legend class="visually-hidden">Propositions</legend>
         {% for index, text in choices %}
-          <label class="answer"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if index in saved %} checked{% endif %}> {{ text }}</label>
+          <label class="answer{% if index in saved %} chosen{% endif %}"><input type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ index }}"{% if index in saved %} checked{% endif %}> <span>{{ text }}</span></label>
         {% endfor %}
       </fieldset>
-      {% if not multiple %}<button type="button" id="clear-answer" class="secondary"{% if not saved %} disabled{% endif %}>Effacer ma réponse</button>{% endif %}
-      <p id="save-status" class="save-status" role="status"></p>
+      {% comment %}À portée du pouce, toujours visibles pendant le défilement (VIS-04).{% endcomment %}
+      <div class="answer-bar">
+        <p id="save-status" class="save-status" role="status" data-saved="{{ texts.saved }}" data-cleared="{{ texts.cleared }}" data-too-late="{{ texts.too_late }}"></p>
+        {% if not multiple %}<button type="button" id="clear-answer" class="on-band"{% if not saved %} disabled{% endif %}>Effacer ma réponse</button>{% endif %}
+      </div>
     </form>
-    <p class="muted">Vous êtes {{ participant.name }}</p>
   {% endif %}
-  {% if follow %}
+  {% if participant %}
     <script src="{% static 'js/poll.js' %}" defer></script>
     <script src="{% static 'js/phone.js' %}" defer></script>
   {% endif %}
+{% endblock %}
+{% block footer %}
+  {% comment %}En pied, le nom et le numéro (VIS-04) : la confirmation d'identité d'un étudiant arrivé après le démarrage (ETU-01, ETU-08).{% endcomment %}
+  {% if color %}<footer class="phone-foot"><p>Vous êtes <span class="who">{{ participant.name }}</span> · N°&nbsp;{{ participant.number }}</p></footer>{% endif %}
 {% endblock %}
