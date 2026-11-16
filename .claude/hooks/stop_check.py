@@ -4,6 +4,13 @@ Qualité : `make check` doit passer si le code a changé. L'état vérifié (com
 modifications, contenu des fichiers non suivis) est mémorisé après un succès dans
 <git-dir>/claude-last-green : aucun contrôle n'est relancé tant que rien n'a changé.
 
+Concurrence : si un pytest tourne déjà dans le projet (ou une copie de travail), `make check`
+n'est pas lancé ; Claude est renvoyé attendre sa fin, et le contrôle a lieu à un arrêt suivant.
+Chaque pytest a sa propre base de test (`config/settings.py`), mais un second pytest prend du
+processeur aux tests E2E à faible marge de temps, et contrôlerait du code en cours de mutation.
+
+La langue est vérifiée par une autre entrée Stop (`language.py`).
+
 Procédure : sur une branche d'incrément, ou sur main juste après une fusion, les étapes
 qui se lisent dans git, dans REX.md et sur GitHub doivent être faites.
 
@@ -23,8 +30,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-INC_BRANCH = re.compile(r"^inc/(\d+|r)-")
-INC_MERGE = re.compile(r"^Incrément (\d+|R)\b")
+# Un incrément de spec porte un numéro ; un incrément de correction ou de méthode, une lettre
+# (R, M).
+INC_BRANCH = re.compile(r"^inc/(\d+|[a-z])-")
+INC_MERGE = re.compile(r"^Incrément (\d+|[A-Z])\b")
 # Ligne écrite une fois l'audit fait : une simple mention de l'agent ne suffit pas.
 AUDIT_LINE = re.compile(r"^Audit spec-auditor : [0-9a-f]{7,}", re.MULTILINE)
 
@@ -125,7 +134,40 @@ def project_gaps(project: Path) -> list[str]:
     return increment_gaps(match.group(1), rex, pull_request_state(project))
 
 
+def _is_pytest(args: list[bytes]) -> bool:
+    names = {os.path.basename(arg.decode(errors="replace")) for arg in args}
+    return bool(names & {"pytest", "py.test"})
+
+
+def pytest_running(project: Path, proc: Path = Path("/proc")) -> bool:
+    """Un pytest tourne-t-il dans le projet, ou dans l'une de ses copies de travail ?
+
+    Lu dans /proc : ligne de commande et dossier courant de chaque processus. Sans /proc
+    (autre système), la réponse est non, et `make check` est lancé comme avant.
+    """
+    root = project.resolve()
+    try:
+        entries = [entry for entry in proc.iterdir() if entry.name.isdigit()]
+    except OSError:
+        return False
+    for entry in entries:
+        try:
+            if not _is_pytest((entry / "cmdline").read_bytes().split(b"\0")):
+                continue
+            if (entry / "cwd").resolve(strict=True).is_relative_to(root):
+                return True
+        except OSError:  # processus fini entre-temps, ou d'un autre compte
+            continue
+    return False
+
+
 def quality_problem(project: Path) -> str | None:
+    if pytest_running(project):  # sans témoin vert : le contrôle aura lieu à l'arrêt suivant
+        return (
+            "Un pytest tourne dans le projet : `make check` n'est pas lancé pendant ce temps. "
+            "Attendre sa fin au premier plan (`tail --pid=<pid> -f /dev/null`) et lire son "
+            "résultat ; si tu attends vraiment un agent ou la CI, redis-le et arrête-toi."
+        )
     marker = marker_path(project)
     key = state_key(project)
     if marker.exists() and marker.read_text() == key:

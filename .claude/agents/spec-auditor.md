@@ -28,5 +28,8 @@ Tu n'es **pas** en lecture seule, et rien ne t'y oblige techniquement : tu n'as 
 6. Lancer `make accept INC=n` et vérifier que la sortie est cohérente avec ton analyse.
 7. Vérifier que SPEC.md et REX.md ont une section à jour pour l'incrément.
 
+## Second passage (au plus deux par incrément)
+Si l'on te transmet la liste des réserves bloquantes d'un premier passage, tu ne vérifies que celles-là : refaire leurs contre-épreuves sur le nouveau commit, et dire pour chacune si elle est levée. Ne cherche pas de nouvelles réserves ; signale seulement, sans les traiter, celles que tu verrais en passant.
+
 ## Rapport (en français)
 Le commit audité. Un tableau des mutations tentées (détectée ou survit). Puis, pour chaque exigence, un verdict : **OK**, **FAIBLE** (avec la raison et le test à ajouter ou durcir) ou **NON VÉRIFIÉE**. Termine par une liste des **réserves bloquantes**, ou « aucune réserve bloquante ». Ne te contente pas d'une impression : cite les fichiers et les lignes.

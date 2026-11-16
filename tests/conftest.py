@@ -10,11 +10,16 @@ import pytest
 from django.utils import timezone
 
 from tests import spec_trace
+from tests.databases import remove_stale
 
 # Exigence → résultats, les tests étant identifiés par leur nodeid complet (pas de collision
 # entre deux tests de même nom dans des fichiers différents).
 _coverage: dict[str, spec_trace.Coverage] = {}
 _spec_ids_by_nodeid: dict[str, list[str]] = {}
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    remove_stale(session.config.rootpath)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
