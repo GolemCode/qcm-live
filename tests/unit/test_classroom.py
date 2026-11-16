@@ -9,9 +9,10 @@ import pytest
 
 from config import classroom
 from config.firewall import advice
+from config.network import LanAddress
 
-WLAN = {"address": "192.168.1.23", "interface": "wlp2s0", "virtual": False}
-DOCKER = {"address": "172.17.0.1", "interface": "docker0", "virtual": True}
+WLAN = LanAddress(address="192.168.1.23", interface="wlp2s0", virtual=False)
+DOCKER = LanAddress(address="172.17.0.1", interface="docker0", virtual=True)
 
 
 def test_classroom_environ_forces_production_and_announces_the_lan_address():
