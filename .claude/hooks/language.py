@@ -1,12 +1,13 @@
-"""Hook PostToolUse, et module du hook Stop : un message de Claude écrit en anglais.
+"""Hooks PostToolUse et Stop : un message de Claude écrit en anglais.
 
 La conversation avec le commanditaire se tient en français (CLAUDE.md, règle 7). La consigne
 n'a pas suffi : en I11, 71 messages sur 75 étaient en anglais (REX, section M).
 
 - PostToolUse : le texte écrit juste avant l'appel d'outil est en anglais ? Claude en est
   averti aussitôt (`additionalContext`), au milieu du tour. Ce hook n'arrête rien.
-- Stop (`stop_check.py`) : un message du tour est en anglais ? Claude est renvoyé au travail
-  pour le redire en français, une fois par arrêt.
+- Stop : un message du tour est en anglais ? Claude est renvoyé au travail pour le redire
+  en français, une fois par arrêt. C'est une entrée Stop à part de `stop_check.py` : une
+  erreur ici ne bloque pas `make check`.
 
 C'est une détection heuristique, après coup : le message anglais est déjà affiché, et un
 message très court ou mêlé de français peut passer. Elle compte des mots-outils, hors code.
@@ -86,16 +87,19 @@ def _main_thread(row: dict, kind: str) -> bool:
     return row.get("type") == kind and not row.get("isSidechain")
 
 
-def _texts(row: dict) -> list[str]:
+def _values(row: dict, kind: str, key: str) -> list[str]:
+    """Les blocs `kind` d'une ligne de Claude, fil principal seulement."""
     if not _main_thread(row, "assistant"):
         return []
-    return [block.get("text", "") for block in _blocks(row) if block.get("type") == "text"]
+    return [block.get(key, "") for block in _blocks(row) if block.get("type") == kind]
+
+
+def _texts(row: dict) -> list[str]:
+    return _values(row, "text", "text")
 
 
 def _calls(row: dict) -> list[str]:
-    if not _main_thread(row, "assistant"):
-        return []
-    return [block.get("id", "") for block in _blocks(row) if block.get("type") == "tool_use"]
+    return _values(row, "tool_use", "id")
 
 
 def _is_prompt(row: dict) -> bool:
@@ -111,16 +115,17 @@ def texts_before_tool(rows: list[dict], tool_use_id: str | None) -> list[str]:
     Seul le premier de plusieurs appels parallèles reçoit ce texte : un avertissement par
     message, pas un par appel.
     """
-    calls = [i for i, row in enumerate(rows) if _calls(row)]
-    matching = [i for i in calls if tool_use_id in _calls(rows[i])]
+    ids = [_calls(row) for row in rows]
+    calls = [i for i, found in enumerate(ids) if found]
+    matching = [i for i in calls if tool_use_id in ids[i]]
     end = (matching or calls or [None])[-1]
     if end is None:
         return []
     texts = _texts(rows[end])
-    for row in reversed(rows[:end]):
-        if _main_thread(row, "user") or _calls(row):
+    for i in range(end - 1, -1, -1):
+        if _main_thread(rows[i], "user") or ids[i]:
             break
-        texts[:0] = _texts(row)
+        texts[:0] = _texts(rows[i])
     return texts
 
 
@@ -131,12 +136,19 @@ def turn_texts(rows: list[dict]) -> list[str]:
     return [text for row in rows[begin:] for text in _texts(row)]
 
 
-def _quote(texts: list[str]) -> str:
-    english = [text for text in texts if looks_english(text)]
-    if not english:
-        return ""
-    excerpt = " ".join(english[0].split())
+def _english(texts: list[str]) -> list[str]:
+    return [text for text in texts if looks_english(text)]
+
+
+def _quote(text: str) -> str:
+    """Un extrait d'une ligne, de 100 caractères au plus."""
+    excerpt = " ".join(text.split())
     return excerpt if len(excerpt) <= 100 else excerpt[:99] + "…"
+
+
+def _rows(payload: dict) -> list[dict]:
+    path = payload.get("transcript_path")
+    return read_tail(Path(path)) if path else []
 
 
 def turn_problem(rows: list[dict], last_message: str | None = None) -> str | None:
@@ -148,21 +160,18 @@ def turn_problem(rows: list[dict], last_message: str | None = None) -> str | Non
     texts = turn_texts(rows)
     if last_message and last_message.strip() not in (text.strip() for text in texts):
         texts.append(last_message)
-    quote = _quote(texts)
-    if not quote:
+    english = _english(texts)
+    if not english:
         return None
-    count = sum(looks_english(text) for text in texts)
     return (
-        f"{RULE} {count} message(s) de ce tour en anglais, dont « {quote} ». "
+        f"{RULE} {len(english)} message(s) de ce tour en anglais, dont « {_quote(english[0])} ». "
         "Redis en français, brièvement, ce que tu viens d'annoncer, et continue en français."
     )
 
 
 def stop_problem(payload: dict) -> str | None:
     """`turn_problem` à partir de la charge du hook Stop."""
-    path = payload.get("transcript_path")
-    rows = read_tail(Path(path)) if path else []
-    return turn_problem(rows, payload.get("last_assistant_message"))
+    return turn_problem(_rows(payload), payload.get("last_assistant_message"))
 
 
 def main() -> int:
@@ -170,13 +179,18 @@ def main() -> int:
         payload = json.load(sys.stdin)
     except ValueError:
         return 0
-    if not isinstance(payload, dict) or not payload.get("transcript_path"):
+    if not isinstance(payload, dict):
         return 0
-    rows = read_tail(Path(payload["transcript_path"]))
-    quote = _quote(texts_before_tool(rows, payload.get("tool_use_id")))
-    if quote:
+    if payload.get("hook_event_name") == "Stop":
+        problem = None if payload.get("stop_hook_active") else stop_problem(payload)
+        if problem:
+            print(problem, file=sys.stderr)
+            return 2
+        return 0
+    english = _english(texts_before_tool(_rows(payload), payload.get("tool_use_id")))
+    if english:
         context = (
-            f"{RULE} Ton dernier message était en anglais : « {quote} ». "
+            f"{RULE} Ton dernier message était en anglais : « {_quote(english[0])} ». "
             "Écris les suivants en français."
         )
         output = {"hookEventName": "PostToolUse", "additionalContext": context}

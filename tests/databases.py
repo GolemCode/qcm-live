@@ -15,7 +15,7 @@ def _alive(pid: int) -> bool:
     except ProcessLookupError:
         return False
     except PermissionError:  # processus d'un autre compte : il existe
-        return True
+        pass
     return True
 
 

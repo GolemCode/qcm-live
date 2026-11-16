@@ -807,30 +807,31 @@ def test_post_tool_hook_never_fails_on_a_bad_payload():
     assert _run_hook("language", None).returncode == 0  # entrée vide
 
 
+STOP = {"hook_event_name": "Stop", "stop_hook_active": False}
+
+
 def test_stop_hook_sends_back_an_english_turn(tmp_path):
-    repo = _project(tmp_path, "essai")
     rows = [_prompt("Feu vert"), _said(FRENCH), _tool_use("t1"), _tool_result("t1")]
     rows += [_said(ENGLISH)]
     transcript = _transcript(tmp_path / "t.jsonl", rows)
-    payload = {"stop_hook_active": False, "transcript_path": str(transcript)}
-    result = _run_hook("stop_check", payload, repo)
+    payload = {**STOP, "transcript_path": str(transcript)}
+    result = _run_hook("language", payload)
     assert result.returncode == 2
     assert "français" in result.stderr
     # Une seule relance par arrêt.
-    assert _run_hook("stop_check", {**payload, "stop_hook_active": True}, repo).returncode == 0
+    assert _run_hook("language", {**payload, "stop_hook_active": True}).returncode == 0
 
 
 def test_stop_hook_reads_the_last_message_not_yet_in_the_transcript(tmp_path):
     """Observé dans une vraie session : au moment du hook Stop, le journal n'a pas encore le
     dernier message ; il n'est que dans `last_assistant_message`."""
-    repo = _project(tmp_path, "essai")
     transcript = _transcript(tmp_path / "t.jsonl", [_prompt("Feu vert")])
     payload = {
-        "stop_hook_active": False,
+        **STOP,
         "transcript_path": str(transcript),
         "last_assistant_message": ENGLISH,
     }
-    result = _run_hook("stop_check", payload, repo)
+    result = _run_hook("language", payload)
     assert result.returncode == 2
     assert "The tests pass now" in result.stderr
 
@@ -843,10 +844,9 @@ def test_stop_hook_does_not_count_the_last_message_twice(lang):
 
 
 def test_stop_hook_lets_a_french_turn_stop(tmp_path):
-    repo = _project(tmp_path, "essai")
     transcript = _transcript(tmp_path / "t.jsonl", [_prompt("Feu vert"), _said(FRENCH)])
-    payload = {"stop_hook_active": False, "transcript_path": str(transcript)}
-    assert _run_hook("stop_check", payload, repo).returncode == 0
+    payload = {**STOP, "transcript_path": str(transcript)}
+    assert _run_hook("language", payload).returncode == 0
 
 
 def test_settings_ask_for_french_and_run_the_language_hook():
@@ -856,3 +856,13 @@ def test_settings_ask_for_french_and_run_the_language_hook():
         hook["command"] for entry in settings["hooks"]["PostToolUse"] for hook in entry["hooks"]
     ]
     assert any("language.py" in command for command in commands)
+    stop = [hook["command"] for entry in settings["hooks"]["Stop"] for hook in entry["hooks"]]
+    assert any("language.py" in command for command in stop)
+
+
+def test_stop_check_ignores_the_language(tmp_path):
+    """La langue est une entrée Stop à part : le hook de procédure ne la regarde pas."""
+    repo = _project(tmp_path, "essai")
+    transcript = _transcript(tmp_path / "t.jsonl", [_prompt("Feu vert"), _said(ENGLISH)])
+    payload = {**STOP, "transcript_path": str(transcript), "last_assistant_message": ENGLISH}
+    assert _run_hook("stop_check", payload, repo).returncode == 0

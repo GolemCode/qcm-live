@@ -9,8 +9,7 @@ n'est pas lancé ; il le sera à l'arrêt suivant. Chaque pytest a sa propre bas
 (`config/settings.py`), mais un second pytest prend du processeur aux tests E2E à faible marge
 de temps, et contrôlerait du code en cours de mutation (contre-épreuves).
 
-Langue : un message du tour en anglais renvoie au travail pour le redire en français
-(`language.py`).
+La langue est vérifiée par une autre entrée Stop (`language.py`).
 
 Procédure : sur une branche d'incrément, ou sur main juste après une fusion, les étapes
 qui se lisent dans git, dans REX.md et sur GitHub doivent être faites.
@@ -30,9 +29,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from language import stop_problem  # module voisin, hors paquet
 
 # Un incrément de spec porte un numéro ; un incrément de correction ou de méthode, une lettre
 # (R, M).
@@ -156,12 +152,12 @@ def pytest_running(project: Path, proc: Path = Path("/proc")) -> bool:
         return False
     for entry in entries:
         try:
-            args = (entry / "cmdline").read_bytes().split(b"\0")
-            cwd = (entry / "cwd").resolve(strict=True)
+            if not _is_pytest((entry / "cmdline").read_bytes().split(b"\0")):
+                continue
+            if (entry / "cwd").resolve(strict=True).is_relative_to(root):
+                return True
         except OSError:  # processus fini entre-temps, ou d'un autre compte
             continue
-        if _is_pytest(args) and cwd.is_relative_to(root):
-            return True
     return False
 
 
@@ -198,17 +194,9 @@ def main() -> int:
     if payload.get("stop_hook_active"):
         return 0
     project = Path(os.environ.get("CLAUDE_PROJECT_DIR", "."))
-    problems = [
-        problem
-        for problem in (
-            quality_problem(project),
-            procedure_problem(project),
-            stop_problem(payload),
-        )
-        if problem
-    ]
-    if problems:
-        print("\n\n".join(problems), file=sys.stderr)
+    problem = quality_problem(project) or procedure_problem(project)
+    if problem:
+        print(problem, file=sys.stderr)
         return 2
     return 0
 
