@@ -1141,6 +1141,23 @@ Aucune exigence de SPEC.md ne change, et `[tool.qcm] increment` reste à 11 : on
     - `--reuse-db`, que ni le Makefile ni la CI n'utilisent.
 - **`/security-review`** : aucune vulnérabilité au-dessus du seuil de confiance.
 
+### Audit
+- **Un seul passage de `spec-auditor`**, sur 38fccc1 : 40 mutations, 32 détectées, aucune réserve bloquante.
+  - Les huit survivantes étaient des faiblesses :
+    - le branchement de `remove_stale` au démarrage de pytest ;
+    - la branche `PermissionError` ;
+    - les seuils de l'heuristique de langue et l'apostrophe typographique ;
+    - l'arrêt de la remontée à un message entrant ;
+    - une charge JSON qui n'est pas un objet ;
+    - le matcher `"*"`.
+  - Une seule n'a pas d'effet observable : la ligne coupée en tête de la fin du journal.
+  - J'ai ajouté un test pour chaque faiblesse et rejoué les mutations : toutes sont détectées. Le premier test de l'apostrophe (« I’m ») laissait encore passer sa mutation, parce que « i » est déjà un mot-outil anglais : il porte maintenant sur « j’ai ».
+  - Pas de second passage : il ne porterait que sur des réserves bloquantes, et il n'y en avait aucune.
+- **Ce que l'auditeur n'a pas pu vérifier.** Les chiffres d'étalonnage de la détection (aucun faux positif, tous les messages anglais d'I11 détectés) sont empiriques, mesurés sur les journaux locaux de Claude Code, et aucun test ne les reproduit. Un exemple de message non détecté cité plus haut ne figure plus dans les journaux présents.
+- **Précision de CLAUDE.md, après l'audit.** Le garde `/proc` ne voit que les worktrees placés sous le dossier du projet (`.claude/worktrees/`), pas un `git worktree add ../x`.
+
+Audit spec-auditor : 38fccc1
+
 ### Ce que j'aurais dû savoir dès le départ
 - **Un hook se teste dans une vraie session.** Un faux journal ne reproduit que ce que je crois savoir du format, et c'est là que se trouvait le défaut.
 - **Une règle qui dépend de ma vigilance ne tient pas dans une longue session.** Deux collisions en I11 malgré la règle de CLAUDE.md, et 71 messages anglais malgré la règle 7. Il faut chercher d'abord le mécanisme.
