@@ -593,3 +593,238 @@ def test_spec_auditor_description_matches_what_it_can_do():
 
 def test_session_start_recalls_the_conversation_language():
     assert "en français" in _run_hook("session_start", project=REPO).stdout
+
+
+# --- Incrément M : un incrément de méthode porte une lettre, comme R.
+
+
+def test_stop_hook_recognises_a_method_increment(tmp_path):
+    result = _run_stop(_project(tmp_path, "inc/m-methode"))
+    assert result.returncode == 2
+    assert "REX.md" in result.stderr
+
+
+def test_gaps_on_main_after_a_method_increment():
+    assert stop.missing_tag("Incrément M : méthode (#14)", set()) == [
+        "Poser et pousser le tag inc-m."
+    ]
+    assert stop.missing_tag("Incrément M : méthode (#14)", {"inc-m"}) == []
+
+
+# --- Incrément M : le hook Stop ne lance pas `make check` pendant qu'un pytest tourne.
+
+
+def _fake_process(proc: Path, pid: int, cmdline: list[str], cwd: Path) -> None:
+    folder = proc / str(pid)
+    folder.mkdir(parents=True)
+    (folder / "cmdline").write_bytes("\0".join(cmdline).encode() + b"\0")
+    (folder / "cwd").symlink_to(cwd)
+
+
+@pytest.mark.parametrize(
+    "cmdline",
+    [
+        ["/home/u/.venv/bin/python3", "/home/u/.venv/bin/pytest", "tests/e2e", "-q"],
+        ["uv", "run", "--env-file", ".env.test", "pytest", "tests/unit"],
+        ["python", "-m", "pytest", "-x"],
+    ],
+)
+def test_pytest_running_sees_a_pytest_in_the_project(tmp_path, cmdline):
+    project = tmp_path / "repo"
+    project.mkdir()
+    _fake_process(tmp_path / "proc", 4242, cmdline, project)
+    assert stop.pytest_running(project, tmp_path / "proc")
+
+
+def test_pytest_running_sees_a_pytest_in_a_worktree_of_the_project(tmp_path):
+    """Les contre-épreuves de spec-auditor tournent dans .claude/worktrees/."""
+    project = tmp_path / "repo"
+    worktree = project / ".claude" / "worktrees" / "agent-1"
+    worktree.mkdir(parents=True)
+    _fake_process(tmp_path / "proc", 4242, ["pytest", "tests/e2e"], worktree)
+    assert stop.pytest_running(project, tmp_path / "proc")
+
+
+def test_pytest_running_ignores_other_projects_and_other_programs(tmp_path):
+    project = tmp_path / "repo"
+    elsewhere = tmp_path / "repo-voisin"  # même préfixe, autre dossier
+    project.mkdir()
+    elsewhere.mkdir()
+    proc = tmp_path / "proc"
+    _fake_process(proc, 1, ["pytest", "-q"], elsewhere)
+    _fake_process(proc, 2, ["make", "check"], project)
+    _fake_process(proc, 3, ["vim", "tests/test_pytest_x.py"], project)
+    (proc / "self").mkdir()  # entrées non numériques de /proc
+    (proc / "4").mkdir()  # processus disparu entre la liste et la lecture
+    assert not stop.pytest_running(project, proc)
+
+
+def test_pytest_running_without_proc_says_no(tmp_path):
+    assert not stop.pytest_running(tmp_path, tmp_path / "absent")
+
+
+def test_stop_hook_does_not_run_check_while_a_pytest_runs(tmp_path):
+    """Les collisions d'I7 et d'I11 : `make check` lancé pendant un pytest du dépôt."""
+    repo = _project(tmp_path, "essai")
+    (repo / "Makefile").write_text("check:\n\t@false\n")
+    fake = tmp_path / "bin" / "pytest"
+    fake.parent.mkdir()
+    fake.write_text("sleep 60\n")
+    runner = subprocess.Popen(["sh", str(fake)], cwd=repo)
+    try:
+        result = _run_stop(repo)
+        assert result.returncode == 0, result.stderr
+        assert not stop.marker_path(repo).exists()  # rien n'a été contrôlé
+    finally:
+        runner.kill()
+        runner.wait()
+    result = _run_stop(repo)  # pytest fini : le contrôle reprend
+    assert result.returncode == 2
+    assert "make check" in result.stderr
+
+
+# --- Incrément M : la langue de mes messages, surveillée par hook (dérive d'I11).
+
+
+@pytest.fixture(scope="module")
+def lang():
+    return load("language")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The branch exists already, empty, at the same commit as main. I'm switching to it.",
+        "The sed didn't apply; I'm rewriting the script properly.",
+        "Everything is green (86 tests). I commit these fixes.",
+        "Next, `phone.js`, rewritten for ETU-10, ETU-11 and FIN-02.",
+        "Code written. I'm running the I11 tests.",
+    ],
+)
+def test_english_messages_are_detected(lang, text):
+    """Messages réels de la session d'I11."""
+    assert lang.looks_english(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "J'ai lu la spec d'I11 et le code actuel du téléphone.",
+        "Vérification rapide verte. Je relance maintenant les tests E2E touchés (I4, I6, I8, I9).",
+        "Le garde-fou refuse le `;` après une vérification : j'écris un script.",
+        "Je lance `make check` puis `uv run pytest tests/e2e/test_i5_extra_time.py -k end`.",
+        "Constat : the board is ready n'apparaît plus dans `board.html`.",
+        "```\nThe output is in English, and that is fine for a tool.\n```\nTout passe.",
+        "Plan approuvé.",
+        "",
+    ],
+)
+def test_french_messages_are_not_flagged(lang, text):
+    assert not lang.looks_english(text)
+
+
+def _transcript(path: Path, rows: list[dict]) -> Path:
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    return path
+
+
+def _prompt(text: str) -> dict:
+    return {"type": "user", "message": {"role": "user", "content": text}}
+
+
+def _said(text: str, sidechain: bool = False) -> dict:
+    content = [{"type": "text", "text": text}]
+    return {"type": "assistant", "isSidechain": sidechain, "message": {"content": content}}
+
+
+def _tool_use(tool_id: str) -> dict:
+    content = [{"type": "tool_use", "id": tool_id, "name": "Bash", "input": {}}]
+    return {"type": "assistant", "message": {"content": content}}
+
+
+def _tool_result(tool_id: str) -> dict:
+    content = [{"type": "tool_result", "tool_use_id": tool_id, "content": "ok"}]
+    return {"type": "user", "message": {"content": content}}
+
+
+ENGLISH = "The tests pass now. I'm committing the fixes and then opening the PR."
+FRENCH = "Les tests passent. Je committe les corrections, puis j'ouvre la PR."
+
+
+def test_before_tool_reads_the_text_just_before_this_call(lang):
+    rows = [_prompt("Go"), _said(ENGLISH), _tool_use("t1"), _tool_result("t1")]
+    rows += [_said(FRENCH), _tool_use("t2")]
+    assert lang.texts_before_tool(rows, "t2") == [FRENCH]
+    assert lang.texts_before_tool(rows, "t1") == [ENGLISH]
+    assert lang.texts_before_tool(rows, None) == [FRENCH]  # sans identifiant : le dernier appel
+
+
+def test_turn_texts_since_the_last_prompt_without_subagents(lang):
+    rows = [_prompt("Avant"), _said(ENGLISH), _prompt("Feu vert"), _said(FRENCH)]
+    rows += [_tool_use("t1"), _said("Sub-agent report, in English.", sidechain=True)]
+    rows += [_tool_result("t1"), _said(FRENCH)]
+    assert lang.turn_texts(rows) == [FRENCH, FRENCH]
+
+
+def test_read_tail_skips_a_cut_line_and_bad_json(lang, tmp_path):
+    path = tmp_path / "t.jsonl"
+    long_row = _said("x" * 5000)
+    path.write_text(json.dumps(long_row) + "\n{pas du json\n" + json.dumps(_said(FRENCH)) + "\n")
+    assert lang.read_tail(path, size=200) == [_said(FRENCH)]
+    assert lang.read_tail(tmp_path / "absent.jsonl") == []
+
+
+def _run_language(payload: dict) -> subprocess.CompletedProcess[str]:
+    return _run_hook("language", payload)
+
+
+def test_post_tool_hook_warns_at_once_about_english(tmp_path):
+    rows = [_prompt("Feu vert"), _said(ENGLISH), _tool_use("t1")]
+    transcript = _transcript(tmp_path / "t.jsonl", rows)
+    result = _run_language({"transcript_path": str(transcript), "tool_use_id": "t1"})
+    assert result.returncode == 0
+    context = json.loads(result.stdout)["hookSpecificOutput"]
+    assert context["hookEventName"] == "PostToolUse"
+    assert "français" in context["additionalContext"]
+    assert "The tests pass now" in context["additionalContext"]
+
+
+def test_post_tool_hook_stays_silent_in_french(tmp_path):
+    rows = [_prompt("Feu vert"), _said(FRENCH), _tool_use("t1")]
+    transcript = _transcript(tmp_path / "t.jsonl", rows)
+    result = _run_language({"transcript_path": str(transcript), "tool_use_id": "t1"})
+    assert (result.returncode, result.stdout) == (0, "")
+
+
+def test_post_tool_hook_never_fails_on_a_bad_payload():
+    assert _run_language({}).returncode == 0
+    assert _run_hook("language", None).returncode == 0  # entrée vide
+
+
+def test_stop_hook_sends_back_an_english_turn(tmp_path):
+    repo = _project(tmp_path, "essai")
+    rows = [_prompt("Feu vert"), _said(FRENCH), _tool_use("t1"), _tool_result("t1")]
+    rows += [_said(ENGLISH)]
+    transcript = _transcript(tmp_path / "t.jsonl", rows)
+    payload = {"stop_hook_active": False, "transcript_path": str(transcript)}
+    result = _run_hook("stop_check", payload, repo)
+    assert result.returncode == 2
+    assert "français" in result.stderr
+    # Une seule relance par arrêt.
+    assert _run_hook("stop_check", {**payload, "stop_hook_active": True}, repo).returncode == 0
+
+
+def test_stop_hook_lets_a_french_turn_stop(tmp_path):
+    repo = _project(tmp_path, "essai")
+    transcript = _transcript(tmp_path / "t.jsonl", [_prompt("Feu vert"), _said(FRENCH)])
+    payload = {"stop_hook_active": False, "transcript_path": str(transcript)}
+    assert _run_hook("stop_check", payload, repo).returncode == 0
+
+
+def test_settings_ask_for_french_and_run_the_language_hook():
+    settings = json.loads((REPO / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert settings["language"] == "french"
+    commands = [
+        hook["command"] for entry in settings["hooks"]["PostToolUse"] for hook in entry["hooks"]
+    ]
+    assert any("language.py" in command for command in commands)
