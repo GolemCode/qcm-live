@@ -1101,7 +1101,7 @@ Aucune exigence de SPEC.md ne change, et `[tool.qcm] increment` reste à 11 : on
 
 ### Choix et leur raison
 - **Une base de test par processus** (`.test-db-<pid>.sqlite3`). C'est le seul de ces mécanismes qui empêche vraiment la collision, quel que soit celui qui lance le second pytest : le hook, moi, un agent. Au démarrage, pytest supprime les bases dont le processus n'existe plus (pytest tué). J'ai préféré un fichier par pid à un fichier temporaire : les tests du mode classe lisent le nom dans les réglages pour le passer au serveur lancé à part, et ce nom ne change pas.
-- **Le hook Stop ne lance pas `make check` pendant un pytest du projet** (worktrees compris, lu dans `/proc`). Même sans collision de base, un second pytest prend du processeur aux E2E à faible marge de temps, et vérifierait du code en cours de mutation. Le contrôle se fait à l'arrêt suivant.
+- **Le hook Stop ne lance pas `make check` pendant un pytest du projet** (worktrees compris, lu dans `/proc`). Même sans collision de base, un second pytest prend du processeur aux E2E à faible marge de temps, et vérifierait du code en cours de mutation. Il me renvoie attendre la fin du pytest, et le contrôle se fait à un arrêt suivant (correction après `/code-review` : la première version laissait l'arrêt passer en silence).
 - **Langue : un réglage et un hook.**
   - `"language": "french"` dans `.claude/settings.json` place la consigne dans le prompt système, et non plus seulement dans CLAUDE.md. Cela reste une consigne.
   - `.claude/hooks/language.py` compte des mots-outils anglais et français, hors code. En hook PostToolUse, il m'avertit en cours de tour, dès le premier appel d'outil qui suit un message anglais : la dérive d'I11 a commencé au milieu d'un tour. Dans le hook Stop, il renvoie au travail un tour qui contient un message anglais, une fois par arrêt.
@@ -1111,15 +1111,35 @@ Aucune exigence de SPEC.md ne change, et `[tool.qcm] increment` reste à 11 : on
 ### Ce qui est garanti, et ce qui ne l'est pas
 - **Imposé par un mécanisme :** deux pytest n'ont plus la même base de test. Un test d'intégration lance deux pytest à la fois sur un test qui écrit en base, et la démonstration réelle passe : le même E2E d'I5 et `make test` 12 s plus tard donnent 7 et 471 tests passés, sans aucune erreur de base.
 - **Mécanisme, mais dépendant de Linux :** le hook Stop qui ne lance pas `make check`. Lancé à la main pendant un pytest, il a répondu en 0,7 s sans le lancer. Sans `/proc`, il ne voit rien et lance `make check` comme avant ; la base par processus protège alors toujours.
-- **Détection heuristique, après coup :** le hook de langue. Le message anglais est déjà affiché quand il réagit, et un message court ou mêlé de français peut passer. Le renvoi à l'arrêt n'a lieu qu'une fois par arrêt, comme pour la procédure.
+- **Détection heuristique, après coup :** le hook de langue. Le message anglais est déjà affiché quand il réagit, et un message court ou mêlé de français peut passer. Il ne laisse passer sans contrôle que l'arrêt qui suit son propre renvoi ; après un renvoi de `stop_check.py` (procédure, pytest en cours), la langue est contrôlée quand même.
 - **Consigne seulement :** le réglage `language`, la règle 7 de CLAUDE.md, et le plafond de deux passages d'audit. Le hook Stop ne voit que la ligne `Audit spec-auditor : <commit>`, pas le nombre de passages.
 
 ### Problèmes rencontrés
 - **Mes tests unitaires du hook Stop passaient, et le hook ne marchait pas.** Je l'ai essayé dans une vraie session jetable (`claude -p`, dans le scratchpad) : il laissait s'arrêter un tour en anglais. Au moment du hook Stop, le journal n'a pas encore le dernier message, qui n'arrive que dans le champ `last_assistant_message` de l'entrée du hook. Mes faux journaux, eux, le contenaient. Le hook lit désormais les deux, sans compter deux fois le même message, et l'essai réel renvoie bien au travail, une seule fois.
 - **Un avertissement par appel, et non par message.** Plusieurs appels d'outil parallèles qui suivent le même message donnaient chacun un avertissement : 107 sur I11 pour 58 messages. Seul le premier appel en reçoit un maintenant.
 - **Le hook PostToolUse n'a pas agi dans la session où je l'ai ajouté.** J'ai écrit exprès un message en anglais avant un appel : aucun avertissement. Rejoué à la main sur le journal de cette session, le hook le détecte, et dans une session neuve il avertit bien. Hypothèse, non vérifiée : Claude Code lit les hooks au démarrage de la session.
-- **Le garde-fou `guard_bash.py` a refusé trois de mes commandes**, chaque fois une vérification suivie de `;` ou d'un pipe. Il a fonctionné comme prévu ; je suis passé par des scripts qui rendent le code de retour, ou par une redirection vers un fichier.
+- **Le garde-fou `guard_bash.py` a refusé quatre de mes commandes**, chaque fois une vérification suivie de `;` ou d'un pipe. Il a fonctionné comme prévu ; je suis passé par des scripts qui rendent le code de retour, ou par une redirection vers un fichier.
 - **Le formateur a déplié mes listes de mots en un mot par ligne.** Je les écris maintenant comme une chaîne découpée par `split()`.
+
+### Revues
+- **`/simplify`** :
+  - *Retenu* : la langue devient une entrée Stop à part, pour qu'une erreur de ce hook ne bloque pas `make check`, et chaque ligne du journal n'est analysée qu'une fois.
+  - *Retenu* : `pytest_running` ne résout le dossier courant que des processus pytest.
+  - *Écarté* : lire une fin de journal plus courte dans le hook PostToolUse. Le coût mesuré est d'environ 45 ms par appel d'outil.
+- **`/code-review`** : dix constats.
+  - *Corrigés (six)* :
+    - le hook Stop laissait l'arrêt passer en silence pendant un pytest ;
+    - l'avertissement de langue se rabattait sur un appel sans rapport (appel d'un sous-agent) ;
+    - un rappel système ou un message d'une autre session ouvrait un nouveau tour et masquait les messages précédents ;
+    - le point final faisait ignorer le mot qui le précède (« Done. All green. » passait) ;
+    - le test de concurrence ne garantissait pas que les deux pytest se chevauchent (rendez-vous ajouté, contre-épreuve sur une base partagée : il échoue) ;
+    - CLAUDE.md attribuait la langue à `stop_check.py`.
+  - *Corrigé, septième constat* : l'entrée de langue ne contrôlait jamais l'arrêt qui suit un renvoi de `stop_check.py`, soit un arrêt sur deux d'un incrément inachevé. Elle ne saute plus que l'arrêt qui suit son propre renvoi, reconnu à son texte dans le journal.
+  - *Écartés* :
+    - le coût du hook PostToolUse (voir `/simplify`) ;
+    - une base gardée si son pid est réutilisé (le sens prudent), ou supprimée par un pytest d'un autre espace de noms de processus (aucun conteneur ne partage ce dépôt) ;
+    - `--reuse-db`, que ni le Makefile ni la CI n'utilisent.
+- **`/security-review`** : aucune vulnérabilité au-dessus du seuil de confiance.
 
 ### Ce que j'aurais dû savoir dès le départ
 - **Un hook se teste dans une vraie session.** Un faux journal ne reproduit que ce que je crois savoir du format, et c'est là que se trouvait le défaut.
