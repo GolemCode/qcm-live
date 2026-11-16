@@ -51,7 +51,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 Les questions viennent de fichiers AMC d'anciens QCM. Aucun fichier réel n'est disponible : l'import suit la documentation d'AMC et son code source (lecteur AMC-TXT et calcul des notes), que j'ai lus. Le format reconnu est détaillé au §2 ter. *(décision du commanditaire : AMC-TXT d'abord, LaTeX ensuite ; un parcours complet passe avant un import exhaustif)*
 
 - **[IMP-01]** (I12) L'enseignant importe un fichier **AMC-TXT**. Avant tout enregistrement, un **récapitulatif** s'affiche : titre du QCM, nombre de questions importées, questions écartées (IMP-03), textes ignorés. L'enseignant confirme, ou annule sans que rien soit créé. Chaque fichier importé devient **un QCM**, avec ses questions dans l'ordre du fichier, et ces questions entrent dans la banque. *(décision du commanditaire)*
-  - Titre du QCM : l'option `Title:` du fichier, sinon le nom du fichier sans son extension. *(dérivé)*
+  - Titre du QCM : l'option `Title:` du fichier, sinon le nom du fichier sans son extension, sinon « QCM importé ». *(dérivé)*
   - Le récapitulatif indique aussi combien de questions sont déjà dans la banque (IMP-07). *(dérivé)*
   - Fichier de 1 Mo au plus. *(dérivé)*
 - **[IMP-02]** (I12) **Une erreur de syntaxe refuse le fichier entier**, sans rien créer. Le message donne le numéro de ligne et la raison de chaque erreur (les 20 premières, puis le nombre des autres, comme pour les groupes, GRP-02). La liste des erreurs de syntaxe est au §2 ter. *(décision du commanditaire)*
@@ -249,15 +249,16 @@ Le lecteur suit les règles du lecteur AMC-TXT d'AMC (`AMC::Filter::plain`) : m�
   - Proposition hors d'une question ; texte avant le premier élément du fichier.
   - Question avec moins de 2 propositions ; question simple avec un nombre de bonnes réponses différent de 1.
   - Option de question ou de groupe inconnue.
-  - Groupe fermé sans avoir été ouvert, ou resté ouvert à la fin du fichier.
+  - Groupe fermé sans avoir été ouvert, ou resté ouvert à la fin du fichier ; bloc `[verbatim]` jamais fermé.
   - Titre de plus de 200 caractères ; fichier sans aucune question ; fichier de plus de 1 Mo.
 - **Questions écartées : listées au récapitulatif** (IMP-03).
   - Question ouverte (`*<…>`) ou indicative (`indicative`).
   - Barème : directive autre que celles de BAR-01 (`formula`, `auto`, `set.…`, `requires.…`, `SUF`, `allowempty`, `P`…) ou valeur non numérique, dans la question, dans le barème par défaut qui s'y applique ou dans une proposition ; barème sur une proposition d'une question multiple ; sur une proposition d'une question simple, autre chose qu'une valeur seule.
   - Plus de 8 propositions, sans compter « Aucune de ces réponses n'est correcte » ; proposition de plus de 200 caractères ; énoncé ou proposition vide.
+  - Limites de la base (I12) : barème de plus de 200 caractères, une fois réécrit sous sa forme courte ; étiquette de groupe de plus de 100 caractères ; valeur d'une proposition de plus de 6 chiffres avant la virgule ou de 3 après.
   - Question multiple sans bonne réponse, sans « Aucune de ces réponses n'est correcte » (`CompleteMulti: 0`).
   - Contenu prévu en I14 : formule ou LaTeX (`[[…]]`, `[latex]…[/latex]`, et avec `LaTeX: 1`, tout caractère spécial de LaTeX), code (`[verbatim]`, `[|…|]`), image (`!image.png!`), mise en forme (`[_…_]`, `[*…*]`, `[/…/]`, `[==…==]`). Un module désactivé par `Disable:` laisse ces marques en texte, comme dans AMC.
-  - Doublon d'une question précédente du même fichier (IMP-07).
+  - Doublon d'une question précédente du même fichier (IMP-07). L'étiquette de groupe n'entre pas dans la comparaison : une question répétée dans deux groupes reste un doublon.
 
 ## 3. Barème (logique AMC)
 
