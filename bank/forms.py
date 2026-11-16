@@ -2,29 +2,47 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from django import forms
 from django.db import transaction
 
-from bank.models import CHOICE_MAX_LENGTH, Choice, Question, Quiz, QuizItem
-from bank.scoring import LETTERS
-from config.forms import TeacherForm, table_field
+from bank.models import CHOICE_MAX_LENGTH, NONE_OF_THESE, Choice, Question, Quiz, QuizItem
+from bank.scoring import (
+    LETTERS,
+    MAX_CHOICES,
+    ScoringError,
+    format_scoring,
+    parse_points,
+    parse_scoring,
+    plain,
+)
+from config.forms import PlainForm, TeacherForm, table_field
 
 MIN_CHOICES = 2
+SLOTS = LETTERS[:MAX_CHOICES]
+KEEP_ORDER = "Ne pas mélanger les propositions"
 
 
 class QuestionForm(TeacherForm):
-    """Énoncé, type, et 8 emplacements de proposition (les vides sont ignorés)."""
+    """Énoncé, type, barème, options, et 8 emplacements de proposition (les vides sont ignorés)."""
 
     class Meta:
         model = Question
-        fields = ["text", "kind"]
-        labels = {"text": "Énoncé"}
+        fields = ["text", "kind", "scoring", "none_of_these", "ordered"]
+        labels = {"text": "Énoncé", "scoring": "Barème", "ordered": KEEP_ORDER}
+        help_texts = {
+            "scoring": "Directives d'Auto Multiple Choice séparées par des virgules, par exemple "
+            "b=2,m=-0.5 ou haut=2. Vide : b=1, m=0, v=0.",
+            "none_of_these": "Question multiple : ajoutée en dernier, juste si aucune autre "
+            "ne l'est.",
+        }
         widgets = {"text": forms.Textarea(attrs={"rows": 3}), "kind": forms.RadioSelect}
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         existing = list(self.instance.choices.all()) if self.instance.pk else []
-        for index, letter in enumerate(LETTERS):
+        for index, letter in enumerate(SLOTS):
             choice = existing[index] if index < len(existing) else None
             self.fields[f"choice_{letter}"] = table_field(
                 forms.CharField(
@@ -41,37 +59,73 @@ class QuestionForm(TeacherForm):
                     initial=choice.correct if choice else False,
                 )
             )
+            points = choice.points if choice else None
+            self.fields[f"points_{letter}"] = table_field(
+                forms.CharField(
+                    label=f"Points de la proposition {letter}",
+                    required=False,
+                    initial="" if points is None else str(plain(points)),
+                )
+            )
 
     def choice_rows(self):
-        """(lettre, champ texte, case « juste ») pour le gabarit."""
-        return [(L, self[f"choice_{L}"], self[f"correct_{L}"]) for L in LETTERS]
+        """(lettre, champ texte, case « juste », points) pour le gabarit."""
+        return [(L, self[f"choice_{L}"], self[f"correct_{L}"], self[f"points_{L}"]) for L in SLOTS]
+
+    def clean_scoring(self) -> str:
+        try:
+            return format_scoring(parse_scoring(self.cleaned_data["scoring"]))
+        except ScoringError as error:
+            raise forms.ValidationError(f"{error}.") from None
 
     def clean(self):
         super().clean()
         data = self.cleaned_data
-        choices: list[tuple[str, bool]] = []
-        for letter in LETTERS:
+        multiple = data.get("kind") == Question.Kind.MULTIPLE
+        choices: list[tuple[str, bool, Decimal | None]] = []
+        for letter in SLOTS:
             text = data.get(f"choice_{letter}") or ""  # CharField retire déjà les espaces
             correct = bool(data.get(f"correct_{letter}"))
+            points = self._points(letter, text, multiple)
             if text:
-                choices.append((text, correct))
+                choices.append((text, correct, points))
             elif correct:
                 raise forms.ValidationError(
                     f"La proposition {letter} est marquée juste mais elle est vide."
                 )
         if len(choices) < MIN_CHOICES:
             raise forms.ValidationError(f"Il faut au moins {MIN_CHOICES} propositions.")
-        n_correct = sum(correct for _, correct in choices)
-        if data.get("kind") == Question.Kind.SIMPLE and n_correct != 1:
+        n_correct = sum(correct for _, correct, _ in choices)
+        none_of_these = bool(data.get("none_of_these"))
+        if not multiple and none_of_these:
+            raise forms.ValidationError(
+                f"« {NONE_OF_THESE} » ne s'ajoute qu'à une question multiple."
+            )
+        if not multiple and n_correct != 1:
             raise forms.ValidationError(
                 "Une question à choix simple a exactement une bonne réponse."
             )
-        if data.get("kind") == Question.Kind.MULTIPLE and n_correct == 0:
+        if multiple and n_correct == 0 and not none_of_these:
             raise forms.ValidationError(
                 "Une question à choix multiple a au moins une bonne réponse."
             )
         data["choices"] = choices
         return data
+
+    def _points(self, letter: str, text: str, multiple: bool) -> Decimal | None:
+        raw = (self.cleaned_data.get(f"points_{letter}") or "").strip()
+        if not raw:
+            return None
+        if multiple:
+            raise forms.ValidationError(
+                "Les points d'une proposition ne valent que pour une question simple."
+            )
+        if not text:
+            raise forms.ValidationError(f"La proposition {letter} a des points mais elle est vide.")
+        try:
+            return parse_points(raw)
+        except ScoringError as error:
+            raise forms.ValidationError(f"Points de la proposition {letter} : {error}.") from None
 
     @transaction.atomic
     def save(self, commit: bool = True) -> Question:
@@ -80,32 +134,18 @@ class QuestionForm(TeacherForm):
             return question
         question.choices.all().delete()
         Choice.objects.bulk_create(
-            Choice(question=question, text=text, correct=correct, position=position)
-            for position, (text, correct) in enumerate(self.cleaned_data["choices"])
+            Choice(question=question, text=text, correct=correct, points=points, position=position)
+            for position, (text, correct, points) in enumerate(self.cleaned_data["choices"])
         )
         return question
 
 
-SIMPLE_SCALE_FIELDS = ["simple_b", "simple_m", "simple_v"]
-MULTIPLE_SCALE_FIELDS = ["multiple_b", "multiple_m", "multiple_v", "multiple_p"]
-
-
 class QuizForm(TeacherForm):
-    """Titre, barème, et un champ « ordre » par question de la banque (vide = non incluse)."""
+    """Titre et un champ « ordre » par question de la banque (vide = non incluse)."""
 
     class Meta:
         model = Quiz
-        fields = ["title", *SIMPLE_SCALE_FIELDS, *MULTIPLE_SCALE_FIELDS]
-        # Directives AMC en minuscules, comme dans AMC (« b — … »).
-        labels = {
-            "simple_b": "b — réponse juste",
-            "simple_m": "m — réponse fausse",
-            "simple_v": "v — pas de réponse",
-            "multiple_b": "b — case bien traitée",
-            "multiple_m": "m — case mal traitée",
-            "multiple_v": "v — aucune case cochée",
-            "multiple_p": "p — plancher (facultatif)",
-        }
+        fields = ["title"]
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -132,12 +172,6 @@ class QuizForm(TeacherForm):
     def question_rows(self):
         """(question, champ ordre) pour le gabarit."""
         return [(q, self[self.order_field(q)]) for q in self.bank]
-
-    def scale_fieldsets(self):
-        return [
-            ("Questions simples", [self[name] for name in SIMPLE_SCALE_FIELDS]),
-            ("Questions multiples", [self[name] for name in MULTIPLE_SCALE_FIELDS]),
-        ]
 
     def clean(self):
         super().clean()
@@ -172,3 +206,9 @@ class QuizForm(TeacherForm):
             for position, question in enumerate(self.cleaned_data["ordered_questions"], start=1)
         )
         return quiz
+
+
+class AmcUploadForm(PlainForm):
+    """Envoi d'un fichier AMC-TXT à l'analyse (IMP-01) ; rien n'est encore créé."""
+
+    file = forms.FileField(label="Fichier AMC-TXT")

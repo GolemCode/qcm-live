@@ -25,17 +25,6 @@
         {% endif %}
       {% endwith %}
     </fieldset>
-    <fieldset>
-      <legend>Barème (logique d'Auto Multiple Choice)</legend>
-      <div class="scales">
-        {% for legend, fields in form.scale_fieldsets %}
-          <fieldset>
-            <legend>{{ legend }}</legend>
-            {% for field in fields %}<div class="scale-field">{{ field.label_tag }}{{ field }}</div>{% endfor %}
-          </fieldset>
-        {% endfor %}
-      </div>
-    </fieldset>
     <p class="actions">
       <button type="submit">Enregistrer</button>
       <a href="{% if quiz.pk %}{% url 'quiz-detail' quiz.pk %}{% else %}{% url 'quiz-list' %}{% endif %}">Annuler</a>

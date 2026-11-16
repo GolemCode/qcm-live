@@ -1,0 +1,49 @@
+{% extends "teacher/base.html" %}
+{% block title %}Récapitulatif de l'import — QCM Live{% endblock %}
+{% block content %}
+  {% with parsed=found.parsed %}
+  <h1>Récapitulatif de l'import</h1>
+  <p>Fichier « {{ name }} » : QCM <strong>{{ parsed.title }}</strong>.</p>
+  {% if parsed.questions %}
+    <p>{{ parsed.questions|length }} question{{ parsed.questions|length|pluralize }} à importer, dont {{ found.existing }} déjà dans la banque (partagée{{ found.existing|pluralize }}, pas recopiée{{ found.existing|pluralize }}).</p>
+  {% else %}
+    <p class="error" role="alert">Toutes les questions sont écartées : ce fichier ne peut pas être importé.</p>
+  {% endif %}
+
+  <section aria-labelledby="recap-skipped">
+    <h2 id="recap-skipped">Questions écartées</h2>
+    {% if parsed.skipped %}
+      <ul>{% for line, reason in parsed.skipped %}<li>Ligne {{ line }} : {{ reason }}</li>{% endfor %}</ul>
+    {% else %}
+      <p>Aucune.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="recap-ignored">
+    <h2 id="recap-ignored">Textes ignorés</h2>
+    {% if parsed.ignored %}
+      <p class="muted">Textes des groupes de questions : AMC les imprime, ils ne sont pas projetés.</p>
+      <ul>{% for line, text in parsed.ignored %}<li>Ligne {{ line }} : <span class="text">{{ text|truncatechars:300 }}</span></li>{% endfor %}</ul>
+    {% else %}
+      <p>Aucun.</p>
+    {% endif %}
+  </section>
+
+  {% if parsed.questions %}
+    <section aria-labelledby="recap-questions">
+      <h2 id="recap-questions">Questions à importer</h2>
+      <ol>
+        {% for question, shared in found.rows %}
+          <li><span class="text">{{ question.text }}</span> <span class="muted">(ligne {{ question.line }} · {% if question.multiple %}choix multiple{% else %}choix simple{% endif %} · barème : {{ question.scoring|default:"b=1, m=0, v=0" }}{% if question.label %} · étiquette {{ question.label }}{% endif %}{% if shared %} · déjà dans la banque{% endif %})</span></li>
+        {% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+
+  <form method="post" class="actions">
+    {% csrf_token %}
+    {% if parsed.questions %}<button type="submit" name="action" value="import">Importer</button>{% endif %}
+    <button type="submit" name="action" value="cancel">Annuler</button>
+  </form>
+  {% endwith %}
+{% endblock %}

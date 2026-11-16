@@ -240,6 +240,7 @@ def test_scoring_comes_from_the_file(teacher_page: Page):
 def test_complete_multi(teacher_page: Page):
     page = teacher_page
     import_amc(page, "** Lesquels ?\n+ Oui\n- Non\n\n** Aucun de justes ?\n- A\n- B\n")
+    open_bank(page)
     # Par défaut, comme AMC : « Aucune… » ajoutée à chaque multiple, juste si rien d'autre.
     first = question_card(page, "Lesquels ?").get_by_role("listitem")
     expect(first).to_have_text(["Oui (juste)", "Non", NONE_OF_THESE])

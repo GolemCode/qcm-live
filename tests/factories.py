@@ -16,7 +16,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from bank.forms import LETTERS, QuestionForm, QuizForm
-from bank.models import AMC_DEFAULTS, Question, Quiz
+from bank.models import Question, Quiz
 from live.forms import IdentifyForm, LaunchSessionForm
 from live.models import Participant, Session
 from roster.forms import GroupImportForm
@@ -56,12 +56,8 @@ def make_question(
     return _saved(QuestionForm(data))
 
 
-def make_quiz(title: str, questions: Sequence[Question], **scale: str) -> Quiz:
-    defaults = {"b": AMC_DEFAULTS.b, "m": AMC_DEFAULTS.m, "v": AMC_DEFAULTS.v}
-    data = {
-        f"{kind}_{key}": value for kind in ("simple", "multiple") for key, value in defaults.items()
-    }
-    data |= {"title": title, **scale}
+def make_quiz(title: str, questions: Sequence[Question]) -> Quiz:
+    data: dict[str, object] = {"title": title}
     data |= {QuizForm.order_field(q): position for position, q in enumerate(questions, start=1)}
     return _saved(QuizForm(data))
 

@@ -1,0 +1,29 @@
+{% extends "teacher/base.html" %}
+{% block title %}Importer un fichier AMC — QCM Live{% endblock %}
+{% block content %}
+  <h1>Importer un fichier AMC</h1>
+  <form method="post" enctype="multipart/form-data" class="form wide" novalidate>
+    {% csrf_token %}
+    {% include "form_errors.html" %}
+    {{ form.file.label_tag }}
+    {{ form.file }}
+    <div class="muted">
+      <p>Un fichier au format AMC-TXT d'Auto Multiple Choice, en UTF-8, de 1 Mo au plus. Exemple :</p>
+      <pre>Title: Contrôle de géographie
+
+* Capitale de l'Italie ?
++ Rome
+- Milan
+
+** Lesquelles sont des capitales ?
++ Paris
++ Berlin
+- Lyon</pre>
+      <p>Rien n'est créé avant votre confirmation : un récapitulatif liste d'abord les questions à importer et celles qui sont écartées. Une erreur de syntaxe refuse tout le fichier.</p>
+    </div>
+    <p class="actions">
+      <button type="submit">Analyser</button>
+      <a href="{% url 'quiz-list' %}">Annuler</a>
+    </p>
+  </form>
+{% endblock %}

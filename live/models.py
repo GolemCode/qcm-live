@@ -185,9 +185,16 @@ class Participant(models.Model):
         return index, self.session.questions[index]
 
     def choice_order(self, question: int) -> list[int]:
-        """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05)."""
-        n_choices = len(self.session.questions[question]["choices"])
-        return shuffled(n_choices, f"{self.session.code}:{self.pk}:{question}")
+        """Ordre d'affichage des propositions de cette question sur son téléphone (ETU-05) :
+        inchangé pour une question sans « Aucune… » ni ordre fixe, celles d'avant I12."""
+        frozen = self.session.questions[question]
+        n_choices = len(frozen["choices"])
+        if frozen["ordered"]:  # BAN-10 : l'ordre de la banque
+            return list(range(n_choices))
+        seed = f"{self.session.code}:{self.pk}:{question}"
+        if frozen["choices"][-1]["none"]:  # ETU-12 : « Aucune… » reste en dernier
+            return [*shuffled(n_choices - 1, seed), n_choices - 1]
+        return shuffled(n_choices, seed)
 
     def answer_map(self) -> dict[int, list[int]]:
         """Propositions choisies, par indice de question ; une question absente : pas de réponse."""

@@ -25,7 +25,7 @@ from __future__ import annotations
 import pytest
 from playwright.sync_api import Page, expect
 
-from bank.models import Quiz
+from bank.models import Question
 from live.models import Session
 from roster.models import StudentGroup
 from tests.e2e.live_setup import (
@@ -52,15 +52,7 @@ from tests.e2e.live_ui import (
 )
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session
 
-SCALE = {
-    "simple_b": "2",
-    "simple_m": "-0.5",
-    "simple_v": "-0.25",
-    "multiple_b": "1",
-    "multiple_m": "-1",
-    "multiple_v": "-0.5",
-    "multiple_p": "0",
-}
+SCORING = {False: "b=2,m=-0.5,v=-0.25", True: "m=-1,v=-0.5,p=0"}  # simples, multiples
 MAX_TOTAL = "9"  # 3 questions simples à 2 points, une multiple de 3 propositions à 1 point
 STUDENTS = [
     ("7", "Ng Anh"),
@@ -94,7 +86,7 @@ ANSWERS = {
 
 
 def make_results_session() -> Session:
-    return make_live(4, shown=2, students=STUDENTS, scale=SCALE)
+    return make_live(4, shown=2, students=STUDENTS, scoring=SCORING)
 
 
 def answer_slot(phones: dict, slot: int, session: Session) -> None:
@@ -149,7 +141,7 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
 
     # Le contenu figé fait foi (SES-03) : changer le barème ou supprimer le groupe après le
     # lancement ne change rien aux résultats.
-    Quiz.objects.update(simple_b=10, simple_v=0, multiple_p=None)
+    Question.objects.update(scoring="b=10")
     StudentGroup.objects.all().delete()
 
     open_results(page)

@@ -27,6 +27,8 @@ def bank_urls(quiz):
         reverse("quiz-detail", args=[quiz.pk]),
         reverse("quiz-update", args=[quiz.pk]),
         reverse("quiz-delete", args=[quiz.pk]),
+        reverse("quiz-import"),
+        reverse("quiz-import-recap", args=["jeton"]),
     ]
 
 
@@ -59,12 +61,6 @@ def test_invalid_order_number_reports_only_its_own_error(admin_client):
         reverse("quiz-create"),
         {
             "title": "T",
-            "simple_b": 1,
-            "simple_m": 0,
-            "simple_v": 0,
-            "multiple_b": 1,
-            "multiple_m": 0,
-            "multiple_v": 0,
             f"order_{first.pk}": "0",
             f"order_{second.pk}": "",
         },

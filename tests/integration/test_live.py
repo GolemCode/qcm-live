@@ -25,8 +25,10 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def session():
     q1 = make_question("Q1", [("a", False), ("b", True)])
-    q2 = make_question("Q2", [("x", True), ("y", True), ("z", False)], multiple=True)
-    quiz = make_quiz("QCM", [q2, q1], multiple_p="-1")
+    q2 = make_question(
+        "Q2", [("x", True), ("y", True), ("z", False)], multiple=True, scoring="p=-1"
+    )
+    quiz = make_quiz("QCM", [q2, q1])
     return make_session(quiz, make_group("TD", [("1", "A"), ("2", "B")]), shown=2, seconds=20)
 
 
@@ -75,18 +77,18 @@ def test_board_state_lists_names_in_join_order(admin_client, session):
     }
 
 
-def test_snapshot_keeps_quiz_order_choices_and_scales(session):
+def test_snapshot_keeps_quiz_order_choices_and_scoring(session):
     assert session.code.isdigit() and len(session.code) == 6
     questions = session.content["questions"]
     assert [q["text"] for q in questions] == ["Q2", "Q1"]
     assert questions[0]["multiple"] is True
     assert questions[0]["choices"] == [
-        {"text": "x", "correct": True},
-        {"text": "y", "correct": True},
-        {"text": "z", "correct": False},
+        {"text": "x", "correct": True, "points": None, "none": False},
+        {"text": "y", "correct": True, "points": None, "none": False},
+        {"text": "z", "correct": False, "points": None, "none": False},
     ]
-    assert session.content["scales"]["multiple"]["p"] == "-1.00"
-    assert session.content["scales"]["simple"]["p"] is None
+    assert (questions[0]["scoring"], questions[1]["scoring"]) == ("p=-1", "")
+    assert "scales" not in session.content
     assert session.roster == [{"number": "1", "name": "A"}, {"number": "2", "name": "B"}]
 
 
