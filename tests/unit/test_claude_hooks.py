@@ -759,6 +759,12 @@ def test_before_tool_reads_the_text_just_before_this_call(lang):
     assert lang.texts_before_tool(rows, None) == [FRENCH]  # sans identifiant : le dernier appel
 
 
+def test_before_tool_warns_once_for_parallel_calls(lang):
+    rows = [_prompt("Go"), _said(ENGLISH), _tool_use("t1"), _tool_use("t2")]
+    assert lang.texts_before_tool(rows, "t1") == [ENGLISH]
+    assert lang.texts_before_tool(rows, "t2") == []
+
+
 def test_turn_texts_since_the_last_prompt_without_subagents(lang):
     rows = [_prompt("Avant"), _said(ENGLISH), _prompt("Feu vert"), _said(FRENCH)]
     rows += [_tool_use("t1"), _said("Sub-agent report, in English.", sidechain=True)]
@@ -812,6 +818,28 @@ def test_stop_hook_sends_back_an_english_turn(tmp_path):
     assert "français" in result.stderr
     # Une seule relance par arrêt.
     assert _run_hook("stop_check", {**payload, "stop_hook_active": True}, repo).returncode == 0
+
+
+def test_stop_hook_reads_the_last_message_not_yet_in_the_transcript(tmp_path):
+    """Observé dans une vraie session : au moment du hook Stop, le journal n'a pas encore le
+    dernier message ; il n'est que dans `last_assistant_message`."""
+    repo = _project(tmp_path, "essai")
+    transcript = _transcript(tmp_path / "t.jsonl", [_prompt("Feu vert")])
+    payload = {
+        "stop_hook_active": False,
+        "transcript_path": str(transcript),
+        "last_assistant_message": ENGLISH,
+    }
+    result = _run_hook("stop_check", payload, repo)
+    assert result.returncode == 2
+    assert "The tests pass now" in result.stderr
+
+
+def test_stop_hook_does_not_count_the_last_message_twice(lang):
+    rows = [_prompt("Feu vert"), _said(ENGLISH)]
+    problem = lang.turn_problem(rows, ENGLISH)
+    assert problem is not None
+    assert "1 message(s)" in problem
 
 
 def test_stop_hook_lets_a_french_turn_stop(tmp_path):

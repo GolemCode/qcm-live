@@ -1,5 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "language": "french",
   "env": {
     "UV_ENV_FILE": ".env.test"
   },
@@ -58,6 +59,12 @@
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {"type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/format_python.py\"", "timeout": 30}
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {"type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/language.py\"", "timeout": 10}
         ]
       }
     ],
