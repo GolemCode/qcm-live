@@ -26,8 +26,10 @@ import pytest
 from PIL import Image
 from playwright.sync_api import Error, FloatRect, Locator, Page, Route, ViewportSize, expect
 
+from bank.models import Quiz
 from live.models import Answer, Session
 from live.views import CLEARED, SAVED, TOO_LATE
+from roster.models import StudentGroup
 from tests.e2e.a11y import axe_violations, contrast, keyboard_problems, low_contrasts
 from tests.e2e.conftest import assert_fits_width
 from tests.e2e.live_setup import STUDENTS, expect_slot, make_live, open_board, started
@@ -110,12 +112,18 @@ class Network:
 
         self.phone.route(self.url, handler)
 
-    def restore(self) -> None:
+    def release(self) -> None:
+        """Relâche les requêtes retenues."""
         for route in self.held:
             with contextlib.suppress(Error):  # requête déjà abandonnée par la page
                 route.continue_()
         self.held.clear()
-        # Attendre la fin des interceptions en cours : aucune ne doit survivre au test.
+
+    def restore(self) -> None:
+        self.release()
+        # Attendre la fin des interceptions en cours : aucune ne doit survivre au test. Une
+        # requête encore retenue par un autre `Network` du même téléphone ferait attendre sans
+        # fin : la fixture `networks` les relâche toutes d'abord.
         self.phone.unroute_all(behavior="wait")
 
 
@@ -129,6 +137,8 @@ def networks() -> Iterator[Callable[[Page, re.Pattern[str]], Network]]:
         return made[-1]
 
     yield make
+    for network in made:  # d'abord toutes les requêtes retenues, puis les interceptions
+        network.release()
     for network in made:
         network.restore()
 
@@ -172,6 +182,12 @@ def offline_alert(phone: Page) -> Locator:
     return phone.get_by_role("alert").filter(has_text=OFFLINE)
 
 
+def expect_back_online(phone: Page) -> None:
+    """Plus d'alerte : ni le texte, ni le bandeau, même vide."""
+    expect(offline_alert(phone)).to_have_count(0, timeout=LIVE_MS)
+    expect(phone.locator(".offline")).to_be_hidden()
+
+
 def end_message(phone: Page) -> Locator:
     return phone.get_by_role("main")
 
@@ -208,6 +224,76 @@ def test_slow_network_says_sending_until_confirmed(
 
 
 @pytest.mark.spec("ETU-10")
+@pytest.mark.spec("FIN-02")
+def test_confirmation_of_a_replaced_answer_confirms_nothing(
+    teacher_page: Page, live_server, new_phone, networks
+):
+    """L'étudiant change d'avis pendant un envoi lent : « Paris » arrive et sa confirmation
+    revient, mais « Lyon », la dernière réponse, n'arrive jamais. La confirmation de « Paris »
+    ne vaut pas pour « Lyon » : non enregistrée à l'échéance, non transmise à la fin."""
+    session = make_live(1, shown=1)
+    (phone,) = started(teacher_page, live_server.url, new_phone, session, ["00123"])
+    expect_slot(phone, 0)
+    jump_to(session, 21)
+    expect(timer(phone)).to_have_text(re.compile(r"^0:0[7-9]$"), timeout=LIVE_MS)
+    watch_status(phone)
+    # L'état du direct se perd aussi : le téléphone reste sur ce créneau, et on lit ce qu'il
+    # y affiche à l'échéance.
+    networks(phone, re.compile(r"/s/\d{6}/etat/$")).cut()
+    network = networks(phone, ANSWERS)
+    network.hold()
+
+    choose(phone, "Paris")
+    for _ in range(40):
+        if network.held:
+            break
+        phone.wait_for_timeout(50)
+    choose(phone, "Lyon")  # « Paris » est encore en route
+    network.held.pop().continue_()  # seul « Paris » passe ; « Lyon » reste bloqué
+    wait_recorded(phone, session, "00123", {CAPITAL: ["Paris"]})
+
+    expect(save_status(phone)).to_have_text(TOO_LATE, timeout=14_000)
+    assert SAVED not in statuses(phone)
+    network.restore()
+    jump_to(session, 31)
+    expect(end_message(phone)).to_contain_text(not_transmitted(1), timeout=LIVE_MS + 1_000)
+    expect(phone.get_by_text(TRANSMITTED)).to_have_count(0)
+    assert recorded(session, "00123") == {CAPITAL: ["Paris"]}
+
+
+@pytest.mark.spec("ETU-10")
+@pytest.mark.spec("FIN-02")
+def test_send_trace_belongs_to_one_session(teacher_page: Page, live_server, new_phone, networks):
+    """Le même téléphone sert à deux sessions dans la journée : un envoi en attente dans la
+    première n'est ni repris ni compté dans la seconde."""
+    first = make_live(1, shown=1)
+    phone = new_phone()
+    started(teacher_page, live_server.url, lambda: phone, first, ["00123"])
+    expect_slot(phone, 0)
+    network = networks(phone, ANSWERS)
+    network.cut()
+    choose(phone, "Paris")
+    expect(save_status(phone)).to_have_text(SENDING)  # jamais confirmé
+
+    second = make_session(
+        Quiz.objects.get(title="Contrôle"), StudentGroup.objects.get(name="TD1"), shown=1
+    )
+    started(teacher_page, live_server.url, lambda: phone, second, ["00123"])
+    expect_slot(phone, 0)
+    phone.wait_for_timeout(1_000)
+    for label in phone_choices(phone):
+        expect(phone.get_by_label(label, exact=True)).not_to_be_checked()
+    expect(save_status(phone)).to_have_text("")
+    network.restore()
+    jump_to(second, 31)
+    expect(end_message(phone)).to_have_text(
+        re.compile(r"^\s*Session terminée\.\s*$"), timeout=LIVE_MS + 1_000
+    )
+    phone.wait_for_timeout(1_000)
+    expect(end_message(phone)).to_have_text(re.compile(r"^\s*Session terminée\.\s*$"))
+
+
+@pytest.mark.spec("ETU-10")
 def test_failed_send_is_retried_every_second(teacher_page: Page, live_server, new_phone, networks):
     session = make_live(1, shown=1)
     (phone,) = started(teacher_page, live_server.url, new_phone, session, ["00123"])
@@ -232,6 +318,7 @@ def test_failed_send_is_retried_every_second(teacher_page: Page, live_server, ne
 
 @pytest.mark.spec("ETU-10")
 @pytest.mark.spec("FIN-02")
+@pytest.mark.spec("ACC-02")  # état verrouillé à l'échéance
 def test_answer_lost_at_the_deadline_is_reported(
     teacher_page: Page, live_server, new_phone, networks
 ):
@@ -255,6 +342,7 @@ def test_answer_lost_at_the_deadline_is_reported(
     for label in phone_choices(phone):
         expect(phone.get_by_label(label, exact=True)).to_be_disabled()
     expect(phone.get_by_role("button", name="Effacer ma réponse")).to_be_disabled()
+    assert_accessible(phone, "échéance, propositions verrouillées")
     sent = len(network.posts)
     phone.wait_for_timeout(2_000)
     assert len(network.posts) == sent, "renvoi après la fin du créneau"
@@ -436,7 +524,7 @@ def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, ne
     lost_after = phone.evaluate("window.lostAfter")
     assert 3_000 <= lost_after <= 3_400, lost_after
     phone.context.set_offline(False)
-    expect(offline_alert(phone)).to_have_count(0, timeout=LIVE_MS)
+    expect_back_online(phone)
 
     # En déroulement : un réseau qui ne répond plus, sans erreur.
     open_board(teacher_page, live_server.url, session)
@@ -449,7 +537,7 @@ def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, ne
     expect(offline_alert(phone)).to_have_count(0)
     expect(offline_alert(phone)).to_be_visible(timeout=3_000)
     network.restore()
-    expect(offline_alert(phone)).to_have_count(0, timeout=LIVE_MS)
+    expect_back_online(phone)
 
 
 # --- FIN-02 : message de fin ----------------------------------------------------------------
@@ -642,6 +730,9 @@ def test_running_phone_layout(teacher_page: Page, live_server, new_phone, networ
     badge = phone.get_by_text("Couleur 1", exact=True)
     shape = phone.get_by_role("img", name="rond")
     expect(shape).to_be_visible()
+    number = phone.locator("main p").filter(has_text="Couleur 1").get_by_text("1", exact=True)
+    expect(number).to_be_visible()
+    assert float(style(number, "fontSize").removesuffix("px")) >= 32  # le numéro, en grand
     choices = phone.get_by_role("group", name="Propositions").locator("label")
     expect(choices).to_have_count(8)
     assert box(badge)["y"] < box(choices.first)["y"]
@@ -707,13 +798,16 @@ def test_running_phone_layout(teacher_page: Page, live_server, new_phone, networ
 
 @pytest.mark.spec("VIS-04")
 def test_connection_lost_and_end_screens(teacher_page: Page, live_server, new_phone):
-    session = make_live(1, shown=1, students=[*STUDENTS, LONG_NAME])
+    quiz = make_quiz("Long", [make_question("Question longue ?", LONG_CHOICES)])
+    session = make_session(quiz, make_group("TD1", [*STUDENTS, LONG_NAME]), shown=1)
     (phone,) = started(teacher_page, live_server.url, new_phone, session, [LONG_NAME[0]])
     expect_slot(phone, 0)
     phone.context.set_offline(True)
     expect(offline_alert(phone)).to_be_visible(timeout=5_000)
     expect(offline_alert(phone)).to_be_in_viewport(ratio=1)
+    # L'alerte reste à l'écran quand les propositions font défiler la page.
     phone.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+    assert phone.evaluate("() => window.scrollY") > 200
     expect(offline_alert(phone)).to_be_in_viewport(ratio=1)
     assert_phone_layout(phone, "connexion perdue")
     phone.context.set_offline(False)
