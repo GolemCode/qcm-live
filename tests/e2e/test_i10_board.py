@@ -12,27 +12,28 @@ La barre du temps se mesure sur une capture de l'écran, comme un œil la voit.
 
 from __future__ import annotations
 
-import io
 import re
 
 import pytest
-from PIL import Image, ImageColor
 from playwright.sync_api import Browser, Locator, Page, ViewportSize, expect
 
 from tests.e2e.a11y import PAGE_JS, axe_violations, keyboard_problems, low_contrasts
 from tests.e2e.live_setup import STUDENTS, make_live, open_board, started
 from tests.e2e.live_ui import (
+    INK,
     LIVE_MS,
     add_time,
     assert_fits,
     card,
     connected_count,
     connected_names,
+    expect_fill,
+    expect_time_bar,
     join_qr,
     join_region,
     join_url,
-    seconds_left,
     start,
+    time_bar,
     timer,
     timer_shows,
 )
@@ -129,68 +130,6 @@ def test_font_is_served_by_the_application(teacher_page: Page, live_server, new_
 
 
 # --- VIS-02 : bandeau et barre du temps au tableau --------------------------------------
-
-
-SIGNAL = ImageColor.getrgb("#f0e442")  # valeur de la barre du temps : le jaune signal
-INK = ImageColor.getrgb("#111111")  # valeur de la barre des connectés : l'encre
-
-
-def bar_fill(bar: Locator, value) -> float:
-    """Part remplie d'une barre, lue sur une capture : longueur, depuis la gauche, de la plage
-    de la couleur `value`, sur la ligne du milieu. Une barre vide mesure 0. Une barre placée à
-    une position fractionnaire déborde d'un pixel sur le fond, de chaque côté : on les écarte."""
-    image = Image.open(io.BytesIO(bar.screenshot())).convert("RGB")
-    y = image.height // 2
-    row = [image.getpixel((x, y)) for x in range(1, image.width - 1)]
-
-    def near(pixel) -> bool:
-        return sum(abs(a - b) for a, b in zip(pixel, value, strict=True)) <= 90
-
-    run = next((x for x, pixel in enumerate(row) if not near(pixel)), len(row))
-    return run / len(row)
-
-
-def assert_visible_bar(bar: Locator) -> None:
-    expect(bar).to_be_visible()
-    box = bar.bounding_box()
-    assert box and box["height"] >= 6, box  # visible de loin, pas un simple filet
-
-
-def expect_fill(bar: Locator, value, expected: float, tolerance: float = 0.03) -> None:
-    """La barre atteint, dans le délai du direct, la part `expected` (à `tolerance` près)."""
-    assert_visible_bar(bar)
-    seen = []
-    for _ in range(LIVE_MS // 100):
-        seen.append(round(bar_fill(bar, value), 3))
-        if abs(seen[-1] - expected) <= tolerance:
-            return
-        bar.page.wait_for_timeout(100)
-    raise AssertionError(f"barre à {seen[-5:]}, attendu {expected:.2f}")
-
-
-def time_bar(page: Page) -> Locator:
-    return page.get_by_role("progressbar", name="Part du créneau restante")
-
-
-def expect_time_bar(page: Page, duration: int) -> None:
-    """La barre du temps montre la part restante d'un créneau de `duration` secondes, mesurée
-    au même instant que le minuteur : le temps restant, arrondi à la seconde supérieure, est
-    lu juste avant et juste après la capture. Comme les deux baissent ensemble, attendre ne
-    rapproche pas une barre fausse de la valeur juste ; on n'attend que le recalage de la page,
-    dans le délai du direct."""
-    bar = time_bar(page)
-    assert_visible_bar(bar)
-    seen = []
-    for _ in range(LIVE_MS // 100):
-        before = seconds_left(page)
-        fill = bar_fill(bar, SIGNAL)
-        after = seconds_left(page)
-        low, high = (min(before, after) - 1) / duration, max(before, after) / duration
-        seen.append((before, round(fill, 3)))
-        if low - 0.02 <= fill <= high + 0.02:
-            return
-        page.wait_for_timeout(100)
-    raise AssertionError(f"(secondes, barre) : {seen[-5:]}, pour un créneau de {duration} s")
 
 
 @pytest.mark.spec("VIS-02")
