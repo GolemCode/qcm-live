@@ -35,6 +35,7 @@ IDENTITIES = "live_participants"
 SAVED = "Réponse enregistrée"
 CLEARED = "Réponse effacée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
+IDENTIFY_FIRST = "Identifiez-vous d'abord."
 RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."
 SLOT_OVER = "Créneau terminé : aucun temps ajouté."
 
@@ -53,18 +54,17 @@ def _page(state: State, *, board: bool) -> str:
 
 
 def _live_json(state: State, *, board: bool, **extra) -> JsonResponse:
-    """État d'une page en direct : son jeton, le temps restant et le rang du créneau en cours
-    (visé par « +10 s », car le tableau ne se recharge qu'au changement de groupe). Au tableau,
-    aussi la durée du créneau : sa barre du temps se recale sans recharger la page, sur un
-    créneau allongé par « +10 s » comme sur le créneau suivant du même groupe."""
+    """État d'une page en direct : son jeton, le temps restant, le rang du créneau en cours
+    (visé par « +10 s », car le tableau ne se recharge qu'au changement de groupe) et sa durée.
+    La barre du temps se recale ainsi sans recharger la page, sur un créneau allongé par
+    « +10 s » comme, au tableau, sur le créneau suivant du même groupe (VIS-02, VIS-04)."""
     position = state.position
     data = {
         "page": _page(state, board=board),
         "remaining_ms": _ms(position.remaining) if position else None,
         "slot": position.slot.index if position else None,
+        "slot_ms": _ms(position.length) if position else None,
     }
-    if board:
-        data["slot_ms"] = _ms(position.length) if position else None
     return JsonResponse(data | extra)
 
 
@@ -282,6 +282,7 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             ],
             "saved": saved.first() or [],
             "remaining_ms": _ms(state.position.remaining),
+            "slot_ms": _ms(state.position.length),
         }
     return render(request, "live/student.html", context)
 
@@ -292,13 +293,26 @@ def student_state(request: HttpRequest, code: str) -> JsonResponse:
     return _live_json(session.state(timezone.now()), board=False)
 
 
+def student_answers(request: HttpRequest, code: str) -> JsonResponse:
+    """ETU-10, FIN-02 : réponses enregistrées pour ce téléphone, par rang de créneau. Le
+    téléphone les compare à la trace de ses envois : une réponse arrivée à temps compte comme
+    transmise, même s'il n'en a pas vu la confirmation. Ni énoncé ni proposition (AFF-01) :
+    seulement les indices des propositions choisies."""
+    session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
+    participant = _identity(request, session)
+    if participant is None:
+        return JsonResponse({"message": IDENTIFY_FIRST}, status=403)
+    answers = participant.answers_by_slot()
+    return JsonResponse({"answers": {str(slot): choices for slot, choices in answers.items()}})
+
+
 @require_POST
 def student_answer(request: HttpRequest, code: str) -> JsonResponse:
     """Enregistre la réponse au créneau en cours (ETU-07) ; refusée hors délai."""
     session = get_object_or_404(Session.objects.defer("roster"), code=code)
     participant = _identity(request, session)
     if participant is None:
-        return JsonResponse({"message": "Identifiez-vous d'abord."}, status=403)
+        return JsonResponse({"message": IDENTIFY_FIRST}, status=403)
     position = session.state(timezone.now()).position
     if position is None or request.POST.get("slot") != str(position.slot.index):
         return JsonResponse({"message": TOO_LATE}, status=409)

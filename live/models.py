@@ -193,6 +193,13 @@ class Participant(models.Model):
         """Propositions choisies, par indice de question ; une question absente : pas de réponse."""
         return {answer.question: answer.choices for answer in self.answers.all()}
 
+    def answers_by_slot(self) -> dict[int, list[int]]:
+        """Propositions choisies, par rang du créneau où ce participant a eu la question
+        (ETU-10). La rotation lui donne chaque question une fois, dans un seul créneau."""
+        schedule = self.session.schedule
+        slot_of = {schedule.question_for(slot, self.rank): slot.index for slot in schedule.slots}
+        return {slot_of[question]: choices for question, choices in self.answer_map().items()}
+
 
 class Answer(models.Model):
     """Dernière réponse d'un participant à une question de la copie figée (ETU-07).
