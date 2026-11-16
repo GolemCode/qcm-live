@@ -39,13 +39,15 @@ CODE = re.compile(r"```.*?```|`[^`\n]*`", re.DOTALL)
 WORD = re.compile(r"[\w'./-]+")
 NOT_A_WORD = re.compile(r"[\d/._-]")  # identifiants, chemins, versions : ni anglais ni français
 TAIL_BYTES = 1_000_000  # un journal de session dépasse 10 Mo ; le tour en cours tient à la fin
+HOOK_FEEDBACK = "Stop hook feedback"  # début du retour d'un hook Stop, au journal
 RULE = "Langue (CLAUDE.md, règle 7) : la conversation avec le commanditaire se tient en français."
 
 
 def looks_english(text: str) -> bool:
     """Le texte, hors code, est-il en anglais ? Un message sans mot-outil ne l'est pas."""
     prose = CODE.sub(" ", text.replace("\u2019", "'")).lower()  # apostrophe typographique
-    words = [word for word in WORD.findall(prose) if not NOT_A_WORD.search(word)]
+    tokens = (word.rstrip(".-/'") for word in WORD.findall(prose))  # « now. » compte
+    words = [word for word in tokens if word and not NOT_A_WORD.search(word)]
     english = sum(word in ENGLISH for word in words)
     french = sum(word in FRENCH for word in words)
     return (english >= 2 and french == 0) or (english >= 3 and english > 2 * french)
@@ -102,11 +104,24 @@ def _calls(row: dict) -> list[str]:
     return _values(row, "tool_use", "id")
 
 
+def _said_to_claude(row: dict) -> str:
+    content = (row.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return content
+    return " ".join(block.get("text", "") for block in _blocks(row))
+
+
 def _is_prompt(row: dict) -> bool:
-    """Un message entrant qui n'est pas un résultat d'outil : il ouvre un nouveau tour."""
+    """Un message entrant qui ouvre un nouveau tour : du commanditaire, ou le retour d'un hook Stop.
+
+    Ni un résultat d'outil, ni une ligne méta (rappel système, message d'une autre session) :
+    elles arrivent au milieu d'un tour.
+    """
     if not _main_thread(row, "user"):
         return False
-    return not any(block.get("type") == "tool_result" for block in _blocks(row))
+    if any(block.get("type") == "tool_result" for block in _blocks(row)):
+        return False
+    return not row.get("isMeta") or _said_to_claude(row).startswith(HOOK_FEEDBACK)
 
 
 def texts_before_tool(rows: list[dict], tool_use_id: str | None) -> list[str]:
@@ -118,7 +133,9 @@ def texts_before_tool(rows: list[dict], tool_use_id: str | None) -> list[str]:
     ids = [_calls(row) for row in rows]
     calls = [i for i, found in enumerate(ids) if found]
     matching = [i for i in calls if tool_use_id in ids[i]]
-    end = (matching or calls or [None])[-1]
+    if tool_use_id is not None:  # appel d'un sous-agent, ou pas encore écrit : rien à dire
+        calls = matching
+    end = (calls or [None])[-1]
     if end is None:
         return []
     texts = _texts(rows[end])
@@ -170,8 +187,18 @@ def turn_problem(rows: list[dict], last_message: str | None = None) -> str | Non
 
 
 def stop_problem(payload: dict) -> str | None:
-    """`turn_problem` à partir de la charge du hook Stop."""
-    return turn_problem(_rows(payload), payload.get("last_assistant_message"))
+    """`turn_problem` à partir de la charge du hook Stop.
+
+    Le retour d'un hook Stop entre au journal comme un message entrant, qui ouvre un nouveau
+    tour. Après un renvoi pour la langue, l'arrêt suivant passe (une relance par arrêt) ;
+    après un renvoi pour une autre raison (`stop_check.py`), la langue est contrôlée.
+    """
+    rows = _rows(payload)
+    if payload.get("stop_hook_active"):
+        prompts = [row for row in rows if _is_prompt(row)]
+        if prompts and RULE in _said_to_claude(prompts[-1]):
+            return None
+    return turn_problem(rows, payload.get("last_assistant_message"))
 
 
 def main() -> int:
@@ -182,7 +209,7 @@ def main() -> int:
     if not isinstance(payload, dict):
         return 0
     if payload.get("hook_event_name") == "Stop":
-        problem = None if payload.get("stop_hook_active") else stop_problem(payload)
+        problem = stop_problem(payload)
         if problem:
             print(problem, file=sys.stderr)
             return 2

@@ -673,8 +673,10 @@ def test_stop_hook_does_not_run_check_while_a_pytest_runs(tmp_path):
     runner = subprocess.Popen(["sh", str(fake)], cwd=repo)
     try:
         result = _run_stop(repo)
-        assert result.returncode == 0, result.stderr
-        assert not stop.marker_path(repo).exists()  # rien n'a été contrôlé
+        assert result.returncode == 2  # renvoyé attendre la fin, sans fin silencieuse
+        assert "Un pytest tourne" in result.stderr
+        assert "`make check` échoue" not in result.stderr  # rien n'a été lancé
+        assert not stop.marker_path(repo).exists()
     finally:
         runner.kill()
         runner.wait()
@@ -765,6 +767,26 @@ def test_before_tool_warns_once_for_parallel_calls(lang):
     assert lang.texts_before_tool(rows, "t2") == []
 
 
+def test_before_tool_says_nothing_about_an_unknown_call(lang):
+    """Appel d'un sous-agent : son identifiant n'est pas dans le fil principal."""
+    rows = [_prompt("Go"), _said(ENGLISH), _tool_use("t1")]
+    assert lang.texts_before_tool(rows, "sous-agent") == []
+    assert lang.texts_before_tool(rows, None) == [ENGLISH]
+
+
+def test_words_ending_a_sentence_count(lang):
+    assert lang.looks_english("Done. All green now.")
+    assert not lang.looks_english("Fait. Tout est vert.")
+
+
+def test_a_meta_row_does_not_open_a_turn(lang):
+    """Rappel système, message d'une autre session : ils arrivent au milieu du tour."""
+    meta = {**_prompt("Another Claude session sent a message"), "isMeta": True}
+    feedback = {**_prompt("Stop hook feedback: Procédure inachevée"), "isMeta": True}
+    assert lang.turn_texts([_prompt("Go"), _said(ENGLISH), meta]) == [ENGLISH]
+    assert lang.turn_texts([_prompt("Go"), _said(ENGLISH), feedback]) == []
+
+
 def test_turn_texts_since_the_last_prompt_without_subagents(lang):
     rows = [_prompt("Avant"), _said(ENGLISH), _prompt("Feu vert"), _said(FRENCH)]
     rows += [_tool_use("t1"), _said("Sub-agent report, in English.", sidechain=True)]
@@ -818,7 +840,9 @@ def test_stop_hook_sends_back_an_english_turn(tmp_path):
     result = _run_hook("language", payload)
     assert result.returncode == 2
     assert "français" in result.stderr
-    # Une seule relance par arrêt.
+    # Une seule relance par arrêt : le retour du hook entre au journal, puis Claude s'arrête.
+    feedback = {**_prompt(f"Stop hook feedback: {result.stderr}"), "isMeta": True}
+    _transcript(transcript, [*rows, feedback])
     assert _run_hook("language", {**payload, "stop_hook_active": True}).returncode == 0
 
 
@@ -841,6 +865,23 @@ def test_stop_hook_does_not_count_the_last_message_twice(lang):
     problem = lang.turn_problem(rows, ENGLISH)
     assert problem is not None
     assert "1 message(s)" in problem
+
+
+def test_stop_hook_checks_the_language_after_another_hook_sent_back(tmp_path):
+    """Le retour de `stop_check.py` ouvre un nouveau tour : il est contrôlé quand même."""
+    rows = [_prompt("Feu vert"), _prompt("Stop hook feedback: Procédure inachevée")]
+    transcript = _transcript(tmp_path / "t.jsonl", rows)
+    payload = {**STOP, "stop_hook_active": True, "transcript_path": str(transcript)}
+    payload["last_assistant_message"] = ENGLISH
+    assert _run_hook("language", payload).returncode == 2
+
+
+def test_stop_hook_sends_back_once_for_the_language(lang, tmp_path):
+    rows = [_prompt("Feu vert"), _prompt(f"Stop hook feedback: {lang.RULE} 1 message(s)")]
+    transcript = _transcript(tmp_path / "t.jsonl", rows)
+    payload = {**STOP, "stop_hook_active": True, "transcript_path": str(transcript)}
+    payload["last_assistant_message"] = ENGLISH
+    assert _run_hook("language", payload).returncode == 0
 
 
 def test_stop_hook_lets_a_french_turn_stop(tmp_path):

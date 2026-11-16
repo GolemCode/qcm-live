@@ -5,9 +5,9 @@ modifications, contenu des fichiers non suivis) est mémorisé après un succès
 <git-dir>/claude-last-green : aucun contrôle n'est relancé tant que rien n'a changé.
 
 Concurrence : si un pytest tourne déjà dans le projet (ou une copie de travail), `make check`
-n'est pas lancé ; il le sera à l'arrêt suivant. Chaque pytest a sa propre base de test
-(`config/settings.py`), mais un second pytest prend du processeur aux tests E2E à faible marge
-de temps, et contrôlerait du code en cours de mutation (contre-épreuves).
+n'est pas lancé ; Claude est renvoyé attendre sa fin, et le contrôle a lieu à un arrêt suivant.
+Chaque pytest a sa propre base de test (`config/settings.py`), mais un second pytest prend du
+processeur aux tests E2E à faible marge de temps, et contrôlerait du code en cours de mutation.
 
 La langue est vérifiée par une autre entrée Stop (`language.py`).
 
@@ -162,8 +162,12 @@ def pytest_running(project: Path, proc: Path = Path("/proc")) -> bool:
 
 
 def quality_problem(project: Path) -> str | None:
-    if pytest_running(project):
-        return None  # sans témoin vert : le contrôle aura lieu à l'arrêt suivant
+    if pytest_running(project):  # sans témoin vert : le contrôle aura lieu à l'arrêt suivant
+        return (
+            "Un pytest tourne dans le projet : `make check` n'est pas lancé pendant ce temps. "
+            "Attendre sa fin au premier plan (`tail --pid=<pid> -f /dev/null`) et lire son "
+            "résultat ; si tu attends vraiment un agent ou la CI, redis-le et arrête-toi."
+        )
     marker = marker_path(project)
     key = state_key(project)
     if marker.exists() and marker.read_text() == key:

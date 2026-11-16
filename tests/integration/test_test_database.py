@@ -36,11 +36,14 @@ def test_each_process_gets_its_own_test_database():
     assert Path(first).name.startswith(".test-db-")
 
 
-def test_two_pytest_runs_at_once_do_not_collide():
+def test_two_pytest_runs_at_once_do_not_collide(tmp_path):
+    env = {**os.environ, "PROBE_MEETING": str(tmp_path)}
     command = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
     command.append(str(Path(__file__).with_name("probe_concurrent_db.py")))
     runs = [
-        subprocess.Popen(command, cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.Popen(
+            command, cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
         for _ in range(2)
     ]
     outputs = [run.communicate(timeout=120)[0].decode() for run in runs]
