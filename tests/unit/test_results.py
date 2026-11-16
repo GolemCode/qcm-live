@@ -113,15 +113,23 @@ def test_neutralised(text, safe):
 def test_csv_rows():
     rows = csv_rows(QUIZ, results(QUIZ, STUDENTS, {"00123": {0: [1], 1: [0, 1]}}))
     assert rows == [
-        ["numéro", "nom", "note", "note max", "Q1 réponse", "Q1 points", "Q2 réponse", "Q2 points"],
-        ["00123", "DURAND Élise", "2,5", "5", "B", "-0,5", "AB", "3"],
-        ["42", "'=1+1", ABSENT, "5", "", "", "", ""],
+        [
+            "numéro",
+            "nom",
+            "note",
+            "note max",
+            "note /20",
+            *["Q1 réponse", "Q1 points"],
+            *["Q2 réponse", "Q2 points"],
+        ],
+        ["00123", "DURAND Élise", "2,5", "5", "10", "B", "-0,5", "AB", "3"],
+        ["42", "'=1+1", ABSENT, "5", "", "", "", "", ""],
     ]
 
 
 def test_csv_rows_mark_no_answer_with_a_dash():
     rows = csv_rows(QUIZ, results(QUIZ, STUDENTS[:1], {"00123": {}}))
-    assert rows[1] == ["00123", "DURAND Élise", "0,75", "5", "-", "0,25", "-", "0,5"]
+    assert rows[1] == ["00123", "DURAND Élise", "0,75", "5", "3", "-", "0,25", "-", "0,5"]
 
 
 def test_letters_follow_the_bank_order():
@@ -142,4 +150,4 @@ def test_none_of_these_has_the_letter_after_the_last_choice():
     quiz: FrozenQuiz = {"questions": [question(True, False, False, True, none=True)]}
     assert grade(quiz, {0: [2]}) == [Mark("C", D(2))]  # A et B non cochées, justes : 1 + 1
     assert grade(quiz, {0: [0, 2]}) == [Mark("AC", D(0))]  # « Aucune » combinée : e
-    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {"00123": {0: [2]}}))[1][4:] == ["C", "2"]
+    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {"00123": {0: [2]}}))[1][5:] == ["C", "2"]

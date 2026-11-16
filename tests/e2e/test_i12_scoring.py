@@ -154,15 +154,15 @@ def test_grades_follow_the_amc_scoring_of_each_question(teacher_page: Page, live
 
     open_results(page)
     assert results_rows(page) == [
-        ["00123", "DURAND Élise", "3", MAX_TOTAL],  # -3 + 1 + 3 + 2
-        ["42", "MARTIN Léo", "-1", MAX_TOTAL],  # -1 + 0 - 1 + 1
+        ["00123", "DURAND Élise", "3", MAX_TOTAL, "6"],  # -3 + 1 + 3 + 2 ; 3 / 10 x 20
+        ["42", "MARTIN Léo", "-1", MAX_TOTAL, "0"],  # -1 + 0 - 1 + 1, bornée à 0
     ]
     _, content = download_csv(page)
     rows = csv_rows(content)
     # « Aucune… » a la lettre qui suit la dernière proposition : C pour Q4.
-    assert rows[1][4:] == ["B", "-3", "A", "1", "A", "3", "C", "2"]
+    assert rows[1][5:] == ["B", "-3", "A", "1", "A", "3", "C", "2"]
     # Q2 : 3 cases mal traitées, 1 + d = -1, plancher p = 0 ; Q3 : rien coché, v = -1.
-    assert rows[2][4:] == ["C", "-1", "C", "0", "-", "-1", "A", "1"]
+    assert rows[2][5:] == ["C", "-1", "C", "0", "-", "-1", "A", "1"]
 
 
 # --- BAN-09 : « Aucune de ces réponses n'est correcte » --------------------------------------

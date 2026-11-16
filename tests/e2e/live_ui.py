@@ -222,10 +222,22 @@ def csv_rows(content: bytes) -> list[list[str]]:
     return list(csv.reader(io.StringIO(content.decode("utf-8-sig")), delimiter=";"))
 
 
+def results_table(page: Page) -> Locator:
+    return page.get_by_role("table", name="Résultats")
+
+
+def show_grades(page: Page) -> None:
+    """La page des résultats s'ouvre notes masquées : l'écran est projeté (RES-04)."""
+    page.get_by_text("Afficher les notes", exact=True).click()
+    expect(results_table(page)).to_be_visible()
+
+
 def results_rows(page: Page) -> list[list[str]]:
-    """Lignes du tableau des résultats (sans l'en-tête), cellule par cellule."""
-    table = page.get_by_role("table", name="Résultats")
-    expect(table).to_be_visible()
+    """Lignes du tableau des résultats (sans l'en-tête), cellule par cellule. Affiche d'abord
+    les notes, si elles sont encore masquées."""
+    table = results_table(page)
+    if not table.is_visible():
+        show_grades(page)
     return [
         [cell.inner_text().strip() for cell in row.get_by_role("cell").all()]
         for row in table.locator("tbody").get_by_role("row").all()
