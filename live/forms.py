@@ -11,6 +11,7 @@ from django.db.models import Count, Max
 from bank.models import NONE_OF_THESE, Quiz
 from config.forms import PlainForm
 from live.models import CODE_LENGTH, Participant, Session, random_code
+from live.results import none_index
 from live.snapshot import FrozenQuestion, freeze_group, freeze_quiz
 from roster.csv_import import MAX_NUMBER_LENGTH
 from roster.models import StudentGroup
@@ -167,7 +168,7 @@ class AnswerForm(PlainForm):
         super().__init__(*args, **kwargs)
         self.multiple = question["multiple"]
         choices = question["choices"]
-        self.none = next((i for i, choice in enumerate(choices) if choice["none"]), None)
+        self.none = none_index(question)
         field = cast(forms.TypedMultipleChoiceField, self.fields["choice"])
         field.choices = [(i, i) for i in range(len(choices))]
 

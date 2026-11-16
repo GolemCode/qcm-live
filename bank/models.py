@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from django.conf import settings
 from django.db import models
 
 from bank.amc_txt import CHOICE_MAX_LENGTH, GROUP_LABEL_MAX_LENGTH, TITLE_MAX_LENGTH
@@ -96,3 +97,18 @@ class QuizItem(models.Model):
 
     def __str__(self) -> str:
         return f"{self.quiz} #{self.position} : {self.question}"
+
+
+class PendingImport(models.Model):
+    """Dernier fichier AMC-TXT envoyé par un enseignant, gardé jusqu'à sa confirmation (IMP-01).
+
+    Un nouvel envoi le remplace ; la confirmation, l'annulation ou un refus le suppriment.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    token = models.CharField(max_length=32)  # désigne cet envoi dans l'adresse du récapitulatif
+    name = models.TextField()  # nom du fichier, tel qu'envoyé
+    data = models.BinaryField()
+
+    def __str__(self) -> str:
+        return self.name

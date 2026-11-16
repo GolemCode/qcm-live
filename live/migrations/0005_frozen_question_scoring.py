@@ -1,7 +1,7 @@
 """BAR-01 (I12) : la copie figée d'une session porte le barème de chaque question.
 
 Avant I12, elle portait un barème par type de question (`scales`, b, m, v et le plancher p
-des multiples). Chaque question figée reçoit l'équivalent (bank.scoring.legacy_scoring) : les
+des multiples). Chaque question figée reçoit l'équivalent (bank.migrations._legacy_scoring) : les
 notes et la note maximale d'une session déjà lancée ne changent pas.
 """
 
@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from django.db import migrations
 
-from bank.scoring import legacy_scoring
+from bank.migrations._legacy_scoring import legacy_scoring
 
 
 def freeze_scoring(content):

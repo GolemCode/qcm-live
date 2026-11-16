@@ -125,15 +125,6 @@ def plain(value: Decimal) -> Decimal:
     return Decimal(0) if value == 0 else Decimal(format(value.normalize(), "f"))
 
 
-def legacy_scoring(
-    *, multiple: bool, n_choices: int, b: Decimal, m: Decimal, v: Decimal, p: Decimal | None
-) -> str:
-    """Barème d'une question d'après celui de son QCM avant I12 (b, m, v, plancher p des
-    multiples) : les mêmes notes et la même note maximale. Les valeurs de base sont omises."""
-    directives = {name: plain(value) for name, value in (("b", b), ("m", m), ("v", v))}
-    directives = {name: value for name, value in directives.items() if value != BASE[name]}
-    if multiple and p is not None:
-        directives["p"] = plain(p)
-        if p > b * n_choices:  # avant I12, la note maximale ignorait le plancher
-            directives["MAX"] = plain(b * n_choices)
-    return format_scoring(directives)
+def format_points(value: Decimal | None) -> str:
+    """Valeur d'une proposition sous sa forme saisie et figée ; "" si elle n'en a pas."""
+    return "" if value is None else str(plain(value))

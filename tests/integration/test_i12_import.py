@@ -10,8 +10,8 @@ from django.urls import reverse
 from bank import importer
 from bank.amc_txt import MAX_BYTES, AmcSyntaxError
 from bank.importer import NOTHING_TO_IMPORT, AlreadyImported, import_quiz, preview
-from bank.models import Question, Quiz, QuizItem
-from bank.views import EXPIRED, PENDING_IMPORT
+from bank.models import PendingImport, Question, Quiz, QuizItem
+from bank.views import EXPIRED
 from tests.factories import make_question
 
 pytestmark = pytest.mark.django_db
@@ -62,7 +62,7 @@ def test_identical_question_of_the_bank_is_shared():
         "Nombres pairs ?", [("2", False), ("3", True)], multiple=True, scoring="haut=2"
     )
     found = preview(FILE, "controle.txt")
-    assert found.shared == (True, False, False)
+    assert [shared for _, shared in found.rows()] == [True, False, False]
     assert found.existing == 1
     quiz = import_quiz(FILE, "controle.txt")
     assert existing in quiz.questions.all()
@@ -126,10 +126,10 @@ def upload(client, data: bytes, name: str = "controle.txt"):
 
 def test_upload_keeps_the_file_until_confirmation(admin_client):
     response = upload(admin_client, FILE)
-    pending = admin_client.session[PENDING_IMPORT]
+    pending = PendingImport.objects.get()
     assert response.status_code == 302
-    assert response["Location"] == reverse("quiz-import-recap", args=[pending["token"]])
-    assert pending["data"].encode() == FILE and pending["name"] == "controle.txt"
+    assert response["Location"] == reverse("quiz-import-recap", args=[pending.token])
+    assert bytes(pending.data) == FILE and pending.name == "controle.txt"
     assert Quiz.objects.count() == 0
     page = admin_client.get(response["Location"])
     assert page.status_code == 200
@@ -142,7 +142,7 @@ def test_confirmation_imports_once(admin_client):
     quiz = Quiz.objects.get()
     assert response["Location"] == reverse("quiz-detail", args=[quiz.pk])
     assert messages_of(response) == ["QCM importé : 3 questions."]
-    assert PENDING_IMPORT not in admin_client.session
+    assert not PendingImport.objects.exists()
     again = admin_client.post(url, {"action": "import"})  # double clic, autre onglet
     assert again["Location"] == reverse("quiz-import")
     assert messages_of(again) == [EXPIRED]
@@ -154,7 +154,7 @@ def test_cancel_creates_nothing_and_forgets_the_file(admin_client):
     response = admin_client.post(url, {"action": "cancel"})
     assert response["Location"] == reverse("quiz-list")
     assert messages_of(response) == ["Import annulé."]
-    assert PENDING_IMPORT not in admin_client.session
+    assert not PendingImport.objects.exists()
     assert Quiz.objects.count() == Question.objects.count() == 0
 
 
@@ -165,6 +165,18 @@ def test_unknown_token_is_expired(admin_client):
         assert response["Location"] == reverse("quiz-import")
         assert messages_of(response) == [EXPIRED]
     assert Quiz.objects.count() == 0
+
+
+def test_another_teacher_cannot_open_the_pending_file(admin_client, client, django_user_model):
+    url = upload(admin_client, FILE)["Location"]
+    other = django_user_model.objects.create_user("collegue", password="x")
+    client.force_login(other)
+    for method in ("get", "post"):
+        response = getattr(client, method)(url, {"action": "import"})
+        assert response["Location"] == reverse("quiz-import")
+        assert messages_of(response) == [EXPIRED]
+    assert Quiz.objects.count() == 0
+    assert PendingImport.objects.get().user.username == "admin"
 
 
 def test_a_new_upload_replaces_the_pending_one(admin_client):
@@ -180,7 +192,7 @@ def test_file_imported_in_the_meantime(admin_client):
     page = admin_client.get(url)
     assert page["Location"] == reverse("quiz-import")
     assert messages_of(page) == ["Fichier déjà importé : QCM « Contrôle »."]
-    assert PENDING_IMPORT not in admin_client.session
+    assert not PendingImport.objects.exists()
 
 
 def test_confirmation_of_a_file_imported_in_the_meantime(admin_client):
@@ -196,7 +208,7 @@ def test_refused_file_shows_the_reasons_on_the_form(admin_client):
     response = upload(admin_client, b"Couleur: bleu\n* Q ?\n+ Oui\n- Non\n")
     assert response.status_code == 200
     assert response.context["form"].non_field_errors() == ["Ligne 1 : option inconnue « Couleur »"]
-    assert PENDING_IMPORT not in admin_client.session
+    assert not PendingImport.objects.exists()
 
 
 def test_too_large_file_is_refused_without_reading_it_all(admin_client):

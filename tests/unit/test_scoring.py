@@ -4,11 +4,11 @@ from decimal import Decimal as D
 
 import pytest
 
+from bank.migrations._legacy_scoring import legacy_scoring
 from bank.scoring import (
     Item,
     ScoringError,
     format_scoring,
-    legacy_scoring,
     max_score,
     parse_number,
     parse_points,

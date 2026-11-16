@@ -57,6 +57,12 @@ def letters(choices: Iterable[int]) -> str:
     return "".join(LETTERS[i] for i in sorted(choices))
 
 
+def none_index(question: FrozenQuestion) -> int | None:
+    """Indice de « Aucune de ces réponses n'est correcte », toujours la dernière (BAN-09)."""
+    choices = question["choices"]
+    return len(choices) - 1 if choices and choices[-1]["none"] else None
+
+
 def item(question: FrozenQuestion) -> Item:
     """Ce que le calcul de la note demande de la question figée (barème compris)."""
     choices = question["choices"]
@@ -66,7 +72,7 @@ def item(question: FrozenQuestion) -> Item:
         correct=frozenset(i for i, choice in enumerate(choices) if choice["correct"]),
         scoring=parse_scoring(question["scoring"]),
         points={i: Decimal(c["points"]) for i, c in enumerate(choices) if c["points"] is not None},
-        none=next((i for i, choice in enumerate(choices) if choice["none"]), None),
+        none=none_index(question),
     )
 
 

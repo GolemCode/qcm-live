@@ -12,10 +12,10 @@ from bank.scoring import (
     LETTERS,
     MAX_CHOICES,
     ScoringError,
+    format_points,
     format_scoring,
     parse_points,
     parse_scoring,
-    plain,
 )
 from config.forms import PlainForm, TeacherForm, table_field
 
@@ -64,7 +64,7 @@ class QuestionForm(TeacherForm):
                 forms.CharField(
                     label=f"Points de la proposition {letter}",
                     required=False,
-                    initial="" if points is None else str(plain(points)),
+                    initial=format_points(points),
                 )
             )
 

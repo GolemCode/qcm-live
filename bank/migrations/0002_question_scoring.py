@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-from bank.scoring import legacy_scoring
+from bank.migrations._legacy_scoring import legacy_scoring
 
 
 def scoring_from_quizzes(apps, schema_editor):

@@ -9,7 +9,7 @@ mêmes options, mêmes contrôles. Il est plus strict là où AMC ignorerait un 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from pathlib import PurePath
 
@@ -91,16 +91,9 @@ class ParsedQuestion:
     ordered: bool = False
     label: str = ""  # étiquette du groupe AMC (IMP-06)
 
-    def key(self) -> tuple:
-        """Ce qui rend deux questions identiques (IMP-07), étiquette exclue."""
-        return (
-            self.multiple,
-            self.text,
-            self.choices,
-            self.scoring,
-            self.none_of_these,
-            self.ordered,
-        )
+    def key(self) -> ParsedQuestion:
+        """Ce qui rend deux questions identiques (IMP-07) : tout, sauf la ligne et l'étiquette."""
+        return replace(self, line=0, label="")
 
 
 @dataclass(frozen=True)
@@ -330,8 +323,12 @@ def _content(texts: list[str], settings: _Settings) -> str | None:
     return None
 
 
+class _Skip(Exception):
+    """Question valide mais non prise en charge : écartée, avec la raison (IMP-03)."""
+
+
 def _scoring(question: _Question, settings: _Settings) -> str:
-    """Barème qui s'applique (IMP-04) ; `ScoringError` donne la raison d'un refus."""
+    """Barème qui s'applique (IMP-04) ; `_Skip` s'il est refusé."""
     if question.scoring:
         source, text = "barème", question.scoring
     else:
@@ -342,47 +339,47 @@ def _scoring(question: _Question, settings: _Settings) -> str:
     try:
         scoring = format_scoring(parse_scoring(text))
     except ScoringError as error:
-        raise ScoringError(f"{source} : {error}") from None
+        raise _Skip(f"{source} : {error}") from None
     if len(scoring) > SCORING_MAX_LENGTH:
-        raise ScoringError(f"{source} de plus de {SCORING_MAX_LENGTH} caractères")
+        raise _Skip(f"{source} de plus de {SCORING_MAX_LENGTH} caractères")
     return scoring
 
 
 def _convert(question: _Question, settings: _Settings) -> ParsedQuestion:
-    """La question prête à importer ; `ScoringError` donne la raison de l'écarter."""
+    """La question prête à importer ; `_Skip` donne la raison de l'écarter (IMP-03)."""
     if question.open:
-        raise ScoringError("question ouverte")
+        raise _Skip("question ouverte")
     if "indicative" in question.options:
-        raise ScoringError("question indicative")
+        raise _Skip("question indicative")
     text, choices = str(question.text), question.choices
     if reason := _content([text, *(str(c.text) for c in choices)], settings):
-        raise ScoringError(reason)
+        raise _Skip(reason)
     if len(choices) > MAX_CHOICES:
-        raise ScoringError(f"plus de {MAX_CHOICES} propositions")
+        raise _Skip(f"plus de {MAX_CHOICES} propositions")
     if not text:
-        raise ScoringError("énoncé vide")
+        raise _Skip("énoncé vide")
     scoring = _scoring(question, settings)
     parsed = []
     for letter, choice in zip(LETTERS, choices, strict=False):
         choice_text = str(choice.text)
         if not choice_text:
-            raise ScoringError(f"proposition {letter} vide")
+            raise _Skip(f"proposition {letter} vide")
         if len(choice_text) > CHOICE_MAX_LENGTH:
-            raise ScoringError(f"proposition {letter} de plus de {CHOICE_MAX_LENGTH} caractères")
+            raise _Skip(f"proposition {letter} de plus de {CHOICE_MAX_LENGTH} caractères")
         points = None
         if choice.scoring is not None:
             if question.multiple:
-                raise ScoringError("barème sur une proposition d'une question multiple")
+                raise _Skip("barème sur une proposition d'une question multiple")
             try:
                 points = parse_points(choice.scoring)
             except ScoringError as error:
-                raise ScoringError(f"barème de la proposition {letter} : {error}") from None
+                raise _Skip(f"barème de la proposition {letter} : {error}") from None
         parsed.append(ParsedChoice(choice_text, choice.correct, points))
     none_of_these = question.multiple and settings.complete_multi
     if question.multiple and not none_of_these and not any(c.correct for c in parsed):
-        raise ScoringError("question multiple sans bonne réponse")
+        raise _Skip("question multiple sans bonne réponse")
     if len(question.label) > GROUP_LABEL_MAX_LENGTH:
-        raise ScoringError(f"nom de groupe de plus de {GROUP_LABEL_MAX_LENGTH} caractères")
+        raise _Skip(f"nom de groupe de plus de {GROUP_LABEL_MAX_LENGTH} caractères")
     return ParsedQuestion(
         line=question.line,
         text=text,
@@ -438,11 +435,11 @@ def parse(data: bytes, filename: str) -> ParsedFile:
     settings = _settings(reader.options)
     questions: list[ParsedQuestion] = []
     skipped: list[tuple[int, str]] = []
-    seen: dict[tuple, int] = {}
+    seen: dict[ParsedQuestion, int] = {}
     for draft in reader.questions:
         try:
             question = _convert(draft, settings)
-        except ScoringError as reason:
+        except _Skip as reason:
             skipped.append((draft.line, str(reason)))
             continue
         if (first := seen.get(question.key())) is not None:

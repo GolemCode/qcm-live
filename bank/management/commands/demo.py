@@ -15,8 +15,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from bank.importer import import_quiz, sha256
-from bank.models import Quiz
+from bank.importer import AlreadyImported, import_quiz
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 
@@ -45,9 +44,10 @@ class Command(BaseCommand):
         user.save()
 
         group = StudentGroup.objects.filter(name=GROUP_NAME).first() or self.import_group()
-        data = DEMO_FILE.read_bytes()
-        quiz = Quiz.objects.filter(source_sha256=sha256(data)).first()
-        quiz = quiz or import_quiz(data, DEMO_FILE.name)
+        try:
+            quiz = import_quiz(DEMO_FILE.read_bytes(), DEMO_FILE.name)
+        except AlreadyImported as already:
+            quiz = already.quiz
 
         self.stdout.write(f"QCM : {quiz.title} ({quiz.questions.count()} questions)")
         self.stdout.write(f"Groupe : {group.name} ({group.students.count()} étudiants)")

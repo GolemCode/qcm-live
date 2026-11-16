@@ -12,7 +12,7 @@ from django.template.defaultfilters import pluralize
 from bank.amc_txt import MAX_BYTES, AmcSyntaxError
 from bank.forms import AmcUploadForm, QuestionForm, QuizForm
 from bank.importer import AlreadyImported, Preview, import_quiz, preview
-from bank.models import NONE_OF_THESE, Question, Quiz
+from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz
 
 
 @login_required
@@ -83,7 +83,6 @@ def quiz_delete(request: HttpRequest, pk: int) -> HttpResponse:
 
 # --- Import AMC-TXT (IMP-01) : envoi, récapitulatif, confirmation ------------------------------
 
-PENDING_IMPORT = "amc_import"  # clé de la session Django : le dernier fichier envoyé
 EXPIRED = "Cet import n'est plus disponible : envoyez de nouveau le fichier."
 
 
@@ -107,26 +106,27 @@ def quiz_import(request: HttpRequest) -> HttpResponse:
         if isinstance(found, list):
             form.add_error(None, found)
         else:
-            # Gardé jusqu'à la confirmation ; un fichier analysé est de l'UTF-8 (IMP-02).
             token = secrets.token_urlsafe(16)
-            request.session[PENDING_IMPORT] = {
-                "token": token,
-                "name": name,
-                "data": data.decode("utf-8"),
-            }
+            PendingImport.objects.update_or_create(
+                user=request.user, defaults={"token": token, "name": name, "data": data}
+            )
             return redirect("quiz-import-recap", token=token)
     return render(request, "bank/quiz_import.html", {"form": form})
 
 
 @login_required
 def quiz_import_recap(request: HttpRequest, token: str) -> HttpResponse:
-    pending = request.session.get(PENDING_IMPORT)
-    if not pending or pending["token"] != token:
+    pending = PendingImport.objects.filter(user=request.user, token=token).first()
+    if pending is None:
         messages.error(request, EXPIRED)
         return redirect("quiz-import")
-    data, name = pending["data"].encode("utf-8"), pending["name"]
+    data, name = bytes(pending.data), pending.name
     if request.method == "POST":
-        del request.session[PENDING_IMPORT]
+        # Seule la requête qui efface l'envoi le traite : un double clic retombe sur EXPIRED.
+        deleted, _ = PendingImport.objects.filter(pk=pending.pk, token=token).delete()
+        if not deleted:
+            messages.error(request, EXPIRED)
+            return redirect("quiz-import")
         if request.POST.get("action") != "import":
             messages.success(request, "Import annulé.")
             return redirect("quiz-list")
@@ -139,8 +139,8 @@ def quiz_import_recap(request: HttpRequest, token: str) -> HttpResponse:
         messages.success(request, f"QCM importé : {n} question{pluralize(n)}.")
         return redirect("quiz-detail", pk=quiz.pk)
     found = _analyse(data, name)
-    if isinstance(found, list):  # le contenu de la banque a changé depuis l'envoi
-        del request.session[PENDING_IMPORT]
+    if isinstance(found, list):  # fichier importé entre-temps
+        pending.delete()
         for message in found:
             messages.error(request, message)
         return redirect("quiz-import")

@@ -14,7 +14,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
-from live.results import StudentResult, results
+from live.results import StudentResult, none_index, results
 from live.schedule import Position, Schedule, Slot, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
@@ -192,8 +192,8 @@ class Participant(models.Model):
         if frozen["ordered"]:  # BAN-10 : l'ordre de la banque
             return list(range(n_choices))
         seed = f"{self.session.code}:{self.pk}:{question}"
-        if frozen["choices"][-1]["none"]:  # ETU-12 : « Aucune… » reste en dernier
-            return [*shuffled(n_choices - 1, seed), n_choices - 1]
+        if (none := none_index(frozen)) is not None:  # ETU-12 : « Aucune… » reste en dernier
+            return [*shuffled(none, seed), none]
         return shuffled(n_choices, seed)
 
     def answer_map(self) -> dict[int, list[int]]:

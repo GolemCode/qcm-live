@@ -13,9 +13,10 @@ from django.db import transaction
 from bank.amc_txt import ParsedChoice, ParsedFile, ParsedQuestion, parse
 from bank.forms import SLOTS, QuestionForm
 from bank.models import SOURCE_NAME_MAX_LENGTH, Question, Quiz, QuizItem
-from bank.scoring import plain
+from bank.scoring import format_points
 
 NOTHING_TO_IMPORT = "Aucune question de ce fichier ne peut être importée."
+MATCH_BATCH = 500
 
 
 class AlreadyImported(ValueError):
@@ -30,39 +31,44 @@ class AlreadyImported(ValueError):
 class Preview:
     parsed: ParsedFile
     sha256: str
-    shared: tuple[bool, ...]  # par question : déjà dans la banque, elle sera partagée
+    matches: tuple[Question | None, ...]  # par question : l'identique de la banque, partagée
 
     @property
     def existing(self) -> int:
-        return sum(self.shared)
+        return sum(match is not None for match in self.matches)
 
     def rows(self) -> list[tuple[ParsedQuestion, bool]]:
-        return list(zip(self.parsed.questions, self.shared, strict=True))
+        rows = zip(self.parsed.questions, self.matches, strict=True)
+        return [(question, match is not None) for question, match in rows]
 
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def key_of(question: Question) -> tuple:
-    """Même clé que `ParsedQuestion.key`, pour une question de la banque."""
-    choices = tuple(ParsedChoice(c.text, c.correct, c.points) for c in question.choices.all())
-    multiple = question.kind == Question.Kind.MULTIPLE
-    return (
-        multiple,
-        question.text,
-        choices,
-        question.scoring,
-        question.none_of_these,
-        question.ordered,
+def key_of(question: Question) -> ParsedQuestion:
+    """La clé de `ParsedQuestion.key`, pour une question de la banque."""
+    return ParsedQuestion(
+        line=0,
+        text=question.text,
+        multiple=question.kind == Question.Kind.MULTIPLE,
+        scoring=question.scoring,
+        choices=tuple(ParsedChoice(c.text, c.correct, c.points) for c in question.choices.all()),
+        none_of_these=question.none_of_these,
+        ordered=question.ordered,
     )
 
 
-def find_existing(question: ParsedQuestion) -> Question | None:
-    """La question identique de la banque (IMP-07), la plus ancienne s'il y en a plusieurs."""
-    kind = Question.Kind.MULTIPLE if question.multiple else Question.Kind.SIMPLE
-    candidates = Question.objects.filter(text=question.text, kind=kind).prefetch_related("choices")
-    return next((c for c in candidates if key_of(c) == question.key()), None)
+def find_existing(questions: tuple[ParsedQuestion, ...]) -> tuple[Question | None, ...]:
+    """Pour chaque question, l'identique de la banque (IMP-07), la plus ancienne s'il y en a
+    plusieurs. Une requête par tranche d'énoncés : SQLite limite le nombre de paramètres."""
+    texts = sorted({q.text for q in questions})
+    bank: dict[ParsedQuestion, Question] = {}
+    for start in range(0, len(texts), MATCH_BATCH):
+        candidates = Question.objects.filter(text__in=texts[start : start + MATCH_BATCH])
+        for candidate in candidates.order_by("pk").prefetch_related("choices"):
+            bank.setdefault(key_of(candidate), candidate)
+    return tuple(bank.get(q.key()) for q in questions)
 
 
 def preview(data: bytes, filename: str) -> Preview:
@@ -71,8 +77,7 @@ def preview(data: bytes, filename: str) -> Preview:
     if quiz := Quiz.objects.filter(source_sha256=digest).first():
         raise AlreadyImported(quiz)
     parsed = parse(data, filename)
-    shared = tuple(find_existing(q) is not None for q in parsed.questions)
-    return Preview(parsed, digest, shared)
+    return Preview(parsed, digest, find_existing(parsed.questions))
 
 
 def form_data(question: ParsedQuestion) -> dict[str, str]:
@@ -81,12 +86,16 @@ def form_data(question: ParsedQuestion) -> dict[str, str]:
         "kind": Question.Kind.MULTIPLE if question.multiple else Question.Kind.SIMPLE,
         "scoring": question.scoring,
     }
-    data |= {"none_of_these": "on"} if question.none_of_these else {}
-    data |= {"ordered": "on"} if question.ordered else {}
+    if question.none_of_these:
+        data["none_of_these"] = "on"
+    if question.ordered:
+        data["ordered"] = "on"
     for letter, choice in zip(SLOTS, question.choices, strict=False):
         data[f"choice_{letter}"] = choice.text
-        data |= {f"correct_{letter}": "on"} if choice.correct else {}
-        data |= {} if choice.points is None else {f"points_{letter}": str(plain(choice.points))}
+        if choice.correct:
+            data[f"correct_{letter}"] = "on"
+        if points := format_points(choice.points):
+            data[f"points_{letter}"] = points
     return data
 
 
@@ -109,8 +118,9 @@ def import_quiz(data: bytes, filename: str) -> Quiz:
         source_name=filename[:SOURCE_NAME_MAX_LENGTH],
         source_sha256=found.sha256,
     )
+    rows = zip(found.parsed.questions, found.matches, strict=True)
     QuizItem.objects.bulk_create(
-        QuizItem(quiz=quiz, question=find_existing(q) or create_question(q), position=position)
-        for position, q in enumerate(found.parsed.questions, start=1)
+        QuizItem(quiz=quiz, question=match or create_question(q), position=position)
+        for position, (q, match) in enumerate(rows, start=1)
     )
     return quiz

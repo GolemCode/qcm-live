@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from bank.models import NONE_OF_THESE, Question, Quiz
-from bank.scoring import plain
+from bank.scoring import format_points
 from roster.models import StudentGroup
 
 
@@ -42,13 +42,13 @@ def freeze_question(question: Question) -> FrozenQuestion:
         {
             "text": choice.text,
             "correct": choice.correct,
-            "points": None if choice.points is None else str(plain(choice.points)),
+            "points": format_points(choice.points) or None,
             "none": False,
         }
         for choice in question.choices.all()
     ]
     if question.none_of_these:
-        right = not any(choice["correct"] for choice in choices)
+        right = question.none_is_correct
         choices.append({"text": NONE_OF_THESE, "correct": right, "points": None, "none": True})
     return {
         "text": question.text,
