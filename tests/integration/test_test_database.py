@@ -64,6 +64,7 @@ def test_databases_left_by_a_killed_pytest_are_removed(tmp_path):
         f".test-db-{dead}.sqlite3",
         f".test-db-{dead}.sqlite3-journal",
         f".test-db-{alive}.sqlite3",
+        ".test-db-1.sqlite3",  # pid 1 : existe, d'un autre compte (PermissionError) ou de root
         "db.sqlite3",
         ".test-db-x.sqlite3",
     ]
@@ -71,3 +72,16 @@ def test_databases_left_by_a_killed_pytest_are_removed(tmp_path):
         (tmp_path / name).write_text("")
     remove_stale(tmp_path)
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted(names[2:])
+
+
+def test_pytest_removes_stale_databases_when_it_starts(tmp_path):
+    """Le branchement dans `tests/conftest.py`, et pas seulement `remove_stale` seul."""
+    from types import SimpleNamespace
+
+    from tests.conftest import pytest_sessionstart
+
+    stale = tmp_path / f".test-db-{_dead_pid()}.sqlite3"
+    stale.write_text("")
+    session = SimpleNamespace(config=SimpleNamespace(rootpath=tmp_path))
+    pytest_sessionstart(session)  # type: ignore[arg-type]
+    assert not stale.exists()

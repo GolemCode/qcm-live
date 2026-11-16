@@ -774,6 +774,21 @@ def test_before_tool_says_nothing_about_an_unknown_call(lang):
     assert lang.texts_before_tool(rows, None) == [ENGLISH]
 
 
+def test_english_thresholds(lang):
+    """Deux mots-outils anglais sans français suffisent ; un mélange doit pencher nettement."""
+    assert lang.looks_english("Tests pass and it works")
+    # « j\u2019ai » (apostrophe typographique) compte comme français : 2 contre 1, pas anglais.
+    assert not lang.looks_english("J\u2019ai relu the hooks and settings")
+    # 4 mots anglais contre 3 français : pas plus du double, donc pas anglais.
+    mixed = "Le hook relit the settings and the hooks are fine, et c'est vert"
+    assert not lang.looks_english(mixed)
+
+
+def test_before_tool_stops_at_an_incoming_message(lang):
+    rows = [_said(ENGLISH), _prompt("Go"), _tool_use("t1")]
+    assert lang.texts_before_tool(rows, "t1") == []
+
+
 def test_words_ending_a_sentence_count(lang):
     assert lang.looks_english("Done. All green now.")
     assert not lang.looks_english("Fait. Tout est vert.")
@@ -827,6 +842,7 @@ def test_post_tool_hook_stays_silent_in_french(tmp_path):
 def test_post_tool_hook_never_fails_on_a_bad_payload():
     assert _run_language({}).returncode == 0
     assert _run_hook("language", None).returncode == 0  # entrée vide
+    assert _run_hook("language", [1, 2]).returncode == 0  # JSON qui n'est pas un objet
 
 
 STOP = {"hook_event_name": "Stop", "stop_hook_active": False}
@@ -897,6 +913,12 @@ def test_settings_ask_for_french_and_run_the_language_hook():
         hook["command"] for entry in settings["hooks"]["PostToolUse"] for hook in entry["hooks"]
     ]
     assert any("language.py" in command for command in commands)
+    matchers = [
+        entry.get("matcher")
+        for entry in settings["hooks"]["PostToolUse"]
+        if any("language.py" in hook["command"] for hook in entry["hooks"])
+    ]
+    assert matchers == ["*"]  # après tout outil, pas seulement Bash
     stop = [hook["command"] for entry in settings["hooks"]["Stop"] for hook in entry["hooks"]]
     assert any("language.py" in command for command in stop)
 
