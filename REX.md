@@ -1171,3 +1171,108 @@ Audit spec-auditor : 38fccc1
 ### Ce que j'aurais dû savoir dès le départ
 - **Un hook se teste dans une vraie session.** Un faux journal ne reproduit que ce que je crois savoir du format, et c'est là que se trouvait le défaut.
 - **Une règle qui dépend de ma vigilance ne tient pas dans une longue session.** Deux collisions en I11 malgré la règle de CLAUDE.md, et 71 messages anglais malgré la règle 7. Il faut chercher d'abord le mécanisme.
+
+## I12 — Import AMC-TXT, barème par question, démonstration
+
+### Objectif
+Le commanditaire veut importer ses anciens QCM d'Auto Multiple Choice (AMC), puis en composer de nouveaux. J'ai proposé un découpage, qu'il a validé : I12 pour l'import AMC-TXT en texte seul et la démonstration, I13 pour la composition, I14 pour les formules et les images, I15 pour LaTeX, I16 pour l'espace enseignant.
+
+**Questions posées avant de concevoir**, onze, et ses réponses, reportées dans SPEC.md :
+- une erreur de syntaxe refuse tout le fichier, avec la ligne et la raison ;
+- une question valide mais non prise en charge est écartée, et listée sur une page de confirmation : ce n'est pas un import partiel silencieux ;
+- les options de mise en page d'AMC sont acceptées sans effet ;
+- « déjà posée » se rattache au groupe et à son année (I13) ;
+- une nouvelle version d'une question remplace l'ancienne dans les QCM, jamais dans les sessions (I13).
+
+**Plan mode**, pour un choix de conception lourd : le barème passe du QCM à la question, comme dans AMC. Les règles de calcul d'AMC ont été relues dans son code (`Scoring.pm`, `plain.pm`), puis résumées dans SPEC §3 et §2 ter.
+
+### Tests d'acceptation
+Écrits avant le code et lancés aussitôt : 15 tests en échec, chacun pour la raison attendue (champ « Barème » absent, cases « Aucune… » et « Ne pas mélanger » absentes, pas de lien d'import, pas de fichier de démonstration ni de cible `demo`).
+
+Le barème est vérifié par la note du CSV, sur les exemples du §3. L'import est vérifié de l'envoi du fichier jusqu'au QCM, puis à la session. S'y ajoutent 43 tests unitaires de l'analyseur, 26 du barème, et des tests d'intégration de l'import, des migrations et de la commande `demo`.
+
+### Problèmes rencontrés
+- **Un message en anglais**, signalé par le hook de langue (section M), puis redit en français.
+- **Une commande refusée par `guard_bash.py`** : un pipe sans `pipefail`. Refaite, sans code de retour perdu.
+- **Le test d'IMP-05 cherchait la question dans la banque sans l'avoir ouverte** : après l'import, la page affichée est la fiche du QCM. Il ouvre désormais la banque par le menu. Corrigé dans le commit de code : le test rouge échouait déjà pour la bonne raison, l'absence du lien d'import.
+- **Un doublon dans le gabarit de la fiche d'un QCM**, vu au contrôle visuel. Corrigé.
+- **Message de réimportation reformulé** : il nomme désormais le QCM déjà créé par ce fichier.
+- **Erreurs dans mes propres tests unitaires**, vues au premier lancement : une taille de fichier décalée d'un octet ; un barème trop long qui répétait `b`, refusé pour une autre raison que la longueur ; un numéro de ligne attendu faux (17 au lieu de 14).
+- **Le libellé de la case « Aucune de ces réponses n'est correcte »** était trop long pour le formulaire : l'explication est passée en texte d'aide.
+- **Le message du commit de démonstration** a été corrigé (`--amend`, avant tout push).
+- **Interruption par la limite d'usage** (erreur 429), pendant les revues : deux relecteurs de `/simplify` se sont arrêtés. Je l'ai signalé au commanditaire, puis je les ai relancés après la levée de la limite. Ils ont terminé.
+
+### Ce que les revues ont trouvé
+- **Contrôle visuel** (1920x1080 et Pixel 7 : récapitulatif d'import, refus, fiche du QCM, formulaire de question, tableau, téléphone avec « Aucune ») : le doublon de la fiche du QCM, ci-dessus. Le reste est lisible.
+- **`/simplify`, quatre relecteurs.**
+  - Corrigé :
+    - le fichier en attente, gardé en base et non plus dans la session Django (voir les choix techniques) ;
+    - les questions identiques de la banque, cherchées en une requête par tranche d'énoncés au lieu d'une par question, puis réutilisées à l'import sans seconde recherche ;
+    - une seule clé de comparaison des questions ;
+    - une seule fonction pour l'indice de « Aucune » dans la copie figée, une seule pour écrire la valeur d'une proposition ;
+    - une exception unique pour une question écartée, au lieu d'une valeur de retour vérifiée à chaque étage ;
+    - la conversion des migrations, figée dans leur dossier ;
+    - la commande `demo`, qui s'appuie sur le refus de réimportation au lieu de chercher elle-même le QCM.
+  - Écarté :
+    - un module commun avec l'import CSV des groupes : quelques lignes communes, des messages différents ;
+    - la double validation, par l'analyseur puis par le formulaire : l'analyseur écarte une question avec une raison lisible, et le formulaire reste le dernier garde ;
+    - sortir de l'analyseur les limites de la base : il doit écarter la question avec sa raison avant que le formulaire ne la refuse ;
+    - calculer une seule fois, pour tous les étudiants, ce que le barème demande à chaque question : quelques dizaines d'étudiants, un calcul sans requête.
+- **`/code-review`, dix constats.** Les points qui dépendaient d'AMC ont été vérifiés dans son code (`plain.pm`, `Scoring.pm`, `ScoringEnv.pm`), lu par un agent de lecture web.
+  - Corrigé (828113b), chacun avec un test vu rouge :
+    - la longueur du barème saisi était contrôlée avant sa réécriture, alors que `.5` devient `0.5` ;
+    - en vérifiant ce constat, j'ai trouvé plus grave : un barème sous 10⁻⁶ s'enregistrait avec un exposant (`b=1E-7`), que la relecture refuse. Une session qui l'aurait figé n'aurait plus pu calculer ses notes ;
+    - un caractère nul (fichier UTF-16) passait l'analyse ; le formulaire refusait ensuite la question, et la confirmation échouait avec son message brut. Il est désormais refusé avec sa ligne, comme à l'import d'un groupe ;
+    - un booléen vide (`CompleteMulti:`) valait vrai ; il vaut faux dans AMC ;
+    - une partie vide (`[ordered, ]`, `{b=2,}`) refusait le fichier ou écartait la question ; AMC l'ignore ;
+    - la ligne qui ouvre un bloc `[verbatim]` était lue comme une question ou un commentaire ; AMC la rattache à l'élément précédent, sans l'analyser.
+  - Écarté :
+    - le barème d'une question qui devrait s'ajouter au barème par défaut : `plain.pm` n'écrit le défaut que pour une question sans barème. IMP-04 est juste ;
+    - `[verbatim]` dans un commentaire, qui avale la suite du fichier : c'est le comportement d'AMC. Un bloc jamais fermé est refusé avec sa ligne, là où AMC ne dit rien ;
+    - la directive `MAX` que la migration écrit quand le plancher dépasse la note maximale : elle reproduit exactement l'ancienne note maximale, comme le demande BAR-01 ;
+    - deux confirmations simultanées du même fichier : `transaction_mode: IMMEDIATE` sérialise l'import, dont l'analyse se fait dans la transaction ;
+    - le calcul par étudiant, et la réutilisation des fonctions de l'import CSV et du format des nombres : déjà écartés par `/simplify`.
+- **`/security-review`** : aucune vulnérabilité au-dessus du seuil de confiance. Une remarque en dessous : `make demo` remplace le mot de passe d'un compte `demo` existant. Le README le dit désormais.
+
+### Choix techniques et leur raison
+- **Analyseur écrit à la main, module pur.** Aucune bibliothèque ne lit AMC-TXT ; ses règles sont celles de `plain.pm`, résumées dans SPEC §2 ter. Le module ne dépend pas de Django, et ses tests unitaires couvrent chaque règle, avec un cas refusé et un cas tout juste accepté.
+- **Les questions sont créées par le formulaire de l'interface.** Un import ne peut donc rien créer qu'un enseignant ne pourrait saisir. L'analyse écarte d'avance ce que le formulaire refuserait ; s'il refuse quand même, l'import entier est annulé (transaction).
+- **Une question identique de la banque est partagée, et non dupliquée** (IMP-07). L'identité porte sur tout ce qui change la note ou l'affichage, sauf l'étiquette de groupe. La plus ancienne gagne s'il y en a plusieurs. La recherche se fait en une requête par tranche d'énoncés.
+- **Un fichier déjà importé est reconnu à son empreinte SHA-256**, octet pour octet. Un fichier retouché d'un seul caractère est un autre fichier : ses questions inchangées sont alors partagées.
+- **Le fichier attend la confirmation en base** (une ligne par enseignant), pas dans la session Django. Dans la session, jusqu'à 1 Mo aurait été relu à chaque requête de l'enseignant, y compris chaque seconde par le tableau (constat de `/simplify`). Seule la requête qui efface cette ligne importe : un double clic retombe sur « Cet import n'est plus disponible ».
+- **Les migrations recopient le barème du QCM dans chaque question**, et dans chaque question figée des sessions passées : leurs notes ne changent pas. Leur conversion est une copie figée dans le dossier des migrations, testée sur plusieurs barèmes, pour qu'une évolution du barème ne change pas ce qu'elles écrivent.
+- **« Aucune de ces réponses n'est correcte » n'est pas une proposition en base.** La copie figée l'ajoute en dernier, comme AMC : il n'y a ni ligne à garder synchronisée, ni lettre à réserver.
+- **Ce que fait AMC se vérifie dans son code, pas dans sa documentation.** Le plan s'appuyait déjà sur `Scoring.pm` et `plain.pm` ; quatre constats de `/code-review` se sont tranchés en relisant `plain.pm`. Un écart volontaire subsiste : une espace après la virgule dans `[options]` est ignorée ici, alors qu'AMC ne reconnaît plus l'option qui suit (SPEC §2 ter).
+- **Aucune dépendance nouvelle.**
+
+### Audit
+- **Un passage de `spec-auditor`**, sur 828113b : une quarantaine de mutations, dont quatre survivantes. Toutes les quatre touchent la justesse des notes, donc restent bloquantes (règle d'audit borné) :
+  - « Aucune de ces réponses n'est correcte » juste dès qu'elle est proposée, même quand une autre proposition est juste. La note maximale de presque toutes les multiples importées devenait fausse, et aucun test ne le voyait : le seul cas testé n'avait aucune autre bonne réponse ;
+  - `mz` sans le plancher `p` dans sa pénalité : le seul cas testé (`p=-1`) donnait la même note avec ou sans ;
+  - le barème d'une question fusionné avec `DefaultScoringS/M` au lieu de le remplacer : le défaut testé (`b=3`) était entièrement recouvert par le barème de la question ;
+  - l'ordre fixe et « Aucune » hors de l'identité d'une question : deux questions qui ne diffèrent que par eux auraient été partagées.
+- **Corrigé dans les tests**, sans changer le code, qui était juste : « Aucune » ajoutée à une question qui a une bonne réponse dans le test E2E des notes ; `mz=3,p=-5` ; un défaut `b=3,v=-1` dans le test E2E d'IMP-04 et en unitaire ; deux questions qui ne diffèrent que par leurs options, en intégration et en unitaire.
+- **Contre-épreuves refaites par moi**, sans troisième passage : j'ai rejoué les quatre mutations, et chacune fait échouer le test ajouté pour elle. Les fichiers source ont été restaurés après chacune.
+- **Après l'audit**, le dépôt principal n'avait pas bougé : même HEAD, aucune copie restante dans `git worktree list`, et seuls mes fichiers non commités étaient modifiés.
+
+#### Réserves ouvertes
+- La règle « `haut` ne compte pas « Aucune » dans N » n'est vérifiée que par un test unitaire. C'est un calcul pur, et le test E2E des notes couvre `haut` sans « Aucune ».
+- Le test de séparation énoncé/propositions (AFF-01, I9) ne contient ni « Aucune » ni valeur de proposition. Le code ne transmet au tableau que la couleur, l'énoncé et le type de question, ce que l'auditeur a vérifié.
+
+Audit spec-auditor : 828113b
+
+### Ce qui a bien marché
+- **Les questions fonctionnelles posées avant de concevoir.** Le commanditaire a corrigé deux recommandations (questions écartées listées plutôt qu'ignorées, « déjà posée » lié à l'année du groupe), avant qu'une ligne de code n'en dépende.
+- **Créer les questions par le formulaire de l'interface.** Le constat du caractère nul l'a montré : l'analyseur laissait passer un cas, et le formulaire l'a arrêté au lieu d'écrire une donnée impossible à saisir.
+- **Les tests unitaires « refusé / tout juste accepté »** de l'analyseur : chaque correction de la revue s'y est ajoutée en quelques lignes, vue rouge puis verte.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Un exemple de test doit distinguer la bonne règle de ses variantes plausibles.** Un défaut recouvert par le barème de la question, un plancher sans effet : les tests passaient avec la règle fausse.
+- **`str(Decimal)` écrit un exposant sous 10⁻⁶.** Toute forme enregistrée puis relue doit être testée sur un aller-retour, avec des valeurs extrêmes.
+- **Un format externe a ses règles dans le code de son lecteur, détails compris** : ordre des tests d'une ligne, valeurs vides, parties vides. Le plan en avait retenu les grandes règles ; la revue a trouvé les détails.
+
+### Ce qui n'est garanti que par la consigne ou reste à vérifier
+- **Aucun vrai fichier AMC n'a été importé** : l'analyseur reproduit le code d'AMC tel que je l'ai lu, sur des fichiers écrits pour les tests. Le README demande d'essayer un ancien QCM et de comparer quelques notes avec celles d'AMC avant le premier cours (SPEC §5).
+- **Les règles d'AMC ont été lues, pas exécutées** : aucun test ne compare une note à celle qu'AMC calcule.
+- **Un test tout vert ne vérifiait pas tout** : quatre règles de notes passaient sous mutation (voir l'audit). Je n'ai essayé de casser que ce que l'auditeur avait vu ; d'autres faiblesses du même genre peuvent rester.
+- **`make demo` sur un compte existant** : rien n'empêche de nommer `demo` un vrai compte, dont le mot de passe serait remplacé. Seul le README le signale.
