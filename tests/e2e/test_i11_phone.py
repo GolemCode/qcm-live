@@ -18,6 +18,7 @@ import contextlib
 import itertools
 import re
 import time
+from collections.abc import Callable, Iterator
 
 import pytest
 from playwright.sync_api import Error, FloatRect, Locator, Page, Route, ViewportSize, expect
@@ -70,8 +71,9 @@ SKY = "Couleur du ciel ?"
 
 class Network:
     """Réseau du téléphone `phone` pour les adresses `url` : coupé (`cut`), sans réponse
-    (`hold`), ou perdu au retour (`lose`). `restore` le rétablit, et relâche les requêtes
-    retenues. `posts` donne l'heure de chaque envoi de réponse intercepté."""
+    (`hold`), ou perdu au retour (`lose`). `restore` le rétablit (toute interception du
+    téléphone cesse), et relâche les requêtes retenues. `posts` donne l'heure de chaque envoi
+    de réponse intercepté."""
 
     def __init__(self, phone: Page, url: re.Pattern[str]) -> None:
         self.phone = phone
@@ -106,11 +108,34 @@ class Network:
         self.phone.route(self.url, handler)
 
     def restore(self) -> None:
-        self.phone.unroute(self.url)
+        self._release()
+        # Attendre la fin des interceptions en cours : aucune ne doit survivre au test.
+        self.phone.unroute_all(behavior="wait")
+
+    def close(self) -> None:
+        """En fin de test : plus aucune interception ne survit à la fermeture du navigateur."""
+        self._release()
+        self.phone.unroute_all(behavior="wait")
+
+    def _release(self) -> None:
         for route in self.held:
             with contextlib.suppress(Error):  # requête déjà abandonnée par la page
                 route.continue_()
         self.held.clear()
+
+
+@pytest.fixture
+def networks() -> Iterator[Callable[[Page, re.Pattern[str]], Network]]:
+    """Fabrique de `Network`, rétablis à la fin du test."""
+    made: list[Network] = []
+
+    def make(phone: Page, url: re.Pattern[str]) -> Network:
+        made.append(Network(phone, url))
+        return made[-1]
+
+    yield make
+    for network in made:
+        network.close()
 
 
 def recorded(session: Session, number: str) -> dict[str, list[str]]:
@@ -160,12 +185,14 @@ def end_message(phone: Page) -> Locator:
 
 
 @pytest.mark.spec("ETU-10")
-def test_slow_network_says_sending_until_confirmed(teacher_page: Page, live_server, new_phone):
+def test_slow_network_says_sending_until_confirmed(
+    teacher_page: Page, live_server, new_phone, networks
+):
     session = make_live(1, shown=1)
     (phone,) = started(teacher_page, live_server.url, new_phone, session, ["00123"])
     expect_slot(phone, 0)
     watch_status(phone)
-    network = Network(phone, ANSWERS)
+    network = networks(phone, ANSWERS)
     network.hold()  # le serveur ne répond pas encore
 
     choose(phone, "Paris")
@@ -186,11 +213,11 @@ def test_slow_network_says_sending_until_confirmed(teacher_page: Page, live_serv
 
 
 @pytest.mark.spec("ETU-10")
-def test_failed_send_is_retried_every_second(teacher_page: Page, live_server, new_phone):
+def test_failed_send_is_retried_every_second(teacher_page: Page, live_server, new_phone, networks):
     session = make_live(1, shown=1)
     (phone,) = started(teacher_page, live_server.url, new_phone, session, ["00123"])
     expect_slot(phone, 0)
-    network = Network(phone, ANSWERS)
+    network = networks(phone, ANSWERS)
     network.cut()
 
     choose(phone, "Paris")
@@ -210,7 +237,9 @@ def test_failed_send_is_retried_every_second(teacher_page: Page, live_server, ne
 
 @pytest.mark.spec("ETU-10")
 @pytest.mark.spec("FIN-02")
-def test_answer_lost_at_the_deadline_is_reported(teacher_page: Page, live_server, new_phone):
+def test_answer_lost_at_the_deadline_is_reported(
+    teacher_page: Page, live_server, new_phone, networks
+):
     """Le téléphone perd tout le réseau avant l'échéance : il le dit sur le moment, puis à
     l'écran suivant, puis à la fin."""
     session = make_live(2, shown=1)
@@ -219,7 +248,7 @@ def test_answer_lost_at_the_deadline_is_reported(teacher_page: Page, live_server
     jump_to(session, 25)
     expect(timer(phone)).to_have_text(re.compile(r"^0:0[3-5]$"), timeout=LIVE_MS)
     watch_status(phone)
-    network = Network(phone, EVERYTHING)
+    network = networks(phone, EVERYTHING)
     network.cut()
 
     choose(phone, "Paris")
@@ -248,7 +277,9 @@ def test_answer_lost_at_the_deadline_is_reported(teacher_page: Page, live_server
 
 @pytest.mark.spec("ETU-10")
 @pytest.mark.spec("FIN-02")
-def test_answer_received_without_confirmation_counts(teacher_page: Page, live_server, new_phone):
+def test_answer_received_without_confirmation_counts(
+    teacher_page: Page, live_server, new_phone, networks
+):
     """Le serveur enregistre la réponse, mais sa confirmation se perd : le téléphone ne l'affiche
     pas comme enregistrée, puis apprend du serveur qu'elle est arrivée à temps."""
     session = make_live(2, shown=1)
@@ -256,7 +287,7 @@ def test_answer_received_without_confirmation_counts(teacher_page: Page, live_se
     expect_slot(phone, 0)
     jump_to(session, 24)
     watch_status(phone)
-    network = Network(phone, ANSWERS)
+    network = networks(phone, ANSWERS)
     network.lose()
 
     choose(phone, "Paris")
@@ -278,13 +309,15 @@ def test_answer_received_without_confirmation_counts(teacher_page: Page, live_se
 
 
 @pytest.mark.spec("ETU-10")
-def test_reloaded_phone_resumes_a_pending_answer(teacher_page: Page, live_server, new_phone):
+def test_reloaded_phone_resumes_a_pending_answer(
+    teacher_page: Page, live_server, new_phone, networks
+):
     session = make_live(1, shown=1)
     (phone,) = started(teacher_page, live_server.url, new_phone, session, ["00123"])
     expect_slot(phone, 0)
     choose(phone, "Paris")
     expect(save_status(phone)).to_have_text(SAVED)
-    network = Network(phone, ANSWERS)
+    network = networks(phone, ANSWERS)
     network.cut()
     choose(phone, "Lyon")
     expect(save_status(phone)).to_have_text(SENDING)
@@ -308,7 +341,7 @@ def test_reloaded_phone_resumes_a_pending_answer(teacher_page: Page, live_server
 
 
 @pytest.mark.spec("ETU-11")
-def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, new_phone):
+def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, new_phone, networks):
     session = make_live(1, shown=1)
     (phone,) = phones_joined(new_phone, live_server.url, session.code, ["00123"])
     phone.wait_for_timeout(1_500)  # le téléphone suit le direct
@@ -327,7 +360,7 @@ def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, ne
     start(teacher_page)
     expect_slot(phone, 0)
     phone.wait_for_timeout(1_000)
-    network = Network(phone, EVERYTHING)
+    network = networks(phone, EVERYTHING)
     network.hold()
     phone.wait_for_timeout(1_500)
     expect(offline_alert(phone)).to_have_count(0)
@@ -340,7 +373,9 @@ def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, ne
 
 
 @pytest.mark.spec("FIN-02")
-def test_end_counts_the_answers_not_transmitted(teacher_page: Page, live_server, new_phone):
+def test_end_counts_the_answers_not_transmitted(
+    teacher_page: Page, live_server, new_phone, networks
+):
     """Une réponse par créneau : la dernière donnée. Premier créneau, « Paris » est confirmé
     puis remplacé par « Lyon », jamais transmis ; deuxième, rien ne passe ; troisième, aucune
     réponse."""
@@ -349,7 +384,7 @@ def test_end_counts_the_answers_not_transmitted(teacher_page: Page, live_server,
     expect_slot(phone, 0)
     choose(phone, "Paris")
     expect(save_status(phone)).to_have_text(SAVED)
-    network = Network(phone, ANSWERS)
+    network = networks(phone, ANSWERS)
     network.cut()
     choose(phone, "Lyon")
     expect(save_status(phone)).to_have_text(SENDING)
@@ -489,7 +524,7 @@ def test_phone_band_and_waiting_screen(live_server, new_phone):
 
 
 @pytest.mark.spec("VIS-04")
-def test_running_phone_layout(teacher_page: Page, live_server, new_phone):
+def test_running_phone_layout(teacher_page: Page, live_server, new_phone, networks):
     quiz = make_quiz("Long", [make_question("Question longue ?", LONG_CHOICES)])
     session = make_session(quiz, make_group("TD1", [*STUDENTS, LONG_NAME]), shown=1)
     (phone,) = started(teacher_page, live_server.url, new_phone, session, [LONG_NAME[0]])
@@ -546,7 +581,7 @@ def test_running_phone_layout(teacher_page: Page, live_server, new_phone):
     expect(footer).to_contain_text(LONG_NAME[0])
 
     assert_phone_layout(phone, "déroulement")
-    network = Network(phone, ANSWERS)
+    network = networks(phone, ANSWERS)
     network.hold()
     choices.nth(4).click()
     expect(status).to_have_text(SENDING)
@@ -583,7 +618,7 @@ def assert_accessible(phone: Page, where: str) -> None:
 
 
 @pytest.mark.spec("ACC-02")
-def test_every_phone_state_is_accessible(teacher_page: Page, live_server, new_phone):
+def test_every_phone_state_is_accessible(teacher_page: Page, live_server, new_phone, networks):
     base = live_server.url
     students = [(f"10{i}", f"ÉTUDIANT {i}") for i in range(1, 7)]
     questions = [
@@ -629,7 +664,7 @@ def test_every_phone_state_is_accessible(teacher_page: Page, live_server, new_ph
     clear_answer(simple)
     expect(save_status(simple)).to_have_text(CLEARED)
     assert_accessible(simple, "réponse effacée")
-    network = Network(simple, ANSWERS)
+    network = networks(simple, ANSWERS)
     network.hold()
     choose(simple, phone_choices(simple)[1])
     expect(save_status(simple)).to_have_text(SENDING)
@@ -649,7 +684,7 @@ def test_every_phone_state_is_accessible(teacher_page: Page, live_server, new_ph
     expect(offline_alert(multiple)).to_have_count(0, timeout=LIVE_MS)
 
     # Écran suivant après une réponse perdue, puis fin avec une réponse non transmise.
-    network = Network(simple, ANSWERS)
+    network = networks(simple, ANSWERS)
     network.cut()
     choose(simple, phone_choices(simple)[2])
     expect(save_status(simple)).to_have_text(SENDING)
