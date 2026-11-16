@@ -97,7 +97,11 @@ DATABASES = {
         # Base de test dans un fichier, pas en mémoire : en mémoire partagée, SQLite refuse
         # aussitôt (« table is locked ») un accès concurrent entre le test et le serveur de
         # test, au lieu d'attendre. En fichier, il attend la fin de l'écriture, comme en usage.
-        "TEST": {"NAME": BASE_DIR / ".test-db.sqlite3"},
+        # Un fichier par processus (incrément M) : deux pytest du même dépôt, par exemple le
+        # hook Stop pendant un pytest en arrière-plan, recréaient et détruisaient la base de
+        # l'autre (no such table, readonly database). tests/conftest.py supprime les bases
+        # laissées par un pytest tué.
+        "TEST": {"NAME": BASE_DIR / f".test-db-{os.getpid()}.sqlite3"},
         # Toute une classe écrit au même instant (CLA-01). Une transaction ordinaire lit
         # d'abord, puis demande le verrou d'écriture : si une autre écrit déjà, SQLite
         # refuse aussitôt (« database is locked »). IMMEDIATE prend le verrou dès le début,
