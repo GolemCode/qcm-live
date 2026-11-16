@@ -69,7 +69,8 @@ main() {
     rm -rf "$data/app.new" "$data/app.old"
     mkdir "$data/app.new"
     tar -xzf "$work/app.tar.gz" -C "$data/app.new" --strip-components=1
-    UV_PROJECT_ENVIRONMENT="$data/venv" "$uv" sync --locked --no-dev --project "$data/app.new" \
+    say "Préparation de l'environnement Python…"
+    UV_PROJECT_ENVIRONMENT="$data/venv" "$uv" sync --quiet --locked --no-dev --project "$data/app.new" \
         || fail "l'installation des dépendances a échoué (rien n'a été remplacé)."
     if [ -d "$data/app" ]; then
         mv "$data/app" "$data/app.old"

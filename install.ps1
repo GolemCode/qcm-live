@@ -54,7 +54,8 @@
         if (Test-Path $New) { Remove-Item -Recurse -Force $New }
         Move-Item $Root.FullName $New
         $env:UV_PROJECT_ENVIRONMENT = Join-Path $Data "venv"
-        & $Uv sync --locked --no-dev --project $New
+        Write-Host "Preparation de l'environnement Python..."
+        & $Uv sync --quiet --locked --no-dev --project $New
         if ($LASTEXITCODE -ne 0) { throw "Echec de l'installation des dependances (rien n'a ete remplace)." }
         if (Test-Path $App) { Remove-Item -Recurse -Force $App }
         Move-Item $New $App

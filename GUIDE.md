@@ -18,7 +18,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Gol
 
 L'installation ne demande pas de droits d'administrateur. Elle installe au besoin [uv](https://docs.astral.sh/uv/), qui installe Python, puis vous demande :
 
-- **votre compte enseignant** : un identifiant et un mot de passe (l'adresse électronique est facultative) ;
+- **votre compte enseignant** : un identifiant et un mot de passe, demandé deux fois (il ne s'affiche pas pendant la saisie) ;
 - **s'il faut ajouter la démonstration** : un QCM et un groupe de six étudiants fictifs, pour vous faire la main.
 
 Elle crée l'icône « QCM Live » dans le menu des applications, et la commande `qcm-live`.

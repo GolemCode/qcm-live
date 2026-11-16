@@ -19,13 +19,15 @@ l'environnement l'emporte sur lui.
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 import sys
 import tempfile
 import threading
 import webbrowser
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import cast
 
 from config import backup, classroom
 
@@ -158,6 +160,49 @@ def restore(archive: Path | None) -> int:
     return 0
 
 
+def prompt_account(
+    read: Callable[[str], str] | None = None, secret: Callable[[str], str] | None = None
+) -> str | None:
+    """Crée un compte enseignant, questions en français (celles de `createsuperuser` sont
+    en partie en anglais). Redemande tant que la réponse est refusée ; un identifiant vide
+    abandonne. Rend l'identifiant créé, ou None."""
+    from django.contrib.auth.models import User
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    from django.db.models import CharField
+
+    read = read or input
+    secret = secret or getpass.getpass
+    field = cast(CharField, User._meta.get_field("username"))
+    while True:
+        username = read("Identifiant : ").strip()
+        if not username:
+            return None
+        try:
+            field.run_validators(username)
+        except ValidationError as error:
+            print(*error.messages, sep="\n")
+            continue
+        if User.objects.filter(username=username).exists():
+            print("Cet identifiant est déjà pris.")
+            continue
+        break
+    while True:
+        password = secret("Mot de passe (il ne s'affiche pas) : ")
+        if password != secret("Mot de passe, à nouveau : "):
+            print("Les deux mots de passe diffèrent.")
+            continue
+        try:
+            validate_password(password, User(username=username))
+        except ValidationError as error:
+            print(*error.messages, sep="\n")
+            continue
+        break
+    User.objects.create_superuser(username, email="", password=password)
+    print(f"Compte enseignant créé : {username}.")
+    return username
+
+
 def setup_django() -> None:
     import django
 
@@ -194,7 +239,14 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — test
     from django.core.management import call_command
 
     call_command("migrate", interactive=False, verbosity=0)
-    call_command("createsuperuser")
+    try:
+        created = prompt_account()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        created = None
+    if created is None:
+        print("Aucun compte créé.")
+        return 1
     return 0
 
 

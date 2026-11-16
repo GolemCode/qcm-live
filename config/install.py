@@ -24,7 +24,14 @@ import sys
 from pathlib import Path
 
 from config.classroom import GUIDE_URL
-from config.launcher import SETTINGS_FILE, ask, data_dir, load_settings, setup_django
+from config.launcher import (
+    SETTINGS_FILE,
+    ask,
+    data_dir,
+    load_settings,
+    prompt_account,
+    setup_django,
+)
 
 APP_DIR = Path(__file__).resolve().parent.parent
 YES = {"o", "oui", "y", "yes", "1"}
@@ -117,7 +124,6 @@ def wants_demo(interactive: bool) -> bool:
 
 def create_account(interactive: bool) -> None:
     from django.contrib.auth.models import User
-    from django.core.management import call_command
 
     username = os.environ.get("DJANGO_SUPERUSER_USERNAME")
     password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
@@ -126,12 +132,12 @@ def create_account(interactive: bool) -> None:
         print(f"Compte enseignant créé : {username}.")
         return
     if interactive:
-        print("Création de votre compte enseignant (l'adresse électronique est facultative) :")
+        print("Création de votre compte enseignant (identifiant vide : plus tard).")
         try:
-            call_command("createsuperuser")
-            return
-        except SystemExit:  # Ctrl+C : createsuperuser a déjà dit « annulé »
-            pass
+            if prompt_account():
+                return
+        except (EOFError, KeyboardInterrupt):  # Ctrl+C
+            print()
     print("Créez votre compte enseignant plus tard, dans un terminal : qcm-live compte")
 
 
