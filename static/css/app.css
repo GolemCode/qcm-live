@@ -142,7 +142,6 @@ button, a.button {
   text-decoration: none;
   cursor: pointer;
 }
-button.secondary { background: var(--surface); color: var(--ink); }
 button.danger { background: var(--error); border-color: var(--error); color: var(--on-ink); }
 button.link {
   min-height: 0; padding: 0; border: 0; background: none; color: inherit;
@@ -306,7 +305,6 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
   position: fixed; inset: 0 0 auto 0; z-index: 10; margin: 0; padding: 0.9rem 1rem;
   background: var(--error); color: var(--on-ink); font-weight: 700; text-align: center;
 }
-.offline[hidden] { display: none; }
 
 /* En attente : « Vous êtes », le nom en grand, le numéro. */
 .whoami { padding-left: 1rem; border-left: 0.35rem solid var(--ink); }
@@ -331,7 +329,6 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
   margin: 1rem 0 0; padding: 0.6rem 0.9rem; border: var(--rule) solid var(--ink);
   border-radius: var(--radius); background: var(--surface); color: var(--ink); font-weight: 700;
 }
-.notice[hidden] { display: none; }
 
 .phone .answers { display: grid; gap: 0.75rem; margin: 1rem 0; padding: 0; border: 0; }
 .phone .answer {
@@ -365,5 +362,5 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
 .phone .over { margin: 2rem 0; text-align: left; }
 .phone .over-title { margin: 0 0 1rem; font-size: 2rem; font-weight: 700; }
 .transmission { margin: 0; padding-top: 0.75rem; border-top: var(--rule) solid var(--ink); font-size: 1.25rem; }
-/* Réponses non transmises : un avertissement, à signaler à l'enseignant. */
-.transmission.warning { padding: 0.75rem 1rem; border: var(--rule) solid var(--error); background: var(--error-bg); color: var(--error); font-weight: 700; }
+/* Réponses non transmises : un avertissement (.error), à signaler à l'enseignant. */
+.transmission.error { padding: 0.75rem 1rem; }

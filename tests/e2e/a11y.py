@@ -150,17 +150,18 @@ def keyboard_problems(screen: Page) -> list[str]:
         + """
           // Un groupe de boutons radio ne compte qu'une fois : Tab en atteint un seul (le coché,
           // ou le premier), et les flèches passent de l'un à l'autre.
+          // Groupe : même formulaire (ou aucun) et même nom.
           const items = [];
-          const radios = new Map();
+          const groups = new Map(); // formulaire -> nom -> repère du premier bouton du groupe
           for (const e of document.querySelectorAll(selector)) {
             if (!e.checkVisibility()) continue;
-            const group = e.matches("input[type=radio]") ? `${e.form?.id}:${e.name}` : null;
-            if (group !== null && radios.has(group)) {
-              e.dataset.kbd = radios.get(group);
+            const names = e.matches("input[type=radio]") ? groups.get(e.form) ?? new Map() : null;
+            if (names?.has(e.name)) {
+              e.dataset.kbd = names.get(e.name);
               continue;
             }
             e.dataset.kbd = String(items.length);
-            if (group !== null) radios.set(group, e.dataset.kbd);
+            if (names) groups.set(e.form, names.set(e.name, e.dataset.kbd));
             items.push(e);
           }
           document.activeElement?.blur();

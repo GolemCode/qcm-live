@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Session {{ session.code }} — QCM Live{% endblock %}
-{% block body_class %}phone{% if color %} colored color-{{ color }}{% endif %}{% endblock %}
+{% block body_class %}phone{% if color %} color-{{ color }}{% endif %}{% endblock %}
 {% comment %}Téléphone de l'étudiant (VIS-04). Le logo n'est pas un lien : un doigt qui le touche par erreur ne quitte pas la session.{% endcomment %}
 {% block brand %}<span class="brand">{% include "logo.html" %}QCM Live</span>{% endblock %}
 {% block band %}<h1 class="band-title">Session {% include "live/code.html" with code=session.code %}</h1>{% endblock %}
@@ -11,7 +11,7 @@
   {% if color %}<progress class="timebar" data-countdown aria-label="Part du créneau restante" max="{{ slot_ms }}" value="{{ remaining_ms }}"></progress>{% endif %}
 {% endblock %}
 {% comment %}data-trace : clé de la trace des envois dans le navigateur (ETU-10), propre à la session et au participant.{% endcomment %}
-{% block body_attrs %}{% if participant %} data-trace="{{ session.code }}:{{ participant.pk }}" data-answers-url="{% url 'student-answers' session.code %}"{% endif %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% if color %} data-slot="{{ slot.index }}"{% endif %}{% endblock %}
+{% block body_attrs %}{% if participant %} data-trace="{{ session.code }}:{{ participant.pk }}" data-answers-url="{% url 'student-answers' session.code %}"{% endif %}{% if follow %} data-state-url="{% url 'student-state' session.code %}" data-page="{{ page }}"{% endif %}{% endblock %}
 {% block content %}
   {% if state.phase == "ended" %}
     <section class="over">
@@ -51,7 +51,7 @@
       </fieldset>
       {% comment %}À portée du pouce, toujours visibles pendant le défilement (VIS-04).{% endcomment %}
       <div class="answer-bar">
-        <p id="save-status" class="save-status" role="status"></p>
+        <p id="save-status" class="save-status" role="status" data-saved="{{ texts.saved }}" data-cleared="{{ texts.cleared }}" data-too-late="{{ texts.too_late }}"></p>
         {% if not multiple %}<button type="button" id="clear-answer" class="on-band"{% if not saved %} disabled{% endif %}>Effacer ma réponse</button>{% endif %}
       </div>
     </form>

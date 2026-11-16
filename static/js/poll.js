@@ -4,14 +4,15 @@ window.qcm = {
   // Dernière réponse reçue du serveur, quelle qu'elle soit (ETU-11) : le chargement de la page
   // en est une.
   lastContact: performance.now(),
-  contact() {
-    this.lastContact = performance.now();
-  },
 
-  // Signal d'abandon d'une requête restée sans réponse `ms` millisecondes : une requête perdue
-  // par le réseau ne bloque pas les suivantes.
-  timeout(ms) {
-    return AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined;
+  // Toute requête au serveur passe par ici : abandonnée sans réponse au bout de `ms`
+  // millisecondes (une requête perdue par le réseau ne bloque pas les suivantes), et notée
+  // comme un contact dès que le serveur répond, quel que soit le statut.
+  async request(url, options = {}, ms = 5000) {
+    const signal = AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined;
+    const response = await fetch(url, { cache: "no-store", signal, ...options });
+    this.lastContact = performance.now();
+    return response;
   },
 
   // ETU-11 : `element` (caché) affiche `text` dès que le serveur n'a plus répondu depuis
@@ -31,8 +32,7 @@ window.qcm = {
     const tick = async () => {
       let again = true;
       try {
-        const response = await fetch(url, { cache: "no-store", signal: this.timeout(5000) });
-        this.contact();
+        const response = await this.request(url);
         if (response.ok) again = onState(await response.json()) !== false;
       } catch {
         // réseau momentanément indisponible
@@ -47,8 +47,10 @@ window.qcm = {
   // Entre deux appels, le décompte est monotone (performance.now()) : il ignore une correction
   // de l'horloge du navigateur. Mais follow() le recale chaque seconde sur le temps calculé par
   // le serveur : si l'horloge du serveur recule, le nombre affiché remonte (REX, section R).
+  // L'échéance reste lisible sur l'élément (`qcmDeadline`), sur la même horloge.
   countdown(element, remainingMs, bar = null) {
     const deadline = performance.now() + remainingMs;
+    element.qcmDeadline = deadline;
     clearInterval(element.qcmTimer);
     const render = () => {
       const left = Math.max(0, deadline - performance.now());

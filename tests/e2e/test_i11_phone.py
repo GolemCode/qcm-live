@@ -27,6 +27,7 @@ from PIL import Image
 from playwright.sync_api import Error, FloatRect, Locator, Page, Route, ViewportSize, expect
 
 from live.models import Answer, Session
+from live.views import CLEARED, SAVED, TOO_LATE
 from tests.e2e.a11y import axe_violations, contrast, keyboard_problems, low_contrasts
 from tests.e2e.conftest import assert_fits_width
 from tests.e2e.live_setup import STUDENTS, expect_slot, make_live, open_board, started
@@ -34,6 +35,7 @@ from tests.e2e.live_ui import (
     LIVE_MS,
     SIGNAL,
     add_time,
+    background,
     choose,
     clear_answer,
     enter_code,
@@ -51,9 +53,6 @@ from tests.e2e.live_ui import (
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session
 
 SENDING = "Envoi en cours…"
-SAVED = "Réponse enregistrée"
-CLEARED = "Réponse effacée"
-TOO_LATE = "Temps écoulé : réponse non enregistrée"
 PREVIOUS_LOST = "Votre réponse précédente n'a pas été enregistrée."
 OFFLINE = "Connexion perdue"
 OVER = "Session terminée."
@@ -112,20 +111,12 @@ class Network:
         self.phone.route(self.url, handler)
 
     def restore(self) -> None:
-        self._release()
-        # Attendre la fin des interceptions en cours : aucune ne doit survivre au test.
-        self.phone.unroute_all(behavior="wait")
-
-    def close(self) -> None:
-        """En fin de test : plus aucune interception ne survit à la fermeture du navigateur."""
-        self._release()
-        self.phone.unroute_all(behavior="wait")
-
-    def _release(self) -> None:
         for route in self.held:
             with contextlib.suppress(Error):  # requête déjà abandonnée par la page
                 route.continue_()
         self.held.clear()
+        # Attendre la fin des interceptions en cours : aucune ne doit survivre au test.
+        self.phone.unroute_all(behavior="wait")
 
 
 @pytest.fixture
@@ -139,7 +130,7 @@ def networks() -> Iterator[Callable[[Page, re.Pattern[str]], Network]]:
 
     yield make
     for network in made:
-        network.close()
+        network.restore()
 
 
 def recorded(session: Session, number: str) -> dict[str, list[str]]:
@@ -429,8 +420,8 @@ def test_end_affirms_nothing_it_cannot_know(teacher_page: Page, live_server, new
 
 # --- VIS-04 : présentation du téléphone -----------------------------------------------------
 
-INK = "rgb(17, 17, 17)"
-WHITE = "rgb(255, 255, 255)"
+INK_CSS = "rgb(17, 17, 17)"  # l'encre, telle que la donne getComputedStyle
+WHITE_CSS = "rgb(255, 255, 255)"
 LONG_NAME = ("2190031", "DE LA FONTAINE-MARCHAND Marie-Charlotte")
 SMALL_PHONE = ViewportSize(width=360, height=740)
 LONG_CHOICES = [
@@ -479,7 +470,7 @@ def expect_band_code(phone: Page, code: str) -> None:
     expect(band(phone).get_by_role("heading", name=f"Session {code}", level=1)).to_be_visible()
     groups = band(phone).get_by_text(re.compile(r"^\d{3}$"))
     expect(groups).to_have_text([code[:3], code[3:]])
-    assert style(band(phone), "backgroundColor") == INK
+    assert background(band(phone)) == INK_CSS
 
 
 TARGETS = (
@@ -515,7 +506,7 @@ def test_phone_band_and_waiting_screen(live_server, new_phone):
     phone = new_phone()
     phone.goto(f"{live_server.url}/")
     expect(band(phone)).to_have_text(re.compile(r"^\s*QCM Live\s*$"))  # session pas encore connue
-    assert style(band(phone), "backgroundColor") == INK
+    assert background(band(phone)) == INK_CSS
     assert_phone_layout(phone, "saisie du code")
 
     enter_code(phone, live_server.url, session.code)
@@ -576,9 +567,9 @@ def test_running_phone_layout(teacher_page: Page, live_server, new_phone, networ
     third = choices.nth(2)
     third.click()
     expect(save_status(phone)).to_have_text(SAVED)
-    assert (style(third, "backgroundColor"), style(third, "color")) == (INK, WHITE)
+    assert (background(third), style(third, "color")) == (INK_CSS, WHITE_CSS)
     for i in (0, 1, 3):
-        assert style(choices.nth(i), "backgroundColor") != INK, i
+        assert background(choices.nth(i)) != INK_CSS, i
 
     # L'état de l'envoi et « Effacer ma réponse » restent en bas de l'écran pendant le défilement.
     status = save_status(phone)

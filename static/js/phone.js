@@ -7,11 +7,10 @@
 // confirmée n'est jamais affichée comme enregistrée ; le téléphone demande au serveur ce qu'il
 // a vraiment reçu avant de la déclarer perdue.
 (() => {
+  // Les messages que le serveur envoie aussi (enregistrée, effacée, hors délai) viennent de la
+  // page, qui les tient de live.views : une seule rédaction.
   const TEXT = {
     sending: "Envoi en cours…",
-    saved: "Réponse enregistrée", // comme live.views.SAVED, CLEARED et TOO_LATE
-    cleared: "Réponse effacée",
-    tooLate: "Temps écoulé : réponse non enregistrée",
     refused: "Réponse refusée : rechargez la page.",
     previousLost: "Votre réponse précédente n'a pas été enregistrée.",
     offline: "Connexion perdue",
@@ -23,6 +22,7 @@
   };
   const RETRY_MS = 1000; // renvoi d'une réponse, puis d'une question au serveur
   const SEND_TIMEOUT_MS = 8000; // au-delà, l'envoi est tenu pour perdu, et renvoyé
+  const REFUSED = "refusé"; // le serveur répond, mais refuse : inutile de réessayer
 
   const body = document.body;
   const qcm = window.qcm;
@@ -52,14 +52,11 @@
   const same = (a, b) => a.length === b.length && a.every((value, i) => value === b[i]);
 
   // Demande au serveur ce qu'il a enregistré, et confirme les créneaux `slots` dont la
-  // dernière réponse donnée y est. Renvoie la trace à jour ; échoue sans réseau.
+  // dernière réponse donnée y est. Renvoie la trace à jour ; échoue sans réseau, ou avec
+  // REFUSED si le serveur refuse (identité perdue, session supprimée).
   async function reconcile(slots) {
-    const response = await fetch(body.dataset.answersUrl, {
-      cache: "no-store",
-      signal: qcm.timeout(5000),
-    });
-    qcm.contact();
-    if (!response.ok) throw new Error(`réponses : ${response.status}`);
+    const response = await qcm.request(body.dataset.answersUrl);
+    if (!response.ok) throw response.status < 500 ? REFUSED : new Error(`${response.status}`);
     const recorded = (await response.json()).answers;
     const trace = readTrace();
     for (const slot of slots) {
@@ -69,12 +66,14 @@
     return trace;
   }
 
-  // Même chose, en réessayant chaque seconde jusqu'à obtenir la réponse du serveur.
+  // Même chose, en réessayant chaque seconde tant que le serveur ne répond pas. Renvoie null
+  // s'il refuse : le téléphone ne peut alors rien affirmer.
   async function reconcileSoon(slots) {
     for (;;) {
       try {
         return await reconcile(slots);
-      } catch {
+      } catch (error) {
+        if (error === REFUSED) return null;
         await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
       }
     }
@@ -97,8 +96,9 @@
       if (slots.length === 0) return; // aucune réponse, ou trace perdue : rien à affirmer
       const pending = unconfirmed(trace);
       if (pending.length) trace = await reconcileSoon(pending);
+      if (trace === null) return;
       const lost = unconfirmed(trace).length;
-      transmission.classList.toggle("warning", lost > 0);
+      transmission.classList.toggle("error", lost > 0);
       reveal(transmission, lost ? TEXT.notTransmitted(lost) : TEXT.transmitted);
     })();
     return;
@@ -106,17 +106,17 @@
 
   // --- Suivi du direct et perte de connexion (ETU-11) ---------------------------------------
   const form = document.getElementById("answer-form");
-  const timer = body.querySelector("[role=timer]");
-  // Échéance du créneau affiché, sur l'horloge monotone du téléphone, recalée par le serveur.
-  let deadline = timer ? performance.now() + Number(timer.dataset.remainingMs) : null;
-  qcm.follow(body, (state) => {
-    if (state.remaining_ms !== null) deadline = performance.now() + state.remaining_ms;
-  });
+  qcm.follow(body);
   qcm.watchConnection(body.querySelector(".offline"), TEXT.offline);
   if (!form) return; // en attente
 
-  const slot = body.dataset.slot;
+  // Échéance du créneau affiché, tenue par le compte à rebours (poll.js) et recalée sur le
+  // serveur à chaque interrogation.
+  const timer = body.querySelector("[role=timer]");
+  const ended = () => performance.now() >= timer.qcmDeadline;
+  const slot = form.elements.slot.value;
   const status = document.getElementById("save-status");
+  const { saved, cleared, tooLate } = status.dataset;
   const clear = document.getElementById("clear-answer");
   const inputs = [...form.querySelectorAll("input[name=choice]")];
   const show = (text) => {
@@ -127,7 +127,6 @@
       .filter((input) => input.checked)
       .map((input) => Number(input.value))
       .sort((a, b) => a - b);
-  const confirmedText = (given) => (given.length ? TEXT.saved : TEXT.cleared);
 
   // --- Envoi de la réponse (ETU-10) --------------------------------------------------------
   // Un seul envoi à la fois, avec l'état du formulaire au départ. S'il a changé entre-temps,
@@ -145,12 +144,11 @@
     let outcome = "retry";
     let message = "";
     try {
-      const response = await fetch(form.action, {
-        method: "POST",
-        body: data,
-        signal: qcm.timeout(SEND_TIMEOUT_MS),
-      });
-      qcm.contact();
+      const response = await qcm.request(
+        form.action,
+        { method: "POST", body: data },
+        SEND_TIMEOUT_MS,
+      );
       const json = (response.headers.get("Content-Type") || "").includes("application/json");
       if (response.status < 500) {
         outcome = response.ok && json ? "saved" : "refused";
@@ -164,14 +162,9 @@
       send(); // l'étudiant a changé d'avis pendant l'envoi
       return;
     }
-    if (outcome === "saved") {
-      updateTrace(slot, { ok: true });
-      show(message);
-    } else if (outcome === "refused") {
-      show(message); // hors délai (ETU-07), ou refus : rien à renvoyer
-    } else if (performance.now() < deadline) {
-      retry = setTimeout(send, RETRY_MS);
-    }
+    if (outcome === "saved") updateTrace(slot, { ok: true });
+    if (outcome !== "retry") show(message); // refus : hors délai (ETU-07) ; rien à renvoyer
+    else if (!ended()) retry = setTimeout(send, RETRY_MS);
   }
 
   function changed() {
@@ -191,20 +184,20 @@
   // À l'échéance, une réponse non confirmée est signalée comme non enregistrée, sauf si le
   // serveur dit l'avoir reçue à temps (sa confirmation s'était perdue).
   const watch = setInterval(async () => {
-    if (performance.now() < deadline) return;
+    if (!ended()) return;
     clearInterval(watch);
     clearTimeout(retry);
     const entry = readTrace()[slot];
     if (!entry || entry.ok) return;
     try {
       if ((await reconcile([slot]))[slot].ok) {
-        show(confirmedText(entry.given));
+        show(entry.given.length ? saved : cleared);
         return;
       }
     } catch {
       // pas de réseau : le téléphone ne peut pas savoir
     }
-    show(TEXT.tooLate);
+    show(tooLate);
   }, 250);
 
   // --- Au chargement : rechargement en cours d'envoi, créneaux précédents --------------------
@@ -224,8 +217,9 @@
   const earlier = unconfirmed(trace, (other) => other < Number(slot));
   if (earlier.length) {
     reconcileSoon(earlier).then((updated) => {
-      const lost = unconfirmed(updated, (other) => other < Number(slot)).filter(
-        (other) => updated[other].told === undefined || updated[other].told === slot,
+      if (updated === null) return;
+      const lost = earlier.filter(
+        (other) => !updated[other].ok && [undefined, slot].includes(updated[other].told),
       );
       if (lost.length === 0) return;
       for (const other of lost) updated[other].told = slot;

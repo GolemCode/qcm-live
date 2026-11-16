@@ -283,6 +283,8 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             "saved": saved.first() or [],
             "remaining_ms": _ms(state.position.remaining),
             "slot_ms": _ms(state.position.length),
+            # Messages que le téléphone affiche aussi de lui-même (static/js/phone.js).
+            "texts": {"saved": SAVED, "cleared": CLEARED, "too_late": TOO_LATE},
         }
     return render(request, "live/student.html", context)
 
