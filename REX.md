@@ -121,6 +121,16 @@ La CI était verte. Les deux revues ont pourtant trouvé de vrais défauts, ce q
 | I7 | Mode classe : serveur de production local, E2E contre ce serveur |
 | I8 | Hébergement en ligne (conditionnel, selon la décision du professeur). *Le numéro a ensuite servi au retour du test réel : voir la section I8. L'hébergement reste conditionnel et sera numéroté le moment venu ; les mentions « I8 » de l'hébergement dans les sections plus anciennes datent de ce plan.* |
 
+*Suite du plan, validée par le commanditaire après I11 (les incréments I9 à I11 et M sont décrits dans leurs sections) :*
+
+| Inc | Contenu |
+|---|---|
+| I12 | Import AMC-TXT strict, texte seul : questions simples et multiples, groupes, barème par question et défauts d'AMC ; chaque fichier devient un QCM ; fichier de démonstration, `make demo`, README « Premier cours » |
+| I13 | Composition : QCM repris d'un ancien, ajout depuis la banque, versions des questions, « déjà posée », année du groupe |
+| I14 | Formules, code et images (AMC-TXT), au tableau et sur le téléphone ; import d'une archive ZIP ; démonstration enrichie |
+| I15 | Import LaTeX AMC, sous-ensemble documenté |
+| I16 | Espace enseignant « Signalétique », avec les filtres (ancien I12, renuméroté) |
+
 ---
 
 ## I1 — Banque de questions, QCM et barème

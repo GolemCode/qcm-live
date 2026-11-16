@@ -27,23 +27,74 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
 ### Enseignant : banque de questions et QCM
 - **[BAN-01]** (I1) L'enseignant crée une question **simple** : un énoncé et 2 à 8 propositions, dont exactement une juste.
-- **[BAN-02]** (I1) L'enseignant crée une question **multiple** : un énoncé et 2 à 8 propositions, dont au moins une juste.
+- **[BAN-02]** (I1) L'enseignant crée une question **multiple** : un énoncé et 2 à 8 propositions, dont au moins une juste. *(précisé en I12)* Aucune proposition juste est permis quand la question propose « Aucune de ces réponses n'est correcte » (BAN-09) : c'est alors la bonne réponse.
 - **[BAN-03]** (I1) L'enseignant crée un QCM : un titre et une sélection **ordonnée** d'au moins une question de la banque. Un QCM sans question ne peut pas se lancer. Il peut le devenir après la suppression de ses questions (BAN-07) ; pour le modifier, il faut alors lui redonner au moins une question.
 - **[BAN-04]** (I1) Une même question de la banque peut servir dans plusieurs QCM.
-- **[BAN-05]** (I1) L'enseignant modifie une question : énoncé, type, propositions, bonnes réponses. Les règles de validité sont les mêmes qu'à la création.
-- **[BAN-06]** (I1) L'enseignant modifie un QCM : titre, questions, ordre, barème.
+- **[BAN-05]** (I1) L'enseignant modifie une question : énoncé, type, propositions, bonnes réponses. Les règles de validité sont les mêmes qu'à la création. *(précisé en I12)* Il modifie aussi son barème (BAR-01) et ses options (BAN-09, BAN-10). Une question déjà utilisée dans une session ne se modifie plus : la modifier en crée une nouvelle version (VER-01, I13).
+- **[BAN-06]** (I1) L'enseignant modifie un QCM : titre, questions, ordre. *(modifié en I12 : le barème passe aux questions, BAR-01 ; le formulaire de barème du QCM disparaît)*
 - **[BAN-07]** (I1) L'enseignant supprime une question après confirmation. La page de confirmation nomme les QCM qui l'utilisent. La question est retirée de ces QCM.
 - **[BAN-08]** (I1) L'enseignant supprime un QCM après confirmation. Ses questions restent dans la banque.
-- **[BAR-01]** (I1) Chaque QCM porte son barème, sur le modèle d'Auto Multiple Choice (AMC). Il a deux échelles :
-  - questions simples : `b` (juste), `m` (faux), `v` (pas de réponse) ;
-  - questions multiples : `b` (par case bien traitée), `m` (par case mal traitée), `v` (aucune case cochée), `p` (plancher de la note de la question ; vide = pas de plancher).
-
-  Valeurs par défaut : `b=1`, `m=0`, `v=0`, `p` vide. Les valeurs peuvent être négatives.
+- **[BAR-01]** (I12) **Chaque question porte son barème**, écrit comme dans Auto Multiple Choice (AMC) : des directives séparées par des virgules, par exemple `b=2,m=-0.5` ou `haut=2`. Le calcul est celui d'AMC (§3). *(livré en I1 par QCM, passé à la question en I12, décision du commanditaire)*
+  - Directives reconnues : `b`, `m`, `v`, `e`, `d`, `p`, `haut`, `mz`, `MAX`, avec des valeurs numériques, éventuellement négatives, au point décimal comme dans AMC. Le formulaire refuse toute autre directive et toute valeur calculée, avec la raison. *(liste validée par le commanditaire)*
+  - Une question à choix simple peut aussi donner une valeur à une proposition (AMC-TXT : `-{-2}`) : la choisir rapporte cette valeur. *(validé par le commanditaire)* Le formulaire a une colonne « Points » à cet effet, facultative. *(dérivé)*
+  - Barème vide : le barème par défaut d'AMC, `b=1`, `m=0`, `v=0` (par case pour une question multiple). C'est celui d'une question créée à la main. *(décision du commanditaire ; l'import AMC-TXT a ses propres défauts, IMP-04)*
+  - À la mise à jour, chaque question reçoit le barème du QCM qui la contenait. Une question présente dans plusieurs QCM aux barèmes différents prend celui du plus ancien QCM. Une question d'aucun QCM garde le barème vide. Les sessions déjà lancées gardent exactement leurs notes. *(décision du commanditaire ; cas des barèmes différents : dérivé)*
+- **[BAN-09]** (I12) Une question multiple peut proposer, en dernier, **« Aucune de ces réponses n'est correcte »**, comme le fait AMC (option `CompleteMulti`). Dans le formulaire, c'est une case à cocher. Cette proposition est juste si et seulement si aucune autre ne l'est. Elle compte comme une réponse, pas comme une absence de réponse (`v`). Elle ne compte pas parmi les 8 propositions au plus. *(décision du commanditaire)*
+- **[BAN-10]** (I12) Une question peut avoir un **ordre fixe** (AMC : `ordered`) : ses propositions ne sont pas mélangées sur les téléphones (ETU-05). Dans le formulaire, c'est une case « Ne pas mélanger les propositions ». *(décision du commanditaire)*
 
 ### Enseignant : groupes d'étudiants
 - **[GRP-01]** (I2) L'enseignant importe un groupe d'étudiants : il donne au groupe un nom unique et fournit un fichier CSV (numéro, nom). Le groupe et ses étudiants s'affichent. Les numéros gardent leurs éventuels zéros de tête.
 - **[GRP-02]** (I2) Un CSV invalide est refusé en entier, sans rien créer. Le message désigne chaque ligne fautive (les 20 premières, puis le nombre des autres) : format incorrect, numéro en double, numéro ou nom vide, numéro qui ne contient pas que des chiffres. Un fichier sans étudiant est refusé, de même qu'un nom de groupe vide ou déjà pris.
 - **[GRP-03]** (I2) L'enseignant supprime un groupe après confirmation. Pour corriger une liste, il supprime le groupe puis le réimporte.
+
+### Enseignant : import de questions AMC
+Les questions viennent de fichiers AMC d'anciens QCM. Aucun fichier réel n'est disponible : l'import suit la documentation d'AMC et son code source (lecteur AMC-TXT et calcul des notes), que j'ai lus. Le format reconnu est détaillé au §2 ter. *(décision du commanditaire : AMC-TXT d'abord, LaTeX ensuite ; un parcours complet passe avant un import exhaustif)*
+
+- **[IMP-01]** (I12) L'enseignant importe un fichier **AMC-TXT**. Avant tout enregistrement, un **récapitulatif** s'affiche : titre du QCM, nombre de questions importées, questions écartées (IMP-03), textes ignorés. L'enseignant confirme, ou annule sans que rien soit créé. Chaque fichier importé devient **un QCM**, avec ses questions dans l'ordre du fichier, et ces questions entrent dans la banque. *(décision du commanditaire)*
+  - Titre du QCM : l'option `Title:` du fichier, sinon le nom du fichier sans son extension. *(dérivé)*
+  - Le récapitulatif indique aussi combien de questions sont déjà dans la banque (IMP-07). *(dérivé)*
+  - Fichier de 1 Mo au plus. *(dérivé)*
+- **[IMP-02]** (I12) **Une erreur de syntaxe refuse le fichier entier**, sans rien créer. Le message donne le numéro de ligne et la raison de chaque erreur (les 20 premières, puis le nombre des autres, comme pour les groupes, GRP-02). La liste des erreurs de syntaxe est au §2 ter. *(décision du commanditaire)*
+- **[IMP-03]** (I12) **Une question valide pour AMC mais non prise en charge ici est écartée** : question ouverte, question numérique ou indicative, directive de barème non gérée, contenu prévu dans un incrément suivant… Le récapitulatif liste chaque question écartée avec son numéro de ligne et la raison, avant que l'enseignant confirme l'import du reste. Ce n'est pas un import partiel silencieux. Un fichier dont toutes les questions sont écartées ne peut pas être importé. *(décision du commanditaire ; liste des cas au §2 ter)*
+- **[IMP-04]** (I12) Le barème vient du fichier, question par question, selon les règles d'AMC-TXT. *(décision du commanditaire, règles vérifiées dans le code d'AMC)*
+  - Une question prend son propre barème (`*{b=2} …`).
+  - Sinon, celui de l'option `DefaultScoringS:` (questions simples) ou `DefaultScoringM:` (multiples) du fichier, qui le remplace sans s'y ajouter.
+  - Sinon, si ni la question ni ses propositions n'ont de barème : rien pour une question simple (`b=1`, `m=0`), et **`haut=2`** pour une question multiple. Toutes justes : 2 points ; une case mal traitée : 1 ; deux ou plus : 0.
+  - Le barème enregistré sur la question est celui qui s'applique, défaut compris : modifier ensuite la question le montre tel quel (BAR-01). *(dérivé)*
+- **[IMP-05]** (I12) Comme AMC, l'import ajoute « Aucune de ces réponses n'est correcte » (BAN-09) à chaque question multiple, sauf si le fichier porte `CompleteMulti: 0`. *(décision du commanditaire ; défaut d'AMC-TXT vérifié dans son code)*
+- **[IMP-06]** (I12) **Groupes AMC** (`*(` … `*)`) : leurs questions sont toutes importées, dans l'ordre du fichier. Le mélange et le tirage d'AMC (`shuffle`, `numquestions`) sont ignorés : aucun tirage au hasard. Le nom du groupe (`group=…`) devient l'étiquette de ses questions, affichée dans la banque et dans le QCM. *(décision du commanditaire)*
+  - Le texte d'ouverture ou de fermeture d'un groupe n'est pas une question : il est ignoré, et le récapitulatif le cite, avec son numéro de ligne. *(dérivé)*
+- **[IMP-07]** (I12) **Une question identique n'est stockée qu'une fois** : elle est partagée entre les QCM qui la contiennent (BAN-04). Identique : même type, même énoncé, mêmes propositions dans le même ordre, mêmes bonnes réponses, même barème, mêmes options. Une question présente deux fois dans un même fichier n'est importée qu'une fois : la seconde est écartée (IMP-03). *(décision du commanditaire ; options et doublon dans un fichier : dérivé)*
+  - **Réimporter un fichier déjà importé est refusé**, avec le nom du QCM qui en vient. Un fichier est « déjà importé » si son contenu est identique, octet pour octet, à celui d'un QCM importé encore présent. *(décision du commanditaire ; critère : dérivé)*
+
+### Démonstration
+- **[DEM-01]** (I12) Le dépôt contient un **fichier AMC-TXT de démonstration**, `demo/qcm-demo.txt`, aux questions fictives. Il sert aux tests et à la démonstration. Il s'importe sans question écartée, et une session menée avec lui va jusqu'aux résultats et au CSV. *(demande du commanditaire)*
+  - En I12, il couvre les questions simples et multiples, le barème (par défaut, par question, `DefaultScoringM`, valeur d'une proposition), « Aucune de ces réponses n'est correcte », l'ordre fixe et un groupe. Les formules, le code et une image s'y ajoutent en I14. *(découpage validé)*
+- **[DEM-02]** (I12) Une commande, `make demo`, prépare une **démonstration complète** : un compte enseignant, un groupe d'étudiants fictifs et le QCM importé du fichier de démonstration. *(demande du commanditaire)*
+  - Le compte s'appelle `demo`. Un nouveau mot de passe aléatoire est tiré et affiché à chaque lancement : rien de fixe n'est écrit dans le dépôt. *(dérivé)*
+  - Relancée, la commande réutilise le groupe et le QCM au lieu d'en créer d'autres. *(dérivé)*
+  - Le README décrit pas à pas, dans sa section « Premier cours », le parcours réel : importer, créer le QCM, lancer en mode classe sur eduroam, faire passer, exporter les résultats. *(demande du commanditaire)*
+
+### Composition des QCM et versions des questions (I13, prévu)
+Rien de ce qui suit n'est encore implémenté. Les exigences seront précisées au début d'I13.
+
+- **[CMP-01]** (I13) Un nouveau QCM se crée en **reprenant un ancien QCM en entier** : mêmes questions, même ordre, nouveau titre. *(décision du commanditaire)*
+- **[CMP-02]** (I13) L'enseignant **ajoute ou retire des questions**. Les questions ajoutées viennent de la banque, c'est-à-dire des autres QCM importés. Pas de tirage au hasard. *(décision du commanditaire)*
+- **[GRP-04]** (I13) **Un groupe a une année**, obligatoire, par exemple l'année universitaire « 2025-2026 ». Deux groupes peuvent porter le même nom (« ITI4 ») s'ils n'ont pas la même année. Une session fige le nom et l'année de son groupe. *(proposition, à valider : le commanditaire demande que l'historique soit lié au groupe et à son année, pas au seul nom)*
+- **[CMP-03]** (I13) **Une question déjà posée à un groupe est signalée**, et l'enseignant décide. « Déjà posée » : présente dans une session **démarrée** de ce groupe, cette année-là ; une nouvelle version (VER-01) compte comme la même question. *(décision du commanditaire)*
+  - Au lancement d'une session : une page de confirmation liste les questions déjà posées, avec « Lancer quand même » ou « Revenir ».
+  - À la composition d'un QCM : l'enseignant choisit un groupe, et les questions déjà posées à ce groupe sont marquées.
+- **[VER-01]** (I13) **Une question déjà utilisée dans une session ne se modifie plus.** La modifier crée une nouvelle version ; l'ancienne reste inchangée pour les résultats et le CSV. La nouvelle version remplace l'ancienne dans les QCM, jamais dans les sessions. *(décision du commanditaire)*
+- **[VER-02]** (I13) Avant d'enregistrer une nouvelle version, l'enseignant voit la **liste des QCM touchés**. Il peut limiter le changement au QCM depuis lequel il modifie la question. *(décision du commanditaire)*
+
+### Contenu : formules, code et images (I14, prévu)
+- **[CNT-01]** (I14) Les énoncés et les propositions peuvent contenir des **formules mathématiques**, qui s'affichent correctement au tableau et sur le téléphone. *(demande du commanditaire)*
+- **[CNT-02]** (I14) Ils peuvent contenir du **code**, en police à chasse fixe, avec ses espaces et ses retours à la ligne. *(demande du commanditaire)*
+- **[CNT-03]** (I14) Ils peuvent contenir des **images** PNG, JPEG ou SVG. Une image PDF ou EPS est refusée, avec la raison. *(décision du commanditaire)*
+- **[IMP-08]** (I14) L'import accepte une **archive ZIP** (le fichier AMC et ses images) ou le fichier seul. Les images s'importent avec le fichier qui les référence ; une image référencée mais absente refuse le fichier. *(décision du commanditaire ; image absente : dérivé)*
+
+### Import LaTeX AMC (I15, prévu)
+- **[IMP-09]** (I15) L'enseignant importe un fichier **LaTeX AMC**, limité à un sous-ensemble documenté : questions simples et multiples, bonnes et mauvaises réponses, groupes, barème, formules, code, images. Comme pour AMC-TXT, une erreur de syntaxe refuse le fichier et une question non prise en charge est écartée. *(demande du commanditaire)*
 
 ### Session : lancement et accueil
 - **[SES-01]** (I3) L'enseignant lance une session. Il choisit :
@@ -81,6 +132,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 
   Chaque choix est enregistré aussitôt, sans bouton à valider, et le téléphone confirme l'enregistrement. *(enregistrement immédiat : dérivé)*
 - **[ETU-05]** (I4) Sur chaque téléphone, les propositions sont mélangées. L'ordre est propre à l'étudiant et reste stable pour une question donnée. *(précisé en I9)* Il reste le même quand le téléphone recharge la page ou revient sur la session, et la note ne dépend pas de l'ordre affiché : une réponse désigne une proposition, pas sa place à l'écran.
+  - Exceptions *(I12)* : une question à ordre fixe (BAN-10) garde l'ordre de la banque, et « Aucune de ces réponses n'est correcte » reste toujours en dernier (ETU-12).
   - L'ordre est tiré au hasard, indépendamment pour chaque étudiant. L'application ne sait pas qui est assis à côté de qui : deux étudiants qui ont la même question au même moment peuvent voir une proposition au même endroit (1 fois sur 4 avec 4 propositions). Une répartition qui l'éviterait entre étudiants connectés à la suite a été écartée, rien ne garantissant que des voisins de table se connectent l'un après l'autre. *(décision I9)*
 - **[ETU-06]** (I4) Tous les étudiants répondent à toutes les questions, mais pas dans le même ordre : à chaque créneau d'un groupe, chacun a une autre question du groupe (rotation). Si N=1, l'ordre est forcément le même pour tous.
 - **[ETU-07]** (I4) L'étudiant peut changer sa réponse jusqu'à la fin du créneau ; c'est la dernière qui compte. Un téléphone rechargé réaffiche la réponse enregistrée. Après la fin du créneau, toute réponse est refusée par le serveur, et le téléphone le signale.
@@ -90,6 +142,7 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   - Une réponse que le serveur n'a pas enregistrée avant la fin de son créneau est signalée clairement comme non enregistrée, jamais comme enregistrée. Si le téléphone affiche encore ce créneau, il le dit sur le moment (ETU-07) ; sinon, il le dit dès l'écran suivant : « Votre réponse précédente n'a pas été enregistrée. » *(décision du commanditaire ; message de l'écran suivant : dérivé)*
   - Le téléphone garde la trace de ses envois dans le navigateur (stockage local), pour la retrouver après un rechargement ou au créneau suivant. Il demande au serveur ce qui a vraiment été enregistré : une réponse arrivée à temps compte comme transmise, même si le téléphone n'a pas vu la confirmation. *(dérivé)*
   - Rechargé pendant le même créneau alors qu'un envoi est encore en attente, le téléphone réaffiche ce dernier choix, avec « Envoi en cours… », et continue de l'envoyer. Sans envoi en attente, il réaffiche la réponse enregistrée (ETU-07). *(décision du commanditaire, I11)*
+- **[ETU-12]** (I12) Sur le téléphone, « Aucune de ces réponses n'est correcte » (BAN-09) s'affiche en dernier. Elle exclut les autres cases : la cocher décoche les autres, et cocher une autre case la décoche. Le serveur refuse une réponse qui la combine avec une autre proposition. La cocher seule est une réponse : elle est enregistrée et confirmée comme les autres. *(décision du commanditaire ; refus du serveur : dérivé)*
 - **[ETU-11]** (I11) Quand le téléphone n'obtient plus de réponse du serveur depuis 3 secondes, il affiche « Connexion perdue ». Le message disparaît dès que la connexion revient. *(validé par le commanditaire ; délai : dérivé)*
 - **[DER-03]** (I4) Le tableau n'affiche ni la correction ni de statistiques pendant la session.
 
@@ -102,12 +155,12 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   - L'ancienne palette confondait le jaune et l'orange (1 et 5) en deutéranopie et sur projecteur, le bleu et le violet (2 et 6) en protanopie, et ses six couleurs avaient presque la même luminosité. *(constat I9)*
 
 ### Présentation et accessibilité (refonte visuelle)
-Direction « Signalétique », choisie par le commanditaire parmi trois maquettes (I10). Découpage : socle et tableau (I10), téléphone (I11), espace enseignant (I12, reporté après l'import AMC : §5 bis).
+Direction « Signalétique », choisie par le commanditaire parmi trois maquettes (I10). Découpage : socle et tableau (I10), téléphone (I11), espace enseignant (I16, après l'import AMC et la composition des QCM : §5 bis).
 
 - **[VIS-01]** (I10) L'interface suit la direction « Signalétique » : encre sur papier, bandeau noir, filets épais, majuscules espacées pour les étiquettes. La police est Atkinson Hyperlegible Next, dessinée pour les lecteurs malvoyants : elle distingue les caractères proches (I, l, 1 ; O, 0), utile pour un code de session et des numéros d'étudiant.
   - La police est servie par l'application : aucune page ne demande quoi que ce soit à un autre serveur, la salle n'ayant pas forcément accès à Internet. *(dérivé)*
   - Les énoncés sont en graisse normale ; le gras est réservé aux numéros, aux étiquettes et aux titres. *(demande du commanditaire, I10 : vérifier au tableau la lisibilité d'un énoncé d'environ 200 caractères ; résultat dans REX.md)*
-  - Les styles du code (police à chasse fixe Atkinson Hyperlegible Mono), des formules et des images sont prêts, mais aucun contenu de ce type n'existe encore : il viendra avec l'import AMC (§5 bis). *(décision du commanditaire, I10)*
+  - Les styles du code (police à chasse fixe Atkinson Hyperlegible Mono), des formules et des images sont prêts, mais aucun contenu de ce type n'existe encore : il viendra en I14 (CNT-01 à CNT-03). *(décision du commanditaire, I10)*
 - **[VIS-02]** (I10) Au tableau, pendant le déroulement, un bandeau porte le code de session, la position dans le QCM (« Questions 5–8 sur 24 », ou « Question 5 sur 24 » pour un groupe d'une seule question), le temps restant en minutes et secondes (« 0:18 ») et le bouton « +10 s ». Sous le bandeau, une barre montre la part du créneau qui reste : elle se vide jusqu'à l'échéance et tient compte du temps ajouté (TPS-01). *(validé par le commanditaire, I10)*
   - Le temps restant s'écrit de la même façon sur le téléphone. *(dérivé)*
   - Le tableau, projeté, n'a ni la navigation de l'espace enseignant ni le bouton de déconnexion : son logo ramène à la liste des sessions, et « Gérer les connectés » reste dans le bandeau à toute phase (SES-04). *(décision I10, d'après la maquette validée)*
@@ -119,7 +172,7 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - un contraste d'au moins 4,5:1 pour tout texte affiché (la mesure d'AFF-04, étendue à ces pages) ;
   - chaque lien, bouton et champ s'atteint au clavier, avec la touche Tab, et montre un indicateur de focus d'au moins 2 px, contrasté d'au moins 3:1 avec le fond.
 
-  Le téléphone suivra en I11, l'espace enseignant en I12. Un contrôle automatique ne trouve qu'une partie des défauts : il ne remplace pas un essai avec un lecteur d'écran, qui reste à faire. *(dérivé)*
+  Le téléphone suivra en I11, l'espace enseignant en I16. Un contrôle automatique ne trouve qu'une partie des défauts : il ne remplace pas un essai avec un lecteur d'écran, qui reste à faire. *(dérivé)*
 
 - **[VIS-04]** (I11) Le téléphone suit la direction « Signalétique » dans tous ses états : saisie du code et du numéro, attente, déroulement, envoi, perte de connexion, fin. *(validé par le commanditaire)*
   - Un bandeau noir porte « QCM Live » et, dès que la session est connue, son code groupé par trois.
@@ -143,7 +196,7 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - Il ajoute « Vos réponses ont été transmises à l'enseignant. » seulement si toutes les réponses de l'étudiant ont été confirmées par le serveur. Sinon, il indique combien n'ont pas pu être transmises et invite l'étudiant à le signaler à l'enseignant. *(décision du commanditaire, I11)*
   - Une réponse compte une fois par créneau : c'est la dernière donnée qui doit avoir été enregistrée (ETU-07). *(dérivé)*
   - Un téléphone qui n'a donné aucune réponse, ou dont le navigateur a perdu la trace de ses envois (stockage effacé, navigation privée refermée), n'affiche que « Session terminée. » : il ne peut rien affirmer. Un téléphone non identifié non plus. *(dérivé)*
-- **[RES-01]** (I6) L'enseignant voit le tableau des résultats de la session : numéro, nom, note et note maximale. La note suit le barème AMC du QCM (§3).
+- **[RES-01]** (I6) L'enseignant voit le tableau des résultats de la session : numéro, nom, note et note maximale. La note suit le barème AMC de chaque question (§3), figé au lancement. *(par question depuis I12)*
   - Les résultats sont sur une **page non projetée**, disponible une fois la session terminée. On l'ouvre depuis le tableau ou depuis la liste des sessions, qui indique l'état de chaque session (en attente, en cours, terminée). Avant la fin, la page n'affiche ni étudiant ni note. *(décision I6)*
   - Le lien « Résultats » n'apparaît, au tableau comme dans la liste des sessions, qu'une fois la session terminée. *(dérivé)*
   - Tous les étudiants du groupe figé sont listés, dans l'ordre du fichier importé. Ceux qui ne se sont jamais connectés sont marqués **« Absent »**, sans note. Un étudiant connecté qui n'a rien répondu n'est pas absent : chaque question lui vaut v. *(décision I6)*
@@ -152,7 +205,7 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - Format d'Excel en français : séparateur point-virgule, virgule décimale, UTF-8 avec BOM. Fichier `resultats-<code>.csv`. *(décision I6)*
   - Le CSV n'est téléchargeable qu'une fois la session terminée. *(dérivé)*
   - Le numéro est écrit tel quel. Excel, à l'ouverture, en retire les zéros de tête : on peut reformater la colonne en texte. *(décision I6)*
-  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres des propositions dans l'ordre de la banque au moment du lancement (A pour la première), `-` signifie aucune réponse. *(précisé en I9 : le tableau n'affiche plus ces lettres)* Tant que la question n'a pas été modifiée, ce sont les lettres de la liste des questions. Après une modification (BAN-05), plus aucune page ne montre l'ordre figé : voir §5 bis. *(constat I9)* Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)*
+  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres des propositions dans l'ordre de la banque au moment du lancement (A pour la première), `-` signifie aucune réponse. *(précisé en I9 : le tableau n'affiche plus ces lettres)* Tant que la question n'a pas été modifiée, ce sont les lettres de la liste des questions. Après une modification (BAN-05), plus aucune page ne montre l'ordre figé : voir §5 bis. *(constat I9 ; résolu en I13 par les versions, VER-01)* « Aucune de ces réponses n'est correcte » prend la lettre qui suit la dernière proposition, comme dans la banque. *(dérivé, I12)* Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)*
   - Un nom ou un numéro qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot est précédé d'une apostrophe, pour qu'un tableur n'exécute aucune formule. Les nombres calculés (notes, points) ne le sont jamais. *(dérivé)*
 
 ### Mode classe
@@ -175,24 +228,61 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
 - **Encodage.** UTF-8, avec ou sans BOM, ou Windows-1252 pour les anciens exports d'Excel.
 - **Numéros de ligne.** Ceux des messages d'erreur sont ceux du fichier, en commençant à 1.
 
-## 3. Barème (logique AMC, sous-ensemble b, m, v, p)
+## 2 ter. Format AMC-TXT reconnu (I12, *dérivé* de la documentation et du code d'AMC)
+
+Le lecteur suit les règles du lecteur AMC-TXT d'AMC (`AMC::Filter::plain`) : mêmes formes de ligne, mêmes options, mêmes contrôles. Il est plus strict là où AMC ignorerait un élément sans le dire.
+
+- **Lignes.**
+  - `#` en début de ligne : commentaire.
+  - `Option: valeur` : option du fichier ; la valeur se poursuit sur les lignes suivantes.
+  - `*` : question simple ; `**` : question multiple. Après les étoiles, facultatifs et dans cet ordre : `<…>` (question ouverte), `[options]`, `{barème}`, puis l'énoncé.
+  - `+` : proposition juste ; `-` : proposition fausse. Facultatifs : `[lettre]`, `{barème}`.
+  - `*(` et `*)` : ouverture et fermeture d'un groupe, avec `[options]` facultatives.
+  - Toute autre ligne prolonge l'élément précédent. Une ligne vide sépare deux paragraphes ; les lignes d'un même paragraphe sont jointes par une espace.
+- **Options du fichier** prises en compte : `Title`, `CompleteMulti`, `DefaultScoringS`, `DefaultScoringM`, `LaTeX`, `Disable`. Les autres options d'AMC (mise en page, copie papier, langue…) sont acceptées sans effet. Booléens : `0`, `no` et `false` valent faux, comme dans AMC.
+- **Options de question** : `ordered` est respectée (BAN-10). `horiz`, `columns`, `id`, `name`, `next`, `first`, `last` et `group` sont acceptées sans effet sur le déroulement (`group` donne l'étiquette, IMP-06). Une lettre `[x]` de proposition est acceptée sans effet.
+- **Options de groupe** : `group` donne l'étiquette (IMP-06) ; `shuffle`, `numquestions`, `columns` et `needspace` sont acceptées sans effet.
+- **Erreurs de syntaxe : le fichier est refusé** (IMP-02).
+  - Fichier qui n'est pas en UTF-8 (une marque d'ordre des octets en tête est acceptée).
+  - Ligne `Mot:` en début de ligne qui n'est pas une option d'AMC (« option inconnue », comme dans AMC : une ligne de texte qui commence ainsi doit être reformulée).
+  - `IncludeFile:` : un fichier inclus n'est pas pris en charge, et l'ignorer ferait perdre ses questions.
+  - Proposition hors d'une question ; texte avant le premier élément du fichier.
+  - Question avec moins de 2 propositions ; question simple avec un nombre de bonnes réponses différent de 1.
+  - Option de question ou de groupe inconnue.
+  - Groupe fermé sans avoir été ouvert, ou resté ouvert à la fin du fichier.
+  - Titre de plus de 200 caractères ; fichier sans aucune question ; fichier de plus de 1 Mo.
+- **Questions écartées : listées au récapitulatif** (IMP-03).
+  - Question ouverte (`*<…>`) ou indicative (`indicative`).
+  - Barème : directive autre que celles de BAR-01 (`formula`, `auto`, `set.…`, `requires.…`, `SUF`, `allowempty`, `P`…) ou valeur non numérique, dans la question, dans le barème par défaut qui s'y applique ou dans une proposition ; barème sur une proposition d'une question multiple ; sur une proposition d'une question simple, autre chose qu'une valeur seule.
+  - Plus de 8 propositions, sans compter « Aucune de ces réponses n'est correcte » ; proposition de plus de 200 caractères ; énoncé ou proposition vide.
+  - Question multiple sans bonne réponse, sans « Aucune de ces réponses n'est correcte » (`CompleteMulti: 0`).
+  - Contenu prévu en I14 : formule ou LaTeX (`[[…]]`, `[latex]…[/latex]`, et avec `LaTeX: 1`, tout caractère spécial de LaTeX), code (`[verbatim]`, `[|…|]`), image (`!image.png!`), mise en forme (`[_…_]`, `[*…*]`, `[/…/]`, `[==…==]`). Un module désactivé par `Disable:` laisse ces marques en texte, comme dans AMC.
+  - Doublon d'une question précédente du même fichier (IMP-07).
+
+## 3. Barème (logique AMC)
+
+Calcul vérifié dans le code d'AMC (`AMC::Scoring`). Chaque question a son barème (BAR-01) : les directives de la question s'appliquent par-dessus la base `b=1`, `m=0`, `v=0`, `e=0`, `d=0`.
 
 - **Question simple.**
   - Aucune réponse : `v`.
-  - Proposition juste choisie : `b`.
-  - Sinon : `m`.
-- **Question multiple.**
+  - Proposition choisie qui porte sa propre valeur (BAR-01) : cette valeur.
+  - Sinon : `b` si elle est juste, `m` sinon. `mz`, s'il est défini, remplace `b`. `d`, `p` et `haut` sont sans effet.
+- **Question multiple.** N est le nombre de propositions, sans compter « Aucune de ces réponses n'est correcte ».
   - Aucune case cochée : `v`.
-  - Sinon, la note est la somme sur toutes les propositions : `b` pour chaque case bien traitée (juste et cochée, ou fausse et non cochée), `m` pour chaque case mal traitée.
-  - Si `p` est renseigné, cette somme ne descend pas en dessous de `p`. Le plancher ne s'applique pas à `v` : rien coché donne exactement `v`.
-- **Note maximale.** `b` pour une question simple, `b ×` le nombre de propositions pour une question multiple.
+  - « Aucune… » cochée avec une autre case : `e`. Cela ne peut pas se produire : le téléphone et le serveur l'empêchent (ETU-12).
+  - `haut`, s'il est défini et non nul : `d = haut − N`, et `p = 0` si `p` n'est pas défini.
+  - Sinon `mz`, s'il est défini et non nul : `d = mz`, `p = 0` si `p` n'est pas défini, `b = 0` et `m = −(|mz| + |p| + 1)`. En clair : `mz` points si tout est juste, sinon `p`.
+  - Note : la somme sur les N propositions de `b` pour chaque case bien traitée (juste et cochée, ou fausse et non cochée) et de `m` pour chaque case mal traitée, plus `d`. Si `p` est défini, la note ne descend pas en dessous. « Aucune… » n'entre pas dans la somme : la cocher seule laisse non cochées, donc mal traitées, les propositions justes.
+  - `v` n'est ni décalé par `d` ni borné par `p` : rien coché donne exactement `v`.
+- **Note maximale.** `MAX` s'il est défini ; sinon la note obtenue en cochant exactement les bonnes réponses (« Aucune… » seule, si aucune proposition n'est juste).
 - **Note totale.** La somme des notes des questions. Elle n'est pas bornée et peut être négative.
-- La réponse incohérente d'AMC (`e`) ne peut pas se produire : l'interface empêche de cocher plusieurs cases sur une question simple.
+- **Exemples.** Barème vide : simple, 1 si juste et 0 sinon ; multiple de 4 propositions, 1 par case bien traitée, sur 4. `haut=2`, multiple de 4 propositions : toutes justes 2, une case mal traitée 1, deux ou plus 0.
+- La réponse incohérente d'une question simple (plusieurs cases) ne peut pas se produire non plus : une seule proposition se choisit.
 
 ## 4. Règles et hypothèses validées
 
 - **Contenu figé.** Le contenu du QCM, son barème et la liste du groupe sont figés au **lancement** de la session (SES-03, décision I3 ; H8 disait « au démarrage »). Modifier la banque ou les groupes ensuite ne change ni la session ni ses résultats.
-- **Questions.** Texte brut, sans image ni formule. Les styles du code, des formules et des images sont prêts depuis I10 (VIS-01) ; le contenu viendra avec l'import AMC.
+- **Questions.** Texte brut, en paragraphes, sans image ni formule jusqu'à I14 (CNT-01 à CNT-03). Les styles du code, des formules et des images sont prêts depuis I10 (VIS-01).
 - **Couleurs.** Six couleurs, numérotées de 1 à 6, chacune avec sa forme (AFF-03, AFF-04).
 - **Correction.** Il n'y a pas de correction en classe : le professeur corrige de son côté et envoie les résultats par mail à la promotion. Aucune correction ni page de résultats n'est affichée aux étudiants ; l'export CSV (RES-02) suffit. *(confirmé par le commanditaire en I9)*
 - **Retardataires.** Un étudiant arrivé après le démarrage passe sur copie AMC papier. Le QR code de jonction, affiché avant le démarrage seulement (SES-05), convient. *(confirmé en I9 ; l'application accepte toujours un retardataire qui a le code, ETU-08)*
@@ -211,17 +301,17 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - on ne sait pas si la détection automatique de l'adresse (CLA-01) choisit celle d'eduroam. Sinon, l'enseignant l'impose avec `ADRESSE=…`.
 
   Le parcours complet a réussi avec un vrai téléphone sur un Wi-Fi domestique, serveur lancé depuis Windows (hors WSL). L'hébergement sur un serveur, qui lèverait le risque d'isolation, est reporté. *(précisions du commanditaire, I9)*
+- **Essai avec un vrai fichier du professeur : nécessaire avant un usage en classe.** L'import AMC a été construit sans aucun fichier réel, d'après la documentation d'AMC et son code source, et vérifié seulement sur des fichiers écrits pour les tests. Un vrai fichier peut employer des tournures non prévues : avant le premier cours, importer au moins un ancien fichier du professeur, relire le récapitulatif (questions écartées, textes ignorés) et comparer quelques notes avec celles d'AMC. *(demande du commanditaire)*
 - **Horloge du PC.** Sous Windows, le compte à rebours est resté stable : le recul de l'horloge observé en développement venait de WSL (REX, section R). *(constat du commanditaire, I9, que je n'ai pas observé moi-même)*
 
 ## 5 bis. Questions ouvertes, en attente du professeur
 
 Rien de ce qui suit n'est implémenté.
 
-- **Import des questions depuis AMC (prochain incrément, en attente).** Les questions viennent de fichiers AMC d'anciens QCM, en texte AMC ou en LaTeX, avec formules et code. Le barème figure dans ces fichiers. *(précision du commanditaire, I9)* Aucun fichier d'exemple n'est encore disponible : rien ne sera fait sans lui.
-- **Composition des QCM.** Un nouveau QCM se crée en reprenant un ancien QCM en entier, puis en ajoutant ou en retirant des questions. *(précision du commanditaire, I9)* Contrainte déjà posée : une question ne doit jamais retomber pour une même promo.
-- **Contenu des énoncés.** Formules et code, issus des fichiers AMC (aujourd'hui, texte brut seulement : §4). Images : non précisé.
-- **Barème exact des questions à réponses multiples** : celui des fichiers AMC (aujourd'hui, le §3).
-- **Refonte de l'espace enseignant (I12, reportée).** Elle reprendra après l'import AMC, qui en changera le contenu : import, QCM repris d'anciens QCM, versions des questions, questions déjà posées à un groupe. *(décision du commanditaire, I10)*
+*(Après I11, l'import AMC, la composition des QCM, le contenu des énoncés et le barème des questions multiples ont été tranchés par le commanditaire : voir IMP, CMP, VER, CNT, BAR-01 et §3.)*
+
+- **Année des groupes (GRP-04, I13).** Ma proposition, une année obligatoire sur le groupe, attend la validation du commanditaire. Reste aussi à décider l'année des groupes déjà importés.
+- **Refonte de l'espace enseignant (I16, reportée).** Elle reprendra après l'import AMC et la composition des QCM (I12 à I15), qui en changent le contenu : import, QCM repris d'anciens QCM, versions des questions, questions déjà posées à un groupe. *(décision du commanditaire, I10 ; renumérotée après I11)*
   - La recherche et les filtres de la banque de questions seront revus à ce moment-là. En plus de ceux proposés (texte, type, utilisation, tri, pagination), il faudra un filtre par QCM d'origine (fichier AMC importé) et un filtre « déjà posée à tel groupe ».
   - D'ici là, l'espace enseignant prend la police et les couleurs du socle (I10), sans changer de mise en page.
 - **Lettres du CSV après modification d'une question** (`/code-review`, I9). Les lettres du CSV désignent les propositions figées au lancement (SES-03). Si l'enseignant modifie ensuite la question, par exemple en changeant l'ordre de ses propositions, la banque montre le nouvel ordre, et plus aucune page ne montre celui de la session. Faut-il rappeler, sur la page des résultats (réservée à l'enseignant, jamais projetée), les propositions figées de chaque question ? Aujourd'hui, AFF-01 exclut énoncés et propositions de cette page.
@@ -275,10 +365,22 @@ Rien de ce qui suit n'est implémenté.
 | Réseau en classe (I9) | eduroam, en local, adresse en 172.x.x.x ; non testé, risque principal ; hébergement reporté |
 | Import AMC et composition des QCM (I9) | Prochain incrément, en attente d'un fichier d'exemple |
 | Direction visuelle (après I9) | B, « Signalétique » ; énoncés en graisse normale si le gras les alourdit (VIS-01) |
-| Ordre de la refonte (après I9) | Socle et tableau (I10), puis téléphone (I11) ; espace enseignant (I12) après l'import AMC |
+| Ordre de la refonte (après I9) | Socle et tableau (I10), puis téléphone (I11) ; espace enseignant (I12, renuméroté I16) après l'import AMC |
 | Formules, code et images (après I9) | Styles prêts seulement ; le contenu viendra avec l'import AMC |
-| Recherche et filtres de la banque (après I9) | À revoir en I12, avec un filtre par QCM d'origine et un filtre « déjà posée à tel groupe » |
+| Recherche et filtres de la banque (après I9) | À revoir en I12 (renuméroté I16), avec un filtre par QCM d'origine et un filtre « déjà posée à tel groupe » |
 | Réseau lent sur le téléphone (après I9) | Renvoi automatique pendant le créneau ; une réponse arrivée après la fin de son créneau est signalée comme non enregistrée, jamais comme enregistrée (I11) |
 | Ajouts au tableau et au téléphone (après I9) | « Questions 5–8 sur 24 » et barre du temps restant au tableau ; numéro à côté du nom et barre du temps restant sur le téléphone |
 | Message de fin sur le téléphone (après I9) | « Vos réponses ont été transmises à l'enseignant » seulement si toutes ont été confirmées par le serveur ; sinon, le nombre de réponses non transmises et l'invitation à le signaler (FIN-02, I11) |
 | Téléphone rechargé avec un envoi en attente (I11) | Il réaffiche ce dernier choix et continue de l'envoyer, plutôt que la réponse enregistrée (ETU-10) |
+| Import AMC et composition (après I11) | AMC-TXT d'abord, puis LaTeX (sous-ensemble) ; import strict ; un parcours complet vaut mieux qu'un import exhaustif ; découpage I12 à I16 validé |
+| Barème (après I11) | Celui des fichiers, sinon le défaut d'AMC ; porté par la question ; le formulaire de barème du QCM disparaît (BAR-01) |
+| Erreur dans un fichier importé (après I11) | Erreur de syntaxe : fichier refusé (ligne, raison). Question valide mais non prise en charge : écartée et listée avant confirmation (IMP-02, IMP-03) |
+| « Aucune de ces réponses n'est correcte » (après I11) | Reproduite : en dernier, exclusive, comptée comme une réponse (BAN-09, ETU-12) |
+| Option `ordered` d'AMC (après I11) | Respectée : propositions non mélangées (BAN-10) |
+| Questions identiques, fichier réimporté (après I11) | Stockées une fois et partagées ; réimport refusé avec le nom du QCM existant (IMP-07) |
+| Groupes AMC avec tirage (après I11) | Toutes les questions, dans l'ordre du fichier ; nom du groupe gardé comme étiquette (IMP-06) |
+| Images (après I11) | Archive ZIP ou fichier seul ; PNG, JPEG, SVG ; PDF et EPS refusés (I14) |
+| Nombre de propositions (après I11) | 8 au plus, sans compter « Aucune… » |
+| Questions déjà posées (après I11) | Signalées, l'enseignant décide ; historique lié au groupe et à son année, pas au seul nom (CMP-03, GRP-04 proposé) |
+| Modifier une question déjà utilisée (après I11) | Nouvelle version ; elle remplace l'ancienne dans les QCM, jamais dans les sessions ; liste des QCM touchés, avec la possibilité de limiter au QCM courant (VER-01, VER-02) |
+| Démonstration (après I11) | Fichier AMC-TXT fictif dans le dépôt, `make demo`, section « Premier cours » du README (DEM-01, DEM-02) |
