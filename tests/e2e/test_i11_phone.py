@@ -15,20 +15,24 @@ perdues au retour (le serveur les reçoit, le téléphone ne voit pas la répons
 from __future__ import annotations
 
 import contextlib
+import io
 import itertools
 import re
 import time
 from collections.abc import Callable, Iterator
+from typing import cast
 
 import pytest
+from PIL import Image
 from playwright.sync_api import Error, FloatRect, Locator, Page, Route, ViewportSize, expect
 
 from live.models import Answer, Session
-from tests.e2e.a11y import axe_violations, keyboard_problems, low_contrasts
+from tests.e2e.a11y import axe_violations, contrast, keyboard_problems, low_contrasts
 from tests.e2e.conftest import assert_fits_width
 from tests.e2e.live_setup import STUDENTS, expect_slot, make_live, open_board, started
 from tests.e2e.live_ui import (
     LIVE_MS,
+    SIGNAL,
     add_time,
     choose,
     clear_answer,
@@ -449,6 +453,22 @@ def box(locator: Locator) -> FloatRect:
     return found
 
 
+def assert_bar_stands_out(phone: Page) -> None:
+    """La barre du temps se détache du fond de la page, même sur la couleur 1, jaune comme
+    elle : sous sa partie jaune, un filet contraste d'au moins 3:1 avec ce jaune (WCAG 1.4.11).
+    Mesuré sur une capture, dans la partie encore pleine de la barre."""
+    bar = box(time_bar(phone))
+    clip = FloatRect(x=bar["x"] + 4, y=bar["y"], width=1, height=bar["height"] + 6)
+    image = Image.open(io.BytesIO(phone.screenshot(clip=clip))).convert("RGB")
+    column = [cast(tuple[int, int, int], image.getpixel((0, y))) for y in range(image.height)]
+    yellow = [contrast(pixel, SIGNAL) < 1.2 for pixel in column]
+    start = yellow.index(True)  # haut de la partie jaune de la barre
+    end = yellow.index(False, start) if False in yellow[start:] else len(yellow)
+    # Sous la barre, avant le fond de la page (jaune lui aussi sur la couleur 1) : le filet.
+    below = column[end : end + 12]
+    assert below and any(contrast(pixel, SIGNAL) >= 3 for pixel in below), column
+
+
 def band(phone: Page) -> Locator:
     return phone.get_by_role("banner")
 
@@ -544,6 +564,7 @@ def test_running_phone_layout(teacher_page: Page, live_server, new_phone, networ
     band_box, bar_box = box(band(phone)), box(time_bar(phone))
     assert abs(bar_box["y"] - (band_box["y"] + band_box["height"])) <= 2, (band_box, bar_box)
     expect_time_bar(phone, 30)
+    assert_bar_stands_out(phone)
     jump_to(session, 15)
     expect(timer(phone)).to_have_text(re.compile(r"^0:1[3-5]$"), timeout=LIVE_MS)
     expect_time_bar(phone, 30)

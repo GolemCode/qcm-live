@@ -30,7 +30,7 @@
   {% elif state.phase == "waiting" %}
     <section class="whoami">
       <p class="identity"><span class="label">Vous êtes</span> <span class="name">{{ participant.name }}</span></p>
-      <p class="number">N° {{ participant.number }}</p>
+      <p class="number">N°&nbsp;{{ participant.number }}</p>
       <p class="waiting-note">En attente du démarrage</p>
     </section>
   {% else %}
@@ -63,5 +63,5 @@
 {% endblock %}
 {% block footer %}
   {% comment %}En pied, le nom et le numéro (VIS-04) : la confirmation d'identité d'un étudiant arrivé après le démarrage (ETU-01, ETU-08).{% endcomment %}
-  {% if color %}<footer class="phone-foot"><p>Vous êtes <span class="who">{{ participant.name }}</span> · N° {{ participant.number }}</p></footer>{% endif %}
+  {% if color %}<footer class="phone-foot"><p>Vous êtes <span class="who">{{ participant.name }}</span> · N°&nbsp;{{ participant.number }}</p></footer>{% endif %}
 {% endblock %}

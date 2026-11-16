@@ -98,6 +98,7 @@
       const pending = unconfirmed(trace);
       if (pending.length) trace = await reconcileSoon(pending);
       const lost = unconfirmed(trace).length;
+      transmission.classList.toggle("warning", lost > 0);
       reveal(transmission, lost ? TEXT.notTransmitted(lost) : TEXT.transmitted);
     })();
     return;

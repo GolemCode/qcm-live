@@ -298,7 +298,8 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
 .phone .page { max-width: 36rem; padding: 1rem; }
 .phone button, .phone input:not([type="radio"]):not([type="checkbox"]) { min-height: 3rem; }
 .phone .form button { width: 100%; }
-.phone progress.timebar { height: 0.5rem; }
+/* Barre du temps : un filet d'encre la sépare de la couleur 1, jaune comme elle. */
+.phone progress.timebar { height: calc(0.5rem + var(--rule)); border-bottom: var(--rule) solid var(--ink); }
 
 /* Perte de connexion (ETU-11) : par-dessus le bandeau, toujours à l'écran. */
 .offline {
@@ -364,3 +365,5 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
 .phone .over { margin: 2rem 0; text-align: left; }
 .phone .over-title { margin: 0 0 1rem; font-size: 2rem; font-weight: 700; }
 .transmission { margin: 0; padding-top: 0.75rem; border-top: var(--rule) solid var(--ink); font-size: 1.25rem; }
+/* Réponses non transmises : un avertissement, à signaler à l'enseignant. */
+.transmission.warning { padding: 0.75rem 1rem; border: var(--rule) solid var(--error); background: var(--error-bg); color: var(--error); font-weight: 700; }
