@@ -1,0 +1,66 @@
+# Fichier de démonstration de QCM Live (DEM-01), au format AMC-TXT.
+# Questions fictives. Il s'importe par « QCM », puis « Importer un fichier AMC »,
+# ou d'un coup avec `make demo`.
+#
+# Ce qu'il montre :
+# - question simple au barème par défaut (1 si juste, 0 sinon) ;
+# - barème propre à une question ({b=2,m=-0.5}) ;
+# - barème par défaut des questions multiples (DefaultScoringM) ;
+# - valeur propre d'une proposition (-{-1}) ;
+# - « Aucune de ces réponses n'est correcte », ajoutée à chaque question multiple
+#   (CompleteMulti, actif par défaut) : juste quand aucune autre ne l'est ;
+# - ordre fixe des propositions ([ordered]) ;
+# - groupe de questions et son étiquette ([group=geographie]) ;
+# - énoncé en deux paragraphes.
+
+Title: Démonstration de QCM Live
+Lang: FR
+DefaultScoringM: b=1,m=-0.5,p=0
+
+* Quelle est la capitale de l'Italie ?
++ Rome
+- Milan
+- Naples
+- Turin
+
+*{b=2,m=-0.5} Combien de côtés a un hexagone ?
+- 5
++ 6
+- 8
+
+* Lisez l'énoncé jusqu'au bout : une réponse fait perdre un point.
+
+Quelle planète est la plus proche du Soleil ?
++ Mercure
+- Vénus
+-{-1} La Terre
+- Mars
+
+*[ordered] Combien font 7 fois 8 ?
+- 54
++ 56
+- 58
+- 64
+
+** Parmi ces nombres, lesquels sont pairs ?
++ 4
+- 7
++ 10
+- 15
+
+** Lesquels de ces animaux sont des insectes ?
+- L'araignée
+- Le scorpion
+- Le crabe
+
+*([group=geographie]
+* Quel fleuve traverse Paris ?
++ La Seine
+- La Loire
+- Le Rhône
+
+** Lesquels de ces pays sont en Europe ?
++ Le Portugal
++ La Pologne
+- Le Pérou
+*)
