@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block body_class %}phone{% endblock %}
 {% block brand %}<h1 class="brand">{% include "logo.html" %}QCM Live</h1>{% endblock %}
 {% block content %}
   <form method="get" action="{% url 'home' %}" class="form" novalidate>

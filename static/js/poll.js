@@ -1,19 +1,44 @@
 // Outils communs du tableau et du téléphone : interrogation périodique d'un état JSON,
 // compte à rebours, et suivi d'une page « en direct ». Script externe (CSP stricte).
 window.qcm = {
+  // Dernière réponse reçue du serveur, quelle qu'elle soit (ETU-11) : le chargement de la page
+  // en est une.
+  lastContact: performance.now(),
+  contact() {
+    this.lastContact = performance.now();
+  },
+
+  // Signal d'abandon d'une requête restée sans réponse `ms` millisecondes : une requête perdue
+  // par le réseau ne bloque pas les suivantes.
+  timeout(ms) {
+    return AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined;
+  },
+
+  // ETU-11 : `element` (caché) affiche `text` dès que le serveur n'a plus répondu depuis
+  // `after` ms, et se vide quand il répond à nouveau.
+  watchConnection(element, text, after = 3000) {
+    setInterval(() => {
+      const lost = performance.now() - this.lastContact > after;
+      if (lost !== element.hidden) return;
+      element.textContent = lost ? text : "";
+      element.hidden = !lost;
+    }, 250);
+  },
+
   // Appelle onState(état) tout de suite puis toutes les `period` ms ; s'arrête si onState
   // renvoie false. Une erreur réseau est ignorée : on réessaie au tour suivant.
   poll(url, onState, period = 1000) {
-    async function tick() {
+    const tick = async () => {
       let again = true;
       try {
-        const response = await fetch(url, { cache: "no-store" });
+        const response = await fetch(url, { cache: "no-store", signal: this.timeout(5000) });
+        this.contact();
         if (response.ok) again = onState(await response.json()) !== false;
       } catch {
         // réseau momentanément indisponible
       }
       if (again) setTimeout(tick, period);
-    }
+    };
     tick();
   },
 

@@ -288,16 +288,79 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
 .over-title { margin: 0 0 0.6em; font-size: 4em; font-weight: 700; }
 .over .actions { justify-content: center; font-size: 1.6em; }
 
-/* --- Téléphone de l'étudiant (refonte en I11) ---------------------------------------------- */
-.badge { display: inline-block; margin: 0; font-weight: 700; font-size: 1.25rem; }
-.timer { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0.25rem 0; }
-.identity { font-size: 1.5rem; font-weight: 700; }
-.phone-head { display: flex; justify-content: space-between; align-items: center; }
-.phone .answers { border: 0; padding: 0; margin: 1rem 0; display: grid; gap: 0.75rem; }
-.phone .answer {
-  display: flex; gap: 0.75rem; align-items: center; padding: 1rem;
-  background: rgba(255, 255, 255, 0.85); color: var(--ink); border-radius: 0.75rem; font-size: 1.25rem;
+/* --- Téléphone de l'étudiant (VIS-04) ------------------------------------------------------
+   Bandeau noir, puis la couleur de la question sur tout l'écran (ETU-04). Propositions en
+   grandes cibles (48 px au moins), état de l'envoi et « Effacer ma réponse » en bas, à portée
+   du pouce. L'accueil, où l'étudiant saisit le code, prend les mêmes tailles. */
+.phone .band { justify-content: space-between; gap: 0.25rem 1rem; min-height: 3.5rem; padding: 0.5rem 1rem; }
+.phone .band-title { margin: 0; font-size: 1.125rem; font-weight: 400; }
+.phone .band-title .digits { font-weight: 700; font-variant-numeric: tabular-nums; }
+.phone .page { max-width: 36rem; padding: 1rem; }
+.phone button, .phone input:not([type="radio"]):not([type="checkbox"]) { min-height: 3rem; }
+.phone .form button { width: 100%; }
+.phone progress.timebar { height: 0.5rem; }
+
+/* Perte de connexion (ETU-11) : par-dessus le bandeau, toujours à l'écran. */
+.offline {
+  position: fixed; inset: 0 0 auto 0; z-index: 10; margin: 0; padding: 0.9rem 1rem;
+  background: var(--error); color: var(--on-ink); font-weight: 700; text-align: center;
 }
-/* Sur une couleur, le texte secondaire reste lisible (AFF-04). */
-.colored .muted { color: inherit; }
-.save-status { min-height: 1.5em; font-weight: 700; }
+.offline[hidden] { display: none; }
+
+/* En attente : « Vous êtes », le nom en grand, le numéro. */
+.whoami { padding-left: 1rem; border-left: 0.35rem solid var(--ink); }
+.whoami .identity { margin: 0.5rem 0 0.25rem; }
+.whoami .label { display: block; }
+.whoami .name { display: block; margin-top: 0.25rem; font-size: 2rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.whoami .number { margin: 0 0 1.5rem; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.whoami .waiting-note { margin: 0; padding-top: 0.75rem; border-top: var(--rule) solid var(--ink); font-size: 1.25rem; }
+
+/* En déroulement : la couleur (numéro, forme, « Couleur N ») et le temps restant. */
+.phone-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding-bottom: 0.5rem; border-bottom: var(--rule) solid currentColor;
+}
+.phone-head .badge { display: flex; align-items: center; gap: 0.5rem; margin: 0; font-weight: 700; line-height: 1; }
+.phone-head .badge-number { font-size: 2.75rem; }
+.phone-head .shape { width: 2.25rem; height: 2.25rem; }
+.phone-head .badge-label { font-size: 0.875rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.phone-head .timer { margin: 0; font-size: 2.25rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+
+.notice {
+  margin: 1rem 0 0; padding: 0.6rem 0.9rem; border: var(--rule) solid var(--ink);
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); font-weight: 700;
+}
+.notice[hidden] { display: none; }
+
+.phone .answers { display: grid; gap: 0.75rem; margin: 1rem 0; padding: 0; border: 0; }
+.phone .answer {
+  display: flex; align-items: center; gap: 0.75rem; min-height: 3.5rem; padding: 0.75rem 1rem;
+  border: var(--rule) solid var(--ink); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); font-size: 1.25rem; line-height: 1.3;
+  overflow-wrap: anywhere; cursor: pointer;
+}
+.phone .answer span { min-width: 0; }
+/* La proposition choisie : noir plein, texte blanc. */
+.phone .answer:has(input:checked) { background: var(--ink); color: var(--on-ink); }
+.phone .answer:has(input:checked) input { accent-color: var(--on-ink); }
+.phone .answer:has(input:checked) :focus-visible { outline-color: var(--on-ink); }
+
+/* État de l'envoi et « Effacer ma réponse » : collés au bas de l'écran pendant le défilement. */
+.answer-bar {
+  position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 0.5rem 1rem; margin: 0 -1rem;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: var(--ink); color: var(--on-ink);
+}
+.answer-bar :focus-visible { outline-color: var(--signal); }
+.save-status { flex: 1 1 10rem; min-height: 1.5em; margin: 0; font-weight: 700; }
+
+/* En pied : le nom et le numéro de l'étudiant. */
+.phone-foot { max-width: 36rem; margin: 0 auto; padding: 0.75rem 1rem 1.25rem; overflow-wrap: anywhere; }
+.phone-foot p { margin: 0; }
+.phone-foot .who { font-weight: 700; }
+
+/* Fin de session. */
+.phone .over { margin: 2rem 0; text-align: left; }
+.phone .over-title { margin: 0 0 1rem; font-size: 2rem; font-weight: 700; }
+.transmission { margin: 0; padding-top: 0.75rem; border-top: var(--rule) solid var(--ink); font-size: 1.25rem; }
