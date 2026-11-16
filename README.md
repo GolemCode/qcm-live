@@ -68,7 +68,7 @@ Points à vérifier avant le premier cours :
 make demo
 ```
 
-La commande crée un compte enseignant `demo`, un groupe « Démo » de six étudiants fictifs et le QCM du fichier [demo/qcm-demo.txt](demo/qcm-demo.txt), au format AMC-TXT. Elle affiche le mot de passe du compte : il change à chaque lancement, et la commande réutilise le groupe et le QCM déjà créés. Ensuite, `make run`, connexion sur `http://localhost:8000/prof/`, et le parcours ci-dessous, avec un téléphone, ou plusieurs onglets du navigateur, pour jouer les étudiants.
+La commande crée un compte enseignant `demo`, un groupe « Démo » de six étudiants fictifs et le QCM du fichier [demo/qcm-demo.txt](demo/qcm-demo.txt), au format AMC-TXT. Elle affiche le mot de passe du compte : il change à chaque lancement, et la commande réutilise le groupe et le QCM déjà créés. Si un compte `demo` existe déjà, son mot de passe est remplacé : ne pas donner ce nom à un vrai compte. Ensuite, `make run`, connexion sur `http://localhost:8000/prof/`, et le parcours ci-dessous, avec un téléphone, ou plusieurs onglets du navigateur, pour jouer les étudiants.
 
 Sous Windows sans make : `uv run --env-file .env python manage.py migrate`, puis `uv run --env-file .env python manage.py demo`.
 

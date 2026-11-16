@@ -155,9 +155,10 @@ class _Question:
 def _split_options(raw: str) -> dict[str, str]:
     """`[ordered,group=geo]` : `clé=valeur`, ou `clé` seule (valeur 1), comme AMC."""
     options = {}
-    for part in filter(None, re.split(r",+", raw)):
+    for part in re.split(r",+", raw):
         key, _, value = part.partition("=")
-        options[key.strip()] = value.strip() if "=" in part else "1"
+        if key.strip():  # AMC ignore les parties vides
+            options[key.strip()] = value.strip() if "=" in part else "1"
     return options
 
 
@@ -183,9 +184,11 @@ class _Reader:
                 if VERBATIM_CLOSE in line.lower():
                     self.verbatim = None
                 continue
-            self._line(number, line)
             if VERBATIM_OPEN in line and VERBATIM_CLOSE not in line.lower():
+                self._continue(number, line)  # comme AMC : ni question ni commentaire
                 self.verbatim = number
+            else:
+                self._line(number, line)
         if self.verbatim is not None:
             self.error(self.verbatim, "bloc [verbatim] jamais fermé")
         for line, _ in self.groups:
@@ -288,7 +291,9 @@ def _settings(options: dict[str, _Text]) -> _Settings:
         return str(options[name]) if name in options else ""
 
     def boolean(name: str, default: bool) -> bool:
-        return default if name not in options else not FALSE_RE.match(value(name))
+        if name not in options:
+            return default
+        return bool(value(name)) and not FALSE_RE.match(value(name))  # vide : faux
 
     return _Settings(
         complete_multi=boolean("completemulti", True),
@@ -396,13 +401,19 @@ def _convert(question: _Question, settings: _Settings) -> ParsedQuestion:
 
 
 def _decode(data: bytes) -> str:
+    """UTF-8 ; un caractère nul (UTF-16, fichier binaire) est refusé, comme dans `roster`."""
     try:
-        return data.decode("utf-8-sig")
+        text = data.decode("utf-8-sig")
     except UnicodeDecodeError as error:
-        line = data[: error.start].count(b"\n") + 1
-        raise AmcSyntaxError(
-            [f"Ligne {line} : le fichier n'est pas en UTF-8. Enregistrez-le en UTF-8."]
-        ) from None
+        position = error.start
+    else:
+        if "\x00" not in text:
+            return text
+        position = data.index(b"\x00")
+    line = data[:position].count(b"\n") + 1
+    raise AmcSyntaxError(
+        [f"Ligne {line} : le fichier n'est pas en UTF-8. Enregistrez-le en UTF-8."]
+    )
 
 
 def _report(errors: list[tuple[int, str]]) -> list[str]:

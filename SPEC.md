@@ -239,11 +239,13 @@ Le lecteur suit les règles du lecteur AMC-TXT d'AMC (`AMC::Filter::plain`) : m�
   - `+` : proposition juste ; `-` : proposition fausse. Facultatifs : `[lettre]`, `{barème}`.
   - `*(` et `*)` : ouverture et fermeture d'un groupe, avec `[options]` facultatives.
   - Toute autre ligne prolonge l'élément précédent. Une ligne vide sépare deux paragraphes ; les lignes d'un même paragraphe sont jointes par une espace.
-- **Options du fichier** prises en compte : `Title`, `CompleteMulti`, `DefaultScoringS`, `DefaultScoringM`, `LaTeX`, `Disable`. Les autres options d'AMC (mise en page, copie papier, langue…) sont acceptées sans effet. Booléens : `0`, `no` et `false` valent faux, comme dans AMC.
+  - Comme dans AMC, une ligne qui contient `[verbatim]` sans `[/verbatim]` ouvre un bloc brut, même si elle commence par `#`, `*` ou `+` : elle prolonge l'élément précédent, comme les lignes du bloc, jusqu'à `[/verbatim]`. L'ouverture s'écrit en minuscules ; la fermeture, en majuscules ou en minuscules.
+  - Dans `[options]` et `{barème}`, une partie vide (`[ordered,]`, `{b=2,}`) est ignorée, comme dans AMC. *(vérifié dans le code d'AMC, I12)*
+- **Options du fichier** prises en compte : `Title`, `CompleteMulti`, `DefaultScoringS`, `DefaultScoringM`, `LaTeX`, `Disable`. Les autres options d'AMC (mise en page, copie papier, langue…) sont acceptées sans effet. Booléens : `0`, `no`, `false` et une valeur vide valent faux, comme dans AMC.
 - **Options de question** : `ordered` est respectée (BAN-10). `horiz`, `columns`, `id`, `name`, `next`, `first`, `last` et `group` sont acceptées sans effet sur le déroulement (`group` donne l'étiquette, IMP-06). Une lettre `[x]` de proposition est acceptée sans effet.
 - **Options de groupe** : `group` donne l'étiquette (IMP-06) ; `shuffle`, `numquestions`, `columns` et `needspace` sont acceptées sans effet.
 - **Erreurs de syntaxe : le fichier est refusé** (IMP-02).
-  - Fichier qui n'est pas en UTF-8 (une marque d'ordre des octets en tête est acceptée).
+  - Fichier qui n'est pas en UTF-8 (une marque d'ordre des octets en tête est acceptée), ou qui contient un caractère nul (fichier UTF-16 ou binaire).
   - Ligne `Mot:` en début de ligne qui n'est pas une option d'AMC (« option inconnue », comme dans AMC : une ligne de texte qui commence ainsi doit être reformulée).
   - `IncludeFile:` : un fichier inclus n'est pas pris en charge, et l'ignorer ferait perdre ses questions.
   - Proposition hors d'une question ; texte avant le premier élément du fichier.

@@ -47,14 +47,13 @@ def parse_points(text: str) -> Decimal:
 
 
 def parse_scoring(text: str) -> dict[str, Decimal]:
-    """Directives `b=2,m=-0.5` ; chaîne vide : aucune (la base s'applique)."""
+    """Directives `b=2,m=-0.5` ; chaîne vide : aucune (la base s'applique). Comme AMC, une partie
+    vide (`b=2,`) est ignorée."""
     directives: dict[str, Decimal] = {}
-    if not text.strip():
-        return directives
-    for part in text.split(","):
-        match = DIRECTIVE_RE.fullmatch(part.strip())
+    for part in filter(None, (part.strip() for part in text.split(","))):
+        match = DIRECTIVE_RE.fullmatch(part)
         if not match:
-            raise ScoringError(f"« {part.strip()} » n'est pas de la forme directive=valeur")
+            raise ScoringError(f"« {part} » n'est pas de la forme directive=valeur")
         name, value = match.groups()
         if name not in DIRECTIVES:
             raise ScoringError(f"directive « {name} » non prise en charge")
@@ -68,8 +67,8 @@ def parse_scoring(text: str) -> dict[str, Decimal]:
 
 
 def format_scoring(directives: Scoring) -> str:
-    """Forme enregistrée, relue par `parse_scoring` : `b=2,m=-0.5`."""
-    return ",".join(f"{name}={value}" for name, value in directives.items())
+    """Forme enregistrée, relue par `parse_scoring` : `b=2,m=-0.5`, jamais d'exposant."""
+    return ",".join(f"{name}={value:f}" for name, value in directives.items())
 
 
 @dataclass(frozen=True)

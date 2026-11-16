@@ -11,6 +11,7 @@ from bank.models import CHOICE_MAX_LENGTH, NONE_OF_THESE, Choice, Question, Quiz
 from bank.scoring import (
     LETTERS,
     MAX_CHOICES,
+    SCORING_MAX_LENGTH,
     ScoringError,
     format_points,
     format_scoring,
@@ -74,9 +75,14 @@ class QuestionForm(TeacherForm):
 
     def clean_scoring(self) -> str:
         try:
-            return format_scoring(parse_scoring(self.cleaned_data["scoring"]))
+            scoring = format_scoring(parse_scoring(self.cleaned_data["scoring"]))
         except ScoringError as error:
             raise forms.ValidationError(f"{error}.") from None
+        if len(scoring) > SCORING_MAX_LENGTH:  # `.5` devient `0.5`
+            raise forms.ValidationError(
+                f"Au plus {SCORING_MAX_LENGTH} caractères une fois réécrit ({len(scoring)} ici)."
+            )
+        return scoring
 
     def clean(self):
         super().clean()

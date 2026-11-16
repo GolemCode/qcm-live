@@ -54,6 +54,14 @@ def test_utf8_is_required_and_the_line_is_given():
     assert errors(data) == ["Ligne 5 : le fichier n'est pas en UTF-8. Enregistrez-le en UTF-8."]
 
 
+def test_nul_character_is_refused_with_its_line():  # UTF-16 ou fichier binaire
+    data = b"* Q ?\n+ Oui\x00\n- Non\n"
+    assert errors(data) == ["Ligne 2 : le fichier n'est pas en UTF-8. Enregistrez-le en UTF-8."]
+    assert errors("* Q ?\n".encode("utf-16")) == [
+        "Ligne 1 : le fichier n'est pas en UTF-8. Enregistrez-le en UTF-8."
+    ]
+
+
 def test_bom_and_windows_line_ends_are_accepted():
     parsed = parse("﻿Title: T\r\n* Q ?\r\n+ Oui\r\n- Non\r\n".encode(), "x.txt")
     assert parsed.title == "T"
@@ -175,6 +183,11 @@ def test_question_options():
     assert errors("*[ordre] Q ?\n" + YES_NO) == ["Ligne 1 : option de question inconnue « ordre »"]
 
 
+def test_empty_parts_of_options_and_scoring_are_ignored_like_amc():
+    question = only("*[,ordered, ,]{b=2,,m=-1,} Q ?\n" + YES_NO)
+    assert (question.ordered, question.scoring) == (True, "b=2,m=-1")
+
+
 def test_open_and_indicative_questions_are_skipped():
     assert skipped("*<lines=3> Expliquez.\n\n* Q ?\n" + YES_NO) == [(1, "question ouverte")]
     # Une question ouverte n'a pas à avoir de propositions ; une indicative, pas de bonne.
@@ -270,7 +283,7 @@ def test_complete_multi_by_default():
     assert not only("* Q ?\n" + YES_NO).none_of_these
 
 
-@pytest.mark.parametrize("value", ["0", "no", "false", " FALSE "])
+@pytest.mark.parametrize("value", ["0", "no", "false", " FALSE ", ""])  # vide : faux, comme AMC
 def test_complete_multi_off(value):
     text = f"CompleteMulti: {value}\n** Q ?\n" + YES_NO + "\n** R ?\n- A\n- B\n"
     parsed = read(text)
@@ -357,6 +370,18 @@ def test_verbatim_block():
     assert errors("* Q ?\n" + YES_NO + "[verbatim]\n- x\n") == [
         "Ligne 4 : bloc [verbatim] jamais fermé"
     ]
+
+
+def test_line_opening_verbatim_is_text_of_the_previous_element_like_amc():
+    # AMC ne lit ni question ni commentaire sur la ligne qui ouvre le bloc.
+    text = "* Q ?\n" + YES_NO + "* R [verbatim]\n- x\n[/verbatim]\n* S ?\n" + YES_NO
+    assert skipped(text) == [(1, "code : pas encore pris en charge")]
+    assert [q.text for q in read(text).questions] == ["S ?"]
+    commented = "* Q ?\n" + YES_NO + "# astuce : [verbatim]\n* R ?\n" + YES_NO + "[/verbatim]\n"
+    assert skipped(commented) == [(1, "code : pas encore pris en charge")]
+    assert (
+        only("* Q [VERBATIM] ?\n" + YES_NO).text == "Q [VERBATIM] ?"
+    )  # ouverture sensible à la casse
 
 
 def test_disable_turns_a_mark_back_into_text():

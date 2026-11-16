@@ -61,6 +61,16 @@ def test_parse_scoring_reads_directives_in_order():
     }
 
 
+def test_parse_scoring_ignores_empty_parts_like_amc():
+    assert parse_scoring(",b=2,,m=-1, ") == {"b": D(2), "m": D(-1)}
+
+
+def test_format_scoring_is_read_back_without_exponent():
+    directives = parse_scoring("b=.0000001,m=-2.50")
+    assert format_scoring(directives) == "b=0.0000001,m=-2.50"
+    assert parse_scoring(format_scoring(directives)) == directives
+
+
 @pytest.mark.parametrize(
     ("text", "reason"),
     [
@@ -69,7 +79,6 @@ def test_parse_scoring_reads_directives_in_order():
         ("max=2", "directive « max » non prise en charge"),  # MAX, en majuscules seulement
         ("b=2,b=3", "directive « b » répétée"),
         ("b", "« b » n'est pas de la forme directive=valeur"),
-        ("b=2,", "«  » n'est pas de la forme directive=valeur"),
         ("b=deux", "valeur non numérique : « deux » pour « b »"),
         ("b=1,5", "« 5 » n'est pas de la forme directive=valeur"),  # virgule décimale
         ("b=1e3", "valeur non numérique : « 1e3 » pour « b »"),
