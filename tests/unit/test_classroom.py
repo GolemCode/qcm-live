@@ -1,78 +1,68 @@
-"""Mode classe (CLA-01) : adresse du PC sur le réseau local et réglages imposés."""
+"""Mode classe (CLA-01 à CLA-03) : réglages imposés, terminal et port."""
 
 from __future__ import annotations
 
+import json
 import socket
 
 import pytest
 
 from config import classroom
+from config.firewall import advice
 
-
-class _FakeSocket:
-    def __init__(self, address: str | None) -> None:
-        self.address = address
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc) -> None:
-        return None
-
-    def connect(self, target) -> None:
-        if self.address is None:
-            raise OSError("Network is unreachable")
-
-    def getsockname(self):
-        return (self.address, 54321)
-
-
-def test_lan_address_is_the_one_of_the_default_route(monkeypatch):
-    monkeypatch.setattr(socket, "socket", lambda *a: _FakeSocket("192.168.1.23"))
-    assert classroom.lan_address() == "192.168.1.23"
-
-
-def test_lan_address_without_default_route_uses_the_addresses_of_the_pc(monkeypatch):
-    """Réseau fermé, sans passerelle (point d'accès de la salle) : pas de route par défaut."""
-    monkeypatch.setattr(socket, "socket", lambda *a: _FakeSocket(None))
-    monkeypatch.setattr(
-        socket, "gethostbyname_ex", lambda name: (name, [], ["127.0.1.1", "192.168.137.1"])
-    )
-    assert classroom.lan_address() == "192.168.137.1"
-
-
-def test_lan_address_falls_back_to_loopback_without_network(monkeypatch):
-    monkeypatch.setattr(socket, "socket", lambda *a: _FakeSocket(None))
-    monkeypatch.setattr(socket, "gethostbyname_ex", lambda name: (name, [], ["127.0.1.1"]))
-    assert classroom.lan_address() == "127.0.0.1"
-
-
-def test_lan_address_falls_back_to_loopback_when_the_name_is_unknown(monkeypatch):
-    def unknown(name):
-        raise socket.gaierror("unknown")
-
-    monkeypatch.setattr(socket, "socket", lambda *a: _FakeSocket(None))
-    monkeypatch.setattr(socket, "gethostbyname_ex", unknown)
-    assert classroom.lan_address() == "127.0.0.1"
-
-
-def test_lan_address_on_this_machine_is_an_ipv4_address():
-    socket.inet_aton(classroom.lan_address())
+WLAN = {"address": "192.168.1.23", "interface": "wlp2s0", "virtual": False}
+DOCKER = {"address": "172.17.0.1", "interface": "docker0", "virtual": True}
 
 
 def test_classroom_environ_forces_production_and_announces_the_lan_address():
-    assert classroom.classroom_environ("192.168.1.23", 8000) == {
+    assert classroom.classroom_environ("192.168.1.23", 8000, [WLAN, DOCKER]) == {
         "DJANGO_DEBUG": "0",
         "QCM_JOIN_URL": "http://192.168.1.23:8000/",
+        "QCM_LAN_ADDRESSES": json.dumps([WLAN, DOCKER]),
         "QCM_TEACHER_LOCAL_ONLY": "1",
     }
+
+
+def test_projected_address_is_the_imposed_one_or_the_most_likely():
+    assert classroom.projected("pc-prof.local", [WLAN]) == "pc-prof.local"
+    assert classroom.projected(None, [WLAN, DOCKER]) == "192.168.1.23"
+    assert classroom.projected(None, []) == "127.0.0.1"
 
 
 def test_banner_gives_the_phone_address_and_the_teacher_address():
     text = classroom.banner("http://192.168.1.23:8000/", 8000)
     assert "http://192.168.1.23:8000/" in text
     assert "http://localhost:8000/prof/" in text
+    assert classroom.GUIDE_URL in text
     assert "Ctrl+C" in text
+    assert "Pare-feu" not in text
+
+
+def test_banner_lists_every_address_with_its_card_and_the_firewall_advice():
+    text = classroom.banner(
+        "http://192.168.1.23:8000/", 8000, [WLAN, DOCKER], [advice("ufw", 8000)]
+    )
+    assert "  192.168.1.23     wlp2s0\n" in text
+    assert "  172.17.0.1       docker0 (réseau virtuel)\n" in text
+    assert "Changer d'adresse" in text
+    assert "    sudo ufw allow 8000/tcp\n" in text
+    assert "QCM Live ne modifie jamais le pare-feu" in text
+    # Seule la première ligne qui parle des téléphones donne une adresse (lue par les tests).
+    phone_lines = [line for line in text.splitlines() if "téléphone" in line and "http" in line]
+    assert phone_lines == ["  Sur les téléphones des étudiants, ouvrir : http://192.168.1.23:8000/"]
+
+
+def test_port_free_and_port_taken():
+    with socket.socket() as taken:
+        taken.bind(("", 0))
+        taken.listen()
+        port = taken.getsockname()[1]
+        assert not classroom.port_free(port)
+    assert classroom.port_free(port)
+    message = classroom.port_taken(8000)
+    assert "Le port 8000 est déjà utilisé" in message
+    assert "QCM Live est peut-être déjà lancé" in message
+    assert "--port 8001" in message
 
 
 def test_non_numeric_port_is_refused():

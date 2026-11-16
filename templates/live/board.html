@@ -41,6 +41,10 @@
           · {{ session.shown }} question{{ session.shown|pluralize }} à la fois
           · {{ session.seconds }} s par question
         </p>
+        <p class="board-tools">
+          <a href="{% url 'network' %}?session={{ session.code }}">Changer d'adresse</a>
+          · <a href="{% url 'network' %}?session={{ session.code }}#essai">Tester avec mon téléphone</a>
+        </p>
       </section>
       <div class="join-side">
         <figure class="qr-figure">

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Connexion réussie — QCM Live{% endblock %}
+{% block body_class %}phone{% endblock %}
+{% comment %}CLA-04 : essai d'un téléphone avant la séance. Le logo n'est pas un lien, comme au téléphone d'un étudiant.{% endcomment %}
+{% block brand %}<span class="brand">{% include "logo.html" %}QCM Live</span>{% endblock %}
+{% block content %}
+  <h1>Connexion réussie</h1>
+  <p>Ce téléphone joint QCM Live : les étudiants connectés au même réseau pourront ouvrir l'adresse projetée.</p>
+{% endblock %}

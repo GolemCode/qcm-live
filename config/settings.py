@@ -4,6 +4,7 @@ Aucun secret n'est écrit ici : `DJANGO_SECRET_KEY` vient de l'environnement
 (fichier `.env` local généré par `make setup`, jamais versionné).
 """
 
+import json
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -12,6 +13,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Données de l'enseignant (INS-01) : installée, l'application les garde hors de son propre
+# dossier, que la mise à jour remplace (config/install.py). En développement : le dépôt.
+DATA_DIR = Path(os.environ.get("QCM_DATA_DIR") or BASE_DIR)
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -41,6 +45,11 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 JOIN_URL = os.environ.get("QCM_JOIN_URL", "")
 if join_host := urlsplit(JOIN_URL).hostname:
     ALLOWED_HOSTS.append(join_host)
+# Toutes les adresses du PC sur les réseaux locaux, trouvées par le mode classe au démarrage
+# (CLA-02, config/network.py) : l'enseignant projette l'une ou l'autre sans redémarrer
+# (config/join.py). Chacune est donc acceptée d'office.
+LAN_ADDRESSES = json.loads(os.environ.get("QCM_LAN_ADDRESSES") or "[]")
+ALLOWED_HOSTS += [item["address"] for item in LAN_ADDRESSES]
 # Mode classe : l'application est ouverte au réseau de l'école, mais l'espace enseignant
 # (connexion, notes, pilotage) ne répond qu'au PC lui-même (config/middleware.py).
 TEACHER_LOCAL_ONLY = env_bool("QCM_TEACHER_LOCAL_ONLY")
@@ -93,7 +102,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         # Changer de base sert aux tests du mode classe, lancé dans un autre processus.
-        "NAME": os.environ.get("DJANGO_DB_PATH") or BASE_DIR / "db.sqlite3",
+        "NAME": os.environ.get("DJANGO_DB_PATH") or DATA_DIR / "db.sqlite3",
         # Base de test dans un fichier, pas en mémoire : en mémoire partagée, SQLite refuse
         # aussitôt (« table is locked ») un accès concurrent entre le test et le serveur de
         # test, au lieu d'attendre. En fichier, il attend la fin de l'écriture, comme en usage.

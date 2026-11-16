@@ -1,0 +1,55 @@
+{% extends "teacher/base.html" %}
+{% load static %}
+{% block title %}Réseau et téléphones — QCM Live{% endblock %}
+{% block content %}
+  <h1>Réseau et téléphones</h1>
+  {% if board %}<p><a href="{{ board }}">Retour au tableau</a></p>{% endif %}
+
+  <section aria-labelledby="address-title">
+    <h2 id="address-title">Adresse projetée</h2>
+    <p>Les téléphones ouvrent <strong class="url">{{ join_url }}</strong></p>
+    {% if refused %}<p class="error" role="alert">Cette adresse n'est pas l'une des adresses de ce PC : rien n'a changé.</p>{% endif %}
+    {% if addresses %}
+      <form method="post" class="form">
+        {% csrf_token %}
+        <input type="hidden" name="session" value="{{ session_code }}">
+        <fieldset>
+          <legend>Adresses de ce PC</legend>
+          {% for item in addresses %}
+            <label class="inline"><input type="radio" name="address" value="{{ item.address }}"{% if item.address == projected %} checked{% endif %}> {{ item.address }} — {{ item.interface }}{% if item.virtual %} (réseau virtuel){% endif %}</label>
+          {% endfor %}
+        </fieldset>
+        <p class="muted">Choisissez l'adresse du réseau où sont les téléphones : le Wi-Fi de la salle, ou le partage de connexion (192.168.137.1 quand ce PC partage sa connexion sous Windows, 10.42.0.1 sous Linux). Le choix vaut jusqu'à l'arrêt de QCM Live. Une carte réseau branchée après le lancement n'apparaît qu'au lancement suivant.</p>
+        <button type="submit">Projeter cette adresse</button>
+      </form>
+    {% else %}
+      <p class="muted">Lancé par <code>qcm-live</code> (mode classe), QCM Live propose ici toutes les adresses du PC. Sinon, l'adresse projetée est celle de cette page.</p>
+    {% endif %}
+  </section>
+
+  <section id="essai" aria-labelledby="trial-title">
+    <h2 id="trial-title">Tester avec mon téléphone</h2>
+    <p>Connectez votre téléphone au même réseau que les étudiants, puis scannez ce QR code.</p>
+    <img class="qr trial-qr" src="{{ trial_qr }}" alt="QR code d'essai pour un téléphone">
+    <p class="muted url">{{ trial_url }}</p>
+    {% comment %}static/js/network.js y écrit « Téléphone connecté » dès que le téléphone a ouvert l'adresse.{% endcomment %}
+    <p class="trial-status" role="status" data-trial-url="{{ trial_state_url }}">En attente d'un téléphone…</p>
+    <p class="muted">Rien ne s'affiche sur le téléphone ? Vérifiez qu'il est sur le même réseau que ce PC, essayez une autre adresse ci-dessus, puis voyez le pare-feu ci-dessous.</p>
+  </section>
+
+  <section aria-labelledby="firewall-title">
+    <h2 id="firewall-title">Pare-feu</h2>
+    {% if advices %}
+      <p>Un pare-feu actif peut bloquer les téléphones.</p>
+      {% for advice in advices %}
+        <p>{{ advice.text }}</p>
+        {% for command in advice.commands %}<pre><code>{{ command }}</code></pre>{% endfor %}
+      {% endfor %}
+    {% else %}
+      <p>Aucun pare-feu actif détecté (QCM Live reconnaît ufw, firewalld et le pare-feu de Windows).</p>
+    {% endif %}
+    <p class="muted">QCM Live ne modifie jamais le pare-feu : c'est à vous de décider d'ouvrir le port, en copiant la commande.</p>
+  </section>
+  <script src="{% static 'js/poll.js' %}" defer></script>
+  <script src="{% static 'js/network.js' %}" defer></script>
+{% endblock %}

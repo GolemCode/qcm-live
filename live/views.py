@@ -14,8 +14,6 @@ from __future__ import annotations
 import csv
 from urllib.parse import urljoin
 
-import segno
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
@@ -25,6 +23,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from config.join import join_url, qr_data_uri
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
 from live.results import csv_rows, decimal_fr, grade_20_text, max_total
@@ -107,21 +106,17 @@ def _connected(session: Session) -> list[str]:
     return list(session.participants.values_list("name", flat=True))
 
 
-def _join_qr(url: str) -> str:
-    """SES-05 : QR code qui ouvre cette adresse sur le téléphone (image SVG en data URI)."""
-    return segno.make_qr(url).svg_data_uri(omitsize=True)
-
-
 @login_required
 def board(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session, code=code)
     state = session.state(timezone.now())
     context: dict = {"session": session, "state": state, "page": _page(state, board=True)}
     if state.phase == "waiting":
-        join_url = settings.JOIN_URL or request.build_absolute_uri("/")  # CLA-01 : réseau local
+        url = join_url(request)  # CLA-01, CLA-02 : adresse du PC sur le réseau local
         context |= {
-            "join_url": join_url,
-            "join_qr": _join_qr(urljoin(join_url, reverse("student-session", args=[code]))),
+            "join_url": url,
+            # SES-05 : QR code qui ouvre l'écran de la session sur le téléphone.
+            "join_qr": qr_data_uri(urljoin(url, reverse("student-session", args=[code]))),
             "connected": _connected(session),
         }
     elif state.position is not None:
