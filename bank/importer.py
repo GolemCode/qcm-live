@@ -73,13 +73,15 @@ def key_of(question: Question) -> ParsedQuestion:
 
 def find_existing(questions: Sequence[ParsedQuestion]) -> tuple[Question | None, ...]:
     """Pour chaque question, l'identique de la banque (IMP-07), la plus ancienne s'il y en a
-    plusieurs, jamais une ancienne version (VER-03). Une requête par tranche d'énoncés :
-    SQLite limite le nombre de paramètres."""
+    plusieurs, jamais une ancienne version (VER-03) ni une question masquée (BAN-07). Une
+    requête par tranche d'énoncés : SQLite limite le nombre de paramètres."""
     texts = sorted({q.text for q in questions})
     bank: dict[ParsedQuestion, Question] = {}
     for start in range(0, len(texts), MATCH_BATCH):
         candidates = Question.objects.filter(
-            text__in=texts[start : start + MATCH_BATCH], next_versions__isnull=True
+            text__in=texts[start : start + MATCH_BATCH],
+            next_versions__isnull=True,
+            hidden=False,
         )
         for candidate in candidates.order_by("pk").prefetch_related("choices"):
             bank.setdefault(key_of(candidate), candidate)

@@ -34,6 +34,9 @@ class Question(models.Model):
     previous = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="next_versions"
     )
+    # Supprimée de la banque après avoir servi dans une session : gardée pour l'historique
+    # (BAN-07, CMP-03), comme une ancienne version.
+    hidden = models.BooleanField("masquée", default=False)
 
     if TYPE_CHECKING:  # relations inverses, déclarées pour le typage statique
         from live.models import Session
@@ -84,9 +87,23 @@ class Question(models.Model):
 
     @classmethod
     def current(cls) -> models.QuerySet[Question]:
-        """Questions de la banque : sans version plus récente, ou encore dans un QCM (VER-03)."""
+        """Questions de la banque : sans version plus récente, ou encore dans un QCM (VER-03),
+        jamais une question masquée (BAN-07)."""
         kept = models.Q(next_versions__isnull=True) | models.Q(quizzes__isnull=False)
-        return cls.objects.filter(kept).distinct()
+        return cls.objects.filter(kept, hidden=False).distinct()
+
+    @transaction.atomic
+    def remove(self) -> None:
+        """Suppression de la banque (BAN-07) : la question quitte ses QCM. Si elle a servi dans
+        une session, elle est seulement masquée, pour que l'historique la compte encore
+        (CMP-03) ; son origine est oubliée, comme si elle avait disparu (IMP-10)."""
+        if not self.sessions.exists():
+            self.delete()
+            return
+        QuizItem.objects.filter(question=self).delete()
+        self.origins.all().delete()
+        self.hidden = True
+        self.save(update_fields=["hidden"])
 
 
 class Choice(models.Model):

@@ -36,7 +36,7 @@ def _from_quiz(request: HttpRequest, question: Question) -> Quiz | None:
 
 @login_required
 def question_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
-    question = get_object_or_404(Question, pk=pk) if pk is not None else Question()
+    question = get_object_or_404(Question, pk=pk, hidden=False) if pk is not None else Question()
     quiz = _from_quiz(request, question)
     # Déjà servie dans une session lancée : la modifier crée une nouvelle version (VER-01).
     used = question.pk is not None and question.sessions.exists()
@@ -64,12 +64,13 @@ def question_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
 
 @login_required
 def question_delete(request: HttpRequest, pk: int) -> HttpResponse:
-    question = get_object_or_404(Question, pk=pk)
+    question = get_object_or_404(Question, pk=pk, hidden=False)
     if request.method == "POST":
-        question.delete()
+        question.remove()
         messages.success(request, "Question supprimée.")
         return redirect("question-list")
-    return render(request, "bank/question_confirm_delete.html", {"question": question})
+    context = {"question": question, "used": question.sessions.exists()}
+    return render(request, "bank/question_confirm_delete.html", context)
 
 
 @login_required
