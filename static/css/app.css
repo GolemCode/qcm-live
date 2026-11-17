@@ -200,7 +200,7 @@ form.actions.inline { display: inline-flex; gap: 1rem; margin: 0 0 0 1rem; }
 
 /* Énoncés et propositions : une ligne vide sépare deux paragraphes (I12, import AMC). Le
    gabarit ne laisse aucun blanc autour du texte dans ces éléments. */
-.text, .statement, .answer span { white-space: pre-line; }
+.text, .statement, .answer > span { white-space: pre-line; } /* > : pas les span de KaTeX */
 
 /* --- Contenu : code, formules, images (CNT-01 à CNT-03) ------------------------------------- */
 code, kbd, samp, pre { font-family: var(--mono); font-size: 0.95em; }
@@ -385,7 +385,7 @@ a.button.secondary, button.secondary { background: transparent; color: var(--ink
   background: var(--surface); color: var(--ink); font-size: 1.25rem; line-height: 1.3;
   overflow-wrap: anywhere; cursor: pointer;
 }
-.phone .answer span { min-width: 0; }
+.phone .answer > span { min-width: 0; }
 /* La proposition choisie (classe posée par la page, puis par static/js/phone.js) : noir plein,
    texte blanc. Les propositions se verrouillent à l'échéance. */
 .phone .answer.chosen { background: var(--ink); color: var(--on-ink); }
