@@ -14,8 +14,6 @@ from __future__ import annotations
 import csv
 from urllib.parse import urljoin
 
-import segno
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
@@ -25,9 +23,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from config.join import join_url, qr_data_uri
 from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
-from live.results import csv_rows, decimal_fr, max_total
+from live.results import csv_rows, decimal_fr, grade_20_text, max_total
 
 # Identité des étudiants : {code de session: id du participant}, dans la session Django
 # (cookie). Un rechargement ou une sortie de veille la retrouve (ETU-03).
@@ -107,21 +106,17 @@ def _connected(session: Session) -> list[str]:
     return list(session.participants.values_list("name", flat=True))
 
 
-def _join_qr(url: str) -> str:
-    """SES-05 : QR code qui ouvre cette adresse sur le téléphone (image SVG en data URI)."""
-    return segno.make_qr(url).svg_data_uri(omitsize=True)
-
-
 @login_required
 def board(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session, code=code)
     state = session.state(timezone.now())
     context: dict = {"session": session, "state": state, "page": _page(state, board=True)}
     if state.phase == "waiting":
-        join_url = settings.JOIN_URL or request.build_absolute_uri("/")  # CLA-01 : réseau local
+        url = join_url(request)  # CLA-01, CLA-02 : adresse du PC sur le réseau local
         context |= {
-            "join_url": join_url,
-            "join_qr": _join_qr(urljoin(join_url, reverse("student-session", args=[code]))),
+            "join_url": url,
+            # SES-05 : QR code qui ouvre l'écran de la session sur le téléphone.
+            "join_qr": qr_data_uri(urljoin(url, reverse("student-session", args=[code]))),
             "connected": _connected(session),
         }
     elif state.position is not None:
@@ -205,14 +200,16 @@ def _is_over(session: Session) -> bool:
 
 @login_required
 def results(request: HttpRequest, code: str) -> HttpResponse:
-    """RES-01 : notes de la session, sur une page non projetée, une fois la session terminée."""
+    """RES-01 : notes de la session, une fois la session terminée. L'écran du PC peut être
+    dupliqué au projecteur : le tableau s'ouvre masqué (RES-04)."""
     session = get_object_or_404(Session, code=code)
     over = _is_over(session)
     context: dict = {"session": session, "over": over}
     if over:
+        top = max_total(session.content)
         context |= {
-            "rows": session.results(),
-            "maximum": decimal_fr(max_total(session.content)),
+            "rows": [(row, grade_20_text(row.total, top)) for row in session.results()],
+            "maximum": decimal_fr(top),
         }
     return render(request, "live/results.html", context)
 

@@ -1,4 +1,4 @@
-"""Résultats d'une session (RES-01, RES-02) — fonctions pures, sur la copie figée.
+"""Résultats d'une session (RES-01 à RES-03) — fonctions pures, sur la copie figée.
 
 La note suit le barème AMC figé au lancement (bank.scoring, SPEC §3). Une question sans
 réponse enregistrée vaut `v`, y compris celles qu'un retardataire a manquées (ETU-08). Un
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING
 
 from bank.scoring import LETTERS, Item, max_score, parse_scoring, score
@@ -104,6 +104,22 @@ def results(
     ]
 
 
+def grade_20(total: Decimal | None, maximum: Decimal) -> Decimal | None:
+    """Note ramenée sur 20 (RES-03) : total / maximum x 20, arrondie au centième (un demi
+    centième vers le haut), bornée entre 0 et 20. None pour un absent, ou quand le maximum
+    n'est pas positif (aucune note sur 20 n'a alors de sens)."""
+    if total is None or maximum <= 0:
+        return None
+    value = (total * 20 / maximum).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return min(max(value, Decimal(0)), Decimal(20))
+
+
+def grade_20_text(total: Decimal | None, maximum: Decimal) -> str:
+    """Note sur 20 à la française ; "" quand elle n'existe pas."""
+    value = grade_20(total, maximum)
+    return "" if value is None else decimal_fr(value)
+
+
 def decimal_fr(value: Decimal) -> str:
     """Nombre à la française, sans zéro inutile : 1,5 ; 2 ; -0,25."""
     if value == 0:
@@ -120,14 +136,15 @@ def csv_rows(quiz: FrozenQuiz, rows: Sequence[StudentResult]) -> list[list[str]]
     """Export CSV : en-tête, puis une ligne par étudiant ; pour chaque question, dans l'ordre
     du QCM, la réponse donnée (`-` : aucune) et les points obtenus."""
     n = len(quiz["questions"])
-    maximum = decimal_fr(max_total(quiz))
-    header = ["numéro", "nom", "note", "note max"]
+    top = max_total(quiz)
+    maximum = decimal_fr(top)
+    header = ["numéro", "nom", "note", "note max", "note /20"]
     for rank in range(1, n + 1):  # référence d'une question : son rang dans le QCM figé
         header += [f"Q{rank} réponse", f"Q{rank} points"]
     lines = [header]
     for row in rows:
         identity = [neutralised(row.number), neutralised(row.name)]
-        cells = [*identity, row.total_text, maximum]
+        cells = [*identity, row.total_text, maximum, grade_20_text(row.total, top)]
         if row.marks is None:  # absent
             lines.append(cells + [""] * (2 * n))
             continue

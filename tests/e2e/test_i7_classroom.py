@@ -13,30 +13,22 @@ Le serveur lit la base de test, où les fabriques créent les préconditions.
 from __future__ import annotations
 
 import http.client
-import os
-import queue
 import re
-import signal
-import socket
-import subprocess
 import threading
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
-from dataclasses import dataclass
 from http.cookiejar import CookieJar
-from pathlib import Path
 
 import pytest
-from django.conf import global_settings, settings
+from django.conf import global_settings
 from django.utils import timezone
 from playwright.sync_api import Page, expect
 
 from live.models import Answer, Participant
+from tests.e2e.classroom_ui import Classroom, class_mode
 from tests.e2e.conftest import TEACHER_PASSWORD, TEACHER_USERNAME, login
 from tests.e2e.live_setup import expect_slot, make_live, open_board
 from tests.e2e.live_ui import (
@@ -54,74 +46,7 @@ from tests.e2e.live_ui import (
 )
 from tests.factories import jump_to
 
-REPO = Path(__file__).resolve().parents[2]
-STARTUP_S = 60  # migrations comprises ; en pratique quelques secondes
-PHONE_URL_RE = re.compile(r"téléphones?.*?(http://\S+)", re.IGNORECASE)
 CLASS_SIZE = 40
-
-
-@dataclass
-class Classroom:
-    local_url: str  # sur le PC de l'enseignant, sans « / » final
-    phone_url: str  # annoncée dans le terminal, avec « / » final
-    output: list[str]
-
-
-def _free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("", 0))
-        return sock.getsockname()[1]
-
-
-@contextmanager
-def class_mode(*make_args: str) -> Iterator[Classroom]:
-    """`make classe` lancé sur un port libre, sur la base de test : comme en classe."""
-    port = _free_port()
-    env = {**os.environ, "DJANGO_DB_PATH": str(settings.DATABASES["default"]["NAME"])}
-    env["DJANGO_DEBUG"] = "1"  # comme dans le .env de développement
-    process = subprocess.Popen(
-        [
-            "make",
-            "--no-print-directory",
-            "classe",
-            "ENV_FILE=.env.test",
-            f"PORT={port}",
-            *make_args,
-        ],
-        cwd=REPO,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        start_new_session=True,  # pour arrêter make, uv et le serveur d'un coup
-    )
-    lines: queue.Queue[str] = queue.Queue()
-    output: list[str] = []
-
-    def read() -> None:
-        assert process.stdout
-        for line in process.stdout:
-            output.append(line)
-            lines.put(line)
-
-    threading.Thread(target=read, daemon=True).start()
-    try:
-        deadline = time.monotonic() + STARTUP_S
-        phone_url = None
-        while phone_url is None:
-            try:
-                line = lines.get(timeout=0.2)
-            except queue.Empty:
-                if process.poll() is not None or time.monotonic() > deadline:
-                    pytest.fail("le mode classe n'a pas annoncé d'adresse :\n" + "".join(output))
-                continue
-            if match := PHONE_URL_RE.search(line):
-                phone_url = match.group(1)
-        assert any("--env-file .env.test" in line for line in output), "".join(output)
-        yield Classroom(f"http://localhost:{port}", phone_url, output)
-    finally:
-        os.killpg(process.pid, signal.SIGTERM)
-        process.wait(timeout=10)
 
 
 @pytest.fixture

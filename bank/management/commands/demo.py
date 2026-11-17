@@ -2,6 +2,9 @@
 
 Relancée, la commande réutilise le groupe et le QCM, et tire un nouveau mot de passe : aucun
 mot de passe fixe n'est écrit dans le dépôt.
+
+`--sans-compte` (installation, INS-01) : le groupe et le QCM seulement, l'enseignant ayant
+déjà son propre compte.
 """
 
 from __future__ import annotations
@@ -35,14 +38,16 @@ STUDENTS = [  # fictifs
 class Command(BaseCommand):
     help = "Prépare la démonstration : compte « demo », groupe « Démo » et QCM de démonstration."
 
+    def add_arguments(self, parser) -> None:
+        parser.add_argument(
+            "--sans-compte",
+            action="store_true",
+            dest="no_account",
+            help="ne pas créer le compte « demo »",
+        )
+
     @transaction.atomic
     def handle(self, *args, **options) -> None:
-        password = secrets.token_urlsafe(12)
-        user, _ = get_user_model().objects.get_or_create(username=USERNAME)
-        user.set_password(password)
-        user.is_active = True
-        user.save()
-
         group = StudentGroup.objects.filter(name=GROUP_NAME).first() or self.import_group()
         try:
             quiz = import_quiz(DEMO_FILE.read_bytes(), DEMO_FILE.name)
@@ -51,6 +56,13 @@ class Command(BaseCommand):
 
         self.stdout.write(f"QCM : {quiz.title} ({quiz.questions.count()} questions)")
         self.stdout.write(f"Groupe : {group.name} ({group.students.count()} étudiants)")
+        if options["no_account"]:
+            return
+        password = secrets.token_urlsafe(12)
+        user, _ = get_user_model().objects.get_or_create(username=USERNAME)
+        user.set_password(password)
+        user.is_active = True
+        user.save()
         self.stdout.write(f"Identifiant : {USERNAME}")
         self.stdout.write(f"Mot de passe : {password}")
         self.stdout.write("Nouveau mot de passe à chaque lancement de make demo.")

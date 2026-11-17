@@ -1,4 +1,4 @@
-"""Résultats d'une session (RES-01, RES-02) : notation sur la copie figée et export CSV."""
+"""Résultats d'une session (RES-01 à RES-03) : notation sur la copie figée et export CSV."""
 
 from decimal import Decimal as D
 
@@ -11,6 +11,8 @@ from live.results import (
     csv_rows,
     decimal_fr,
     grade,
+    grade_20,
+    grade_20_text,
     letters,
     max_total,
     neutralised,
@@ -113,15 +115,23 @@ def test_neutralised(text, safe):
 def test_csv_rows():
     rows = csv_rows(QUIZ, results(QUIZ, STUDENTS, {"00123": {0: [1], 1: [0, 1]}}))
     assert rows == [
-        ["numéro", "nom", "note", "note max", "Q1 réponse", "Q1 points", "Q2 réponse", "Q2 points"],
-        ["00123", "DURAND Élise", "2,5", "5", "B", "-0,5", "AB", "3"],
-        ["42", "'=1+1", ABSENT, "5", "", "", "", ""],
+        [
+            "numéro",
+            "nom",
+            "note",
+            "note max",
+            "note /20",
+            *["Q1 réponse", "Q1 points"],
+            *["Q2 réponse", "Q2 points"],
+        ],
+        ["00123", "DURAND Élise", "2,5", "5", "10", "B", "-0,5", "AB", "3"],
+        ["42", "'=1+1", ABSENT, "5", "", "", "", "", ""],
     ]
 
 
 def test_csv_rows_mark_no_answer_with_a_dash():
     rows = csv_rows(QUIZ, results(QUIZ, STUDENTS[:1], {"00123": {}}))
-    assert rows[1] == ["00123", "DURAND Élise", "0,75", "5", "-", "0,25", "-", "0,5"]
+    assert rows[1] == ["00123", "DURAND Élise", "0,75", "5", "3", "-", "0,25", "-", "0,5"]
 
 
 def test_letters_follow_the_bank_order():
@@ -142,4 +152,35 @@ def test_none_of_these_has_the_letter_after_the_last_choice():
     quiz: FrozenQuiz = {"questions": [question(True, False, False, True, none=True)]}
     assert grade(quiz, {0: [2]}) == [Mark("C", D(2))]  # A et B non cochées, justes : 1 + 1
     assert grade(quiz, {0: [0, 2]}) == [Mark("AC", D(0))]  # « Aucune » combinée : e
-    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {"00123": {0: [2]}}))[1][4:] == ["C", "2"]
+    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {"00123": {0: [2]}}))[1][5:] == ["C", "2"]
+
+
+@pytest.mark.parametrize(
+    ("total", "maximum", "expected"),
+    [
+        ("1", "3", "6.67"),  # 6,666… : au centième le plus proche
+        ("2", "3", "13.33"),
+        ("0.25", "1000", "0.01"),  # 0,005 : un demi-centième, vers le haut
+        ("0.24", "1000", "0"),  # 0,0048
+        ("3", "3", "20"),
+        ("0", "3", "0"),
+        ("-1", "3", "0"),  # négative : bornée à 0
+        ("4", "3", "20"),  # au-delà du maximum : bornée à 20
+        ("2.5", "5", "10"),
+    ],
+)
+def test_grade_20_rounds_to_the_cent_and_stays_between_0_and_20(total, maximum, expected):
+    assert grade_20(D(total), D(maximum)) == D(expected)
+
+
+@pytest.mark.parametrize(("total", "maximum"), [(None, "3"), ("1", "0"), ("0", "0"), ("1", "-2")])
+def test_grade_20_is_empty_for_an_absent_or_a_maximum_not_positive(total, maximum):
+    value = None if total is None else D(total)
+    assert grade_20(value, D(maximum)) is None
+    assert grade_20_text(value, D(maximum)) == ""
+
+
+def test_grade_20_text_is_french():
+    assert grade_20_text(D(1), D(3)) == "6,67"
+    assert grade_20_text(D(-1), D(3)) == "0"
+    assert grade_20_text(D(3), D(3)) == "20"

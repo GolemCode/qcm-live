@@ -47,7 +47,9 @@ from tests.e2e.live_ui import (
     phone_choices,
     phones_joined,
     results_rows,
+    results_table,
     save_status,
+    show_grades,
     start,
 )
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session
@@ -147,14 +149,15 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     open_results(page)
     expect(page.get_by_role("main")).to_contain_text("Contrôle")
     expect(page.get_by_role("main")).to_contain_text("TD1")
-    headers = page.get_by_role("table", name="Résultats").get_by_role("columnheader")
-    expect(headers).to_have_text(["Numéro", "Nom", "Note", "Note maximale"])
+    show_grades(page)  # masquées à l'ouverture (RES-04)
+    headers = results_table(page).get_by_role("columnheader")
+    expect(headers).to_have_text(["Numéro", "Nom", "Note", "Note maximale", "Note /20"])
     assert results_rows(page) == [  # ordre du fichier du groupe, pas celui d'arrivée
-        ["7", "Ng Anh", "1", MAX_TOTAL],  # -0,25 - 0,25 + 2 - 0,5
-        ["00123", "DURAND Élise", "1,25", MAX_TOTAL],  # -0,5 - 0,25 + 2 + 0
-        ["0999", "ABSENT Zoé", "Absent", MAX_TOTAL],
-        ["42", "MARTIN Léo", "2,25", MAX_TOTAL],  # -0,5 + 2 + 1 - 0,25
-        ["555", "SILENCIEUX Paul", "-1,25", MAX_TOTAL],  # 3 x -0,25 - 0,5
+        ["7", "Ng Anh", "1", MAX_TOTAL, "2,22"],  # -0,25 - 0,25 + 2 - 0,5
+        ["00123", "DURAND Élise", "1,25", MAX_TOTAL, "2,78"],  # -0,5 - 0,25 + 2 + 0
+        ["0999", "ABSENT Zoé", "Absent", MAX_TOTAL, ""],
+        ["42", "MARTIN Léo", "2,25", MAX_TOTAL, "5"],  # -0,5 + 2 + 1 - 0,25
+        ["555", "SILENCIEUX Paul", "-1,25", MAX_TOTAL, "0"],  # 3 x -0,25 - 0,5, bornée à 0
     ]
 
     # Les résultats sont aussi accessibles depuis la liste des sessions.
@@ -163,7 +166,7 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     expect(row).to_contain_text("Terminée")
     row.get_by_role("link", name="Résultats").click()
     expect(page.get_by_role("heading", name="Résultats", level=1)).to_be_visible()
-    assert results_rows(page)[1] == ["00123", "DURAND Élise", "1,25", MAX_TOTAL]
+    assert results_rows(page)[1] == ["00123", "DURAND Élise", "1,25", MAX_TOTAL, "2,78"]
 
 
 @pytest.mark.spec("RES-01")
@@ -207,14 +210,28 @@ def test_results_csv(teacher_page: Page, live_server, new_phone):
     rows = csv_rows(content)
     questions = [f"Q{i} {kind}" for i in range(1, 5) for kind in ("réponse", "points")]
     assert rows == [
-        ["numéro", "nom", "note", "note max", *questions],
+        ["numéro", "nom", "note", "note max", "note /20", *questions],
         # Une colonne par question, dans l'ordre du QCM ; `-` : pas de réponse.
         # Les nombres ne sont pas neutralisés, même négatifs.
-        ["7", "Ng Anh", "1", "9", "-", "-0,25", "-", "-0,25", "A", "2", "-", "-0,5"],
-        ["00123", "DURAND Élise", "1,25", "9", "B", "-0,5", "-", "-0,25", "A", "2", "AC", "0"],
-        ["0999", "ABSENT Zoé", "Absent", "9", "", "", "", "", "", "", "", ""],
-        ["42", "MARTIN Léo", "2,25", "9", "A", "2", "C", "-0,5", "-", "-0,25", "B", "1"],
-        ["555", "SILENCIEUX Paul", "-1,25", "9", *["-", "-0,25"] * 3, "-", "-0,5"],
+        ["7", "Ng Anh", "1", "9", "2,22", "-", "-0,25", "-", "-0,25", "A", "2", "-", "-0,5"],
+        [
+            "00123",
+            "DURAND Élise",
+            "1,25",
+            "9",
+            "2,78",
+            "B",
+            "-0,5",
+            "-",
+            "-0,25",
+            "A",
+            "2",
+            "AC",
+            "0",
+        ],
+        ["0999", "ABSENT Zoé", "Absent", "9", "", "", "", "", "", "", "", "", ""],
+        ["42", "MARTIN Léo", "2,25", "9", "5", "A", "2", "C", "-0,5", "-", "-0,25", "B", "1"],
+        ["555", "SILENCIEUX Paul", "-1,25", "9", "0", *["-", "-0,25"] * 3, "-", "-0,5"],
     ]
 
 

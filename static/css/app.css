@@ -153,6 +153,13 @@ button.on-band { background: transparent; border-color: var(--on-ink); color: va
 button:disabled { cursor: default; background: var(--surface); color: var(--muted); border-color: var(--soft-line); }
 button.big { font-size: 1.5rem; padding: 0.7rem 2rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+/* Notes masquées à l'ouverture (RES-04) : le tableau n'apparaît qu'à la demande. */
+details.grades > summary {
+  display: inline-block; min-height: 2.75rem; padding: 0.55rem 1.25rem; margin: 0.5rem 0 1rem;
+  border: var(--rule) solid var(--ink); border-radius: var(--radius);
+  font-weight: 700; cursor: pointer;
+}
+details.grades[open] > summary { background: var(--ink); color: var(--on-ink); }
 
 fieldset { border: 2px solid var(--soft-line); border-radius: var(--radius); margin: 0.5rem 0; padding: 0.5rem 1rem 1rem; min-width: 0; }
 legend { font-weight: 700; padding: 0 0.25rem; }
@@ -163,6 +170,12 @@ input[type="radio"], input[type="checkbox"] { width: 1.25rem; height: 1.25rem; f
 .error { color: var(--error); font-weight: 700; background: var(--error-bg); border: 2px solid var(--error); border-radius: var(--radius); padding: 0.25rem 1rem; }
 
 .footer-link { margin-top: 2rem; }
+
+/* Réseau et téléphones (CLA-02 à CLA-04). */
+.url { overflow-wrap: anywhere; }
+.qr.trial-qr { width: min(16rem, 100%); }
+.trial-status { font-weight: 700; }
+.trial-status.ok { color: var(--ok); }
 
 /* --- Espace enseignant : police et couleurs du socle, mise en page inchangée (I12 reportée) --- */
 .teacher-bar { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 0.5rem; border-bottom: var(--rule) solid var(--ink); }
@@ -247,6 +260,9 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
 .join-side { grid-area: side; display: flex; flex-direction: column; gap: 1.6em; }
 .qr-figure { margin: 0; text-align: center; }
 .qr { display: block; width: min(42vh, 30vw); height: auto; border: var(--rule) solid var(--ink); background: #fff; }
+/* Sous la ligne de la session : changer d'adresse, tester un téléphone (CLA-02, CLA-04). */
+.board-tools { margin: 0.6em 0 0; font-size: 0.9em; color: var(--muted); }
+.board-tools a { color: inherit; }
 .qr-figure .label { margin-top: 0.5em; font-size: 1.2em; color: var(--ink); }
 .board button.big { width: 100%; font-size: 2.2em; padding: 0.45em 1em; }
 .people { grid-area: people; min-width: 0; }

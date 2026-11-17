@@ -4,4 +4,7 @@
   <h1>Espace enseignant</h1>
   <p>Préparez vos questions dans la <a href="{% url 'question-list' %}">banque de questions</a>,
     puis composez vos <a href="{% url 'quiz-list' %}">QCM</a> à partir de ces questions.</p>
+  <p>Avant la séance, en classe : <a href="{% url 'network' %}">Réseau et téléphones</a>
+    (adresse projetée, essai avec votre téléphone, pare-feu).</p>
+  <p>Pas à pas : le <a href="{{ guide }}">guide de l'enseignant</a>.</p>
 {% endblock %}

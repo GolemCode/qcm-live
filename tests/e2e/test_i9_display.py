@@ -355,7 +355,7 @@ def test_marks_do_not_depend_on_displayed_order(teacher_page: Page, live_server,
     marks = {row[0]: row[2] for row in results_rows(page)}
     assert marks == {"00123": "1", "42": "0", "7": "1"}
     _, content = download_csv(page)
-    answers = {row[0]: (row[4], row[5]) for row in csv_rows(content)[1:]}
+    answers = {row[0]: (row[5], row[6]) for row in csv_rows(content)[1:]}
     assert answers == {
         "00123": ("A", "1"),
         "42": (LETTERS[labels.index(picked["42"])], "0"),

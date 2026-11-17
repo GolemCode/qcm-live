@@ -86,7 +86,7 @@ def test_demo_file_imports_without_skipped_question_and_runs_a_session(
     _, content = download_csv(page)
     rows = csv_rows(content)
     assert len(rows) == 2
-    assert "-" not in rows[1][4::2]  # une lettre par question : chacune a reçu une réponse
+    assert "-" not in rows[1][5::2]  # une lettre par question : chacune a reçu une réponse
 
 
 # --- DEM-02 : make demo ---------------------------------------------------------------------
