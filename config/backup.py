@@ -71,9 +71,11 @@ def _new_name(folder: Path, now: datetime | None) -> Path:
 
 
 def save(database: Path, folder: Path, *, now: datetime | None = None, keep: int = KEEP) -> Path:
-    """Sauvegarde `database` dans `folder` (créé en droits 700), garde les `keep` plus
-    récentes et rend le chemin de l'archive."""
+    """Sauvegarde `database` dans `folder`, garde les `keep` plus récentes et rend le chemin
+    de l'archive. Elle contient les empreintes des mots de passe et les sessions : dossier en
+    700 (même s'il existait déjà), archive en 600. Sous Windows, chmod est sans effet."""
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    folder.chmod(0o700)
     target = _new_name(folder, now)
     with tempfile.TemporaryDirectory(dir=folder, prefix=".qcm-live-") as work:
         copy = Path(work) / MEMBER
@@ -83,6 +85,7 @@ def save(database: Path, folder: Path, *, now: datetime | None = None, keep: int
         partial = Path(work) / "archive.zip"
         with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as content:
             content.write(copy, MEMBER)
+        partial.chmod(0o600)
         partial.replace(target)
     for old in archives(folder)[keep:]:
         old.unlink()

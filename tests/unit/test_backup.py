@@ -46,6 +46,18 @@ def test_save_names_the_archive_after_the_time_and_keeps_only_the_database(tmp_p
     assert sorted(p.name for p in folder.iterdir()) == [path.name]  # aucun fichier de travail
 
 
+def test_save_is_readable_by_the_teacher_only(tmp_path):
+    """Une archive contient les empreintes des mots de passe et les sessions : dossier en 700
+    même s'il existait déjà, archive en 600."""
+    database = make_db(tmp_path / "db.sqlite3")
+    folder = tmp_path / "sauvegardes"
+    folder.mkdir(mode=0o755)
+    folder.chmod(0o755)
+    path = backup.save(database, folder)
+    assert folder.stat().st_mode & 0o777 == 0o700
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
 def test_save_keeps_the_ten_most_recent_and_nothing_else_is_touched(tmp_path):
     database = make_db(tmp_path / "db.sqlite3")
     folder = tmp_path / "sauvegardes"
