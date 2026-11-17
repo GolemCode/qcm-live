@@ -199,9 +199,18 @@ def confirm_button(page: Page) -> Locator:
     return page.get_by_role("button", name="Confirmer")
 
 
+GUARD_MS = 500  # board.js : un second clic plus rapproché ne confirme pas (double-clic)
+
+
+def confirm(page: Page) -> None:
+    """Second clic, délibéré : après la demi-seconde où il serait pris pour un double-clic."""
+    page.wait_for_timeout(GUARD_MS + 200)
+    confirm_button(page).click()
+
+
 def end_slot(page: Page) -> None:
     end_slot_button(page).click()
-    confirm_button(page).click()
+    confirm(page)
 
 
 def answered(page: Page) -> Locator:

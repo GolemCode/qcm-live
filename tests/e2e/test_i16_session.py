@@ -20,6 +20,7 @@ from tests.e2e.live_ui import (
     card,
     choose,
     clear_answer,
+    confirm,
     confirm_button,
     end_slot,
     end_slot_button,
@@ -149,6 +150,23 @@ def test_end_last_slot_ends_the_session_after_5_s(teacher_page: Page, live_serve
 
 
 @pytest.mark.spec("TPS-02")
+def test_double_click_does_not_confirm(teacher_page: Page, live_server, new_phone):
+    """Un double-clic réflexe ne vaut pas confirmation : « Confirmer » doit être vu."""
+    page = teacher_page
+    session = make_live(2, shown=1)
+    started(page, live_server.url, new_phone, session, ["00123"])
+    sent = []
+    page.on("request", lambda r: sent.append(r) if r.url.endswith("/terminer/") else None)
+
+    end_slot_button(page).dblclick()
+    expect(confirm_button(page)).to_be_visible()  # rien d'envoyé : la page ne s'est pas rechargée
+    with page.expect_response(re.compile(r"/terminer/$")):
+        confirm(page)  # au-delà de la demi-seconde où un second clic est ignoré
+    assert len(sent) == 1
+    assert added_seconds() < 0
+
+
+@pytest.mark.spec("TPS-02")
 def test_end_slot_changes_nothing_with_5_s_left(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_live(2, shown=1)
@@ -159,7 +177,7 @@ def test_end_slot_changes_nothing_with_5_s_left(teacher_page: Page, live_server,
     timer_shows(page, 2, 4)
     end_slot_button(page).click()
     with page.expect_response(re.compile(r"/terminer/$")):
-        confirm_button(page).click()
+        confirm(page)
     assert added_seconds() == 0  # ni retiré, ni ajouté pour remonter à 5 s
     jump_to(session, 30.5)
     expect_slot(phone, 1)

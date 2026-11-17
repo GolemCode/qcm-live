@@ -7,11 +7,13 @@
   if (!root) return;
   const slots = root.querySelectorAll("input[name=slot]"); // formulaires du bandeau
   const CONFIRM_MS = 3000; // TPS-02 : « Confirmer » reste affiché 3 s
+  const GUARD_MS = 500; // TPS-02 : le second clic d'un double-clic ne confirme pas
   const disarms = []; // un « Confirmer » ne vaut que pour le créneau où il est apparu
   for (const form of root.querySelectorAll("form[data-confirm]")) {
     const button = form.querySelector("button");
     const label = button.textContent;
     let armed = null; // minuterie du libellé « Confirmer », tant qu'il est affiché
+    let armedAt = 0;
     const disarm = () => {
       clearTimeout(armed);
       armed = null;
@@ -19,8 +21,10 @@
     };
     disarms.push(disarm);
     form.addEventListener("submit", (event) => {
-      if (armed !== null) return; // second clic dans les 3 s : envoi
+      if (armed !== null && Date.now() - armedAt >= GUARD_MS) return; // confirmé : envoi
       event.preventDefault();
+      if (armed !== null) return; // double-clic : « Confirmer » doit d'abord être vu
+      armedAt = Date.now();
       button.textContent = form.dataset.confirm;
       armed = setTimeout(disarm, CONFIRM_MS);
     });
