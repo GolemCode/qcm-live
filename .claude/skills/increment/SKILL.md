@@ -34,8 +34,13 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 ## 5. Revues
 **Le rapport d'un skill de revue n'est jamais un message final** : le traiter, puis enchaîner aussitôt l'étape suivante. En I6, je me suis arrêté sur le rapport de `/security-review`, et le commanditaire a dû me relancer.
 
+**Modèle et niveau des revues** (consigné en I16, après un écart non écrit d'I15) :
+- `/simplify` : ses agents peuvent tourner sur Sonnet. Raison : revue de qualité, sans chasse aux bogues ; ses constats sont triés par moi ; elle relit tout le diff, plusieurs fois en parallèle.
+- `/code-review` : sur le modèle de la session, au niveau `medium` par défaut ; `high` si l'incrément touche aux notes, à AFF-01, à l'authentification ou aux sessions. Raison : la justesse est aussi gardée par les tests et par `spec-auditor`, qui reste sur le modèle de la session ; en I15, `medium` a trouvé deux vrais défauts.
+- **Le modèle et le niveau effectivement employés s'écrivent dans `rex/I<n>.md`**, avec la raison de tout écart à ces défauts, au moment où on les choisit, jamais reconstitués après coup.
+
 1. `/simplify` sur le diff de la branche.
-2. `/code-review` sur le diff. Si l'incrément touche aux entrées, à l'authentification, aux sessions ou aux réglages : `/security-review`.
+2. `/code-review` sur le diff, au niveau choisi ci-dessus. Si l'incrément touche aux entrées, à l'authentification, aux sessions ou aux réglages : `/security-review`.
 3. **Lancer la CI pendant l'audit** (fait de moi-même en I14, inscrit en I15) : pousser la branche et ouvrir la PR en brouillon (`gh pr create --draft`, corps de §7), puis `gh pr checks --watch` en arrière-plan. La CI (environ 7 min) tourne ainsi en même temps que l'audit au lieu de l'attendre ; un échec de CI se corrige comme un constat d'audit.
 4. Lancer l'agent **`spec-auditor`** avec : l'incrément n, le commit à auditer, la liste des exigences nouvelles ou modifiées, et la sortie de `make accept INC=n` (il ne la relance pas). Il travaille dans un worktree jetable, **une douzaine de contre-épreuves au plus**, en ne lançant que les tests concernés. **Deux passages au plus** (incrément M) :
    - premier passage : audit ciblé sur les exigences nouvelles ou modifiées ;
@@ -47,7 +52,7 @@ L'incrément `n` et son contenu sont définis dans SPEC.md (exigences marquées 
 - **SPEC.md** : y reporter les réponses du commanditaire et les nouvelles précisions, sans changer un identifiant existant.
 - **`rex/I<n>.md`**, et sa ligne dans l'index `REX.md` : objectif, problèmes rencontrés, ce qui a bien marché, ce que j'aurais dû savoir dès le départ, choix techniques et leur raison. Sans code.
 - **README.md** et **CLAUDE.md** si les commandes ou les règles changent.
-- **Consommation** : `uv run --no-env-file python scripts/usage.py <départ> <maintenant>` (tokens, appels, temps actif, par agent), comparée à l'incrément précédent, à compléter après la fusion si besoin.
+- **Consommation** : `uv run --no-env-file python scripts/usage.py <départ> <maintenant>` (tokens, appels, temps actif, par agent, et compactions du contexte avec leur heure), comparée à l'incrément précédent, à compléter après la fusion si besoin. Le nombre de compactions se reporte tel que le script le donne : après un résumé, on ne voit pas ceux qui l'ont précédé.
 - **Dans `rex/I<n>.md`, une ligne `Audit spec-auditor : <commit>`**, écrite une fois l'audit fait : le hook Stop la cherche. Une simple mention de l'agent ne compte pas.
 - **Ce qui a dérapé va dans le REX**, même rattrapé aussitôt : un commit raté, un arrêt prématuré, une relance du commanditaire.
 - **Ne pas surestimer une preuve** : écrire ce qu'un mécanisme garantit et ce qui ne tient qu'à la consigne (CLAUDE.md, règle 10).

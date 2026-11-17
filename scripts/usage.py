@@ -7,6 +7,9 @@ bloc de contenu) avec le même identifiant : il n'est compté qu'une fois.
 Tokens = entrée + écriture du cache + lecture du cache + sortie, ce que facture l'API à des
 tarifs différents : la répartition est donnée à côté du total.
 
+Compactions : chaque résumé du contexte laisse une ligne `compact_boundary` (automatique ou
+`/compact`), comptée une fois par identifiant, avec son heure et la taille du contexte résumé.
+
 Usage : uv run --no-env-file python scripts/usage.py 2026-11-17T01:54 2026-11-17T13:26
 """
 
@@ -38,21 +41,23 @@ def agent_type(transcript: Path) -> str:
         return "?"
 
 
-def calls(transcript: Path, start: datetime, end: datetime):
-    """(identifiant, horodatage, usage) de chaque appel à l'API de la période."""
+def entries(transcript: Path, start: datetime, end: datetime):
+    """Lignes de la période qui portent un appel à l'API ou une compaction, décodées."""
     with transcript.open(encoding="utf-8") as lines:
         for line in lines:
-            if '"usage"' not in line:
+            if '"usage"' not in line and "compact_boundary" not in line:
                 continue
             try:
                 entry = json.loads(line)
                 stamp = datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
-                message = entry["message"]
-                usage = message["usage"]
-            except (ValueError, KeyError, TypeError):
+            except (ValueError, KeyError, TypeError, AttributeError):
                 continue
             if start <= stamp.astimezone() <= end:
-                yield message.get("id") or entry.get("uuid"), stamp, usage
+                yield entry, stamp
+
+
+def is_compaction(entry: dict) -> bool:
+    return entry.get("type") == "system" and entry.get("subtype") == "compact_boundary"
 
 
 def main(argv: list[str]) -> int:
@@ -64,9 +69,20 @@ def main(argv: list[str]) -> int:
     seen: set[str] = set()
     totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     stamps: list[datetime] = []
+    compactions: list[tuple[datetime, str, dict]] = []
     for transcript in sorted(folder.glob("*.jsonl")) + sorted(folder.glob("*/subagents/*.jsonl")):
         who = agent_type(transcript)
-        for call_id, stamp, usage in calls(transcript, start, end):
+        for entry, stamp in entries(transcript, start, end):
+            if is_compaction(entry):
+                if entry.get("uuid") not in seen:
+                    seen.add(entry.get("uuid"))
+                    compactions.append((stamp, who, entry.get("compactMetadata") or {}))
+                continue
+            message = entry.get("message")
+            usage = message.get("usage") if isinstance(message, dict) else None
+            if not isinstance(usage, dict):
+                continue
+            call_id = message.get("id") or entry.get("uuid")
             if call_id in seen:
                 continue
             seen.add(call_id)
@@ -89,6 +105,11 @@ def main(argv: list[str]) -> int:
     for who, t in sorted(totals.items(), key=lambda item: -sum(item[1][k] for k in KINDS)):
         parts = " ".join(f"{t[k] / 1e6:9.2f}" for k in KINDS)
         print(f"{who:18} {t['appels']:6} {sum(t[k] for k in KINDS) / 1e6:9.1f} {parts}")
+    print(f"Compactions du contexte : {len(compactions)}")
+    for stamp, who, meta in sorted(compactions, key=lambda c: c[0]):
+        size = meta.get("preTokens")
+        before = f", contexte de {size / 1000:.0f} k tokens" if isinstance(size, int) else ""
+        print(f"  {stamp.astimezone():%Y-%m-%d %H:%M} {who} ({meta.get('trigger', '?')}{before})")
     return 0
 
 
