@@ -8,11 +8,14 @@ from django.db.models import Count
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
+from django.utils.csp import CSP
+from django.views.decorators.csp import csp_override
 
-from bank.amc_txt import MAX_BYTES, AmcSyntaxError
+from bank.amc_txt import AmcSyntaxError
+from bank.archive import MAX_ARCHIVE_BYTES
 from bank.forms import AmcUploadForm, QuestionForm, QuizCopyForm, QuizForm, VersionScopeForm
 from bank.importer import Preview, preview, save_import
-from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz, by_title
+from bank.models import NONE_OF_THESE, Image, PendingImport, Question, Quiz, by_title
 from live.history import posed_to
 
 
@@ -158,7 +161,8 @@ def quiz_import(request: HttpRequest) -> HttpResponse:
     form = AmcUploadForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
         upload = form.cleaned_data["file"]
-        data, name = upload.read(MAX_BYTES + 1), upload.name or ""
+        # La taille se vérifie à l'analyse : 1 Mo pour un fichier seul, plus pour une archive.
+        data, name = upload.read(MAX_ARCHIVE_BYTES + 1), upload.name or ""
         found = _analyse(data, name)
         if isinstance(found, list):
             form.add_error(None, found)
@@ -208,3 +212,17 @@ def quiz_import_recap(request: HttpRequest, token: str) -> HttpResponse:
             messages.error(request, message)
         return redirect("quiz-import")
     return render(request, "bank/quiz_import_recap.html", {"found": found, "name": name})
+
+
+# Une image ouverte seule (SVG) n'exécute rien et ne charge rien.
+IMAGE_CSP = {"default-src": [CSP.NONE], "style-src": [CSP.UNSAFE_INLINE], "sandbox": True}
+
+
+@csp_override(IMAGE_CSP)
+def image(request: HttpRequest, name: str) -> HttpResponse:
+    """Image d'un énoncé ou d'une proposition (CNT-03), sans connexion, comme le téléphone.
+    Son nom vient de son contenu et ne change jamais : elle se garde en cache."""
+    found = get_object_or_404(Image, name=name)
+    response = HttpResponse(bytes(found.data), content_type=found.content_type)
+    response["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response

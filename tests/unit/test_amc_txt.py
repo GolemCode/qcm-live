@@ -336,50 +336,88 @@ def test_a_group_line_ends_the_current_question():
     ]
 
 
-# --- Contenus prévus en I14 ---------------------------------------------------------------
+# --- Contenu : conversion en LaTeX léger (CNT-01 à CNT-04, IMP-08) -------------------------
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 8
 
 
 @pytest.mark.parametrize(
-    ("content", "reason"),
+    ("written", "stored"),
     [
-        ("Que vaut [[x^2]] ?", "formule : pas encore pris en charge"),
-        ("Que vaut [latex]$x$[/latex] ?", "formule ou LaTeX : pas encore pris en charge"),
-        ("Voici !schema.png! ?", "image : pas encore pris en charge"),
-        ("Voici !{w=3cm}[c]schema.png! ?", "image : pas encore pris en charge"),
-        ("Que fait [|print(1)|] ?", "code : pas encore pris en charge"),
-        ("Le mot [*important*] ?", "mise en forme : pas encore pris en charge"),
-        ("Le mot [_souligné_] ?", "mise en forme : pas encore pris en charge"),
-        ("Le mot [/penché/] ?", "mise en forme : pas encore pris en charge"),
-        ("[== Titre ==] ?", "mise en forme : pas encore pris en charge"),
+        ("Que vaut [[$x^2$]] ?", "Que vaut $x^2$ ?"),
+        ("Que vaut [latex]$\\frac{1}{2}$[/latex] ?", "Que vaut $\\frac{1}{2}$ ?"),
+        ("Que fait [|print(a_b)|] ?", "Que fait \\texttt{print(a_b)} ?"),
+        ("Le mot [*important*] ?", "Le mot \\textbf{important} ?"),
+        ("Le mot [_penché_] ?", "Le mot \\textit{penché} ?"),
+        ("Le mot [/souligné/] ?", "Le mot \\underline{souligné} ?"),
+        ("[== Titre ==] ?", "\\textbf{ Titre } ?"),
+        ("[*a [_b_]*] ?", "\\textbf{a \\textit{b}} ?"),
+        ("5 $ et C:\\temp {x} ?", "5 \\$ et C:\\textbackslash{}temp \\{x\\} ?"),
+        ("Fermé_] sans ouverture ?", "Fermé_] sans ouverture ?"),
     ],
 )
-def test_contents_planned_for_i14_are_skipped(content, reason):
-    assert skipped(f"* {content}\n" + YES_NO + "\n* R ?\n- A\n+ B\n") == [(1, reason)]
+def test_contents_are_converted_to_light_latex(written, stored):
+    assert only(f"* {written}\n" + YES_NO).text == stored
     # Dans une proposition aussi.
-    assert skipped(f"* Q ?\n+ Oui\n- {content}\n\n* R ?\n- A\n+ B\n") == [(1, reason)]
+    assert only(f"* Q ?\n+ Oui\n- {written}\n").choices[1].text == stored
+
+
+@pytest.mark.parametrize(
+    ("written", "reason"),
+    [
+        ("Le mot [*ouvert ?", "mise en forme non fermée"),
+        ("Que vaut [[$x]] ?", "énoncé : formule non fermée"),
+        ("Que vaut [[\\hspace{1cm}]] ?", "énoncé : commande LaTeX non prise en charge : \\hspace"),
+    ],
+)
+def test_content_that_cannot_be_shown_is_skipped(written, reason):
+    assert skipped(f"* {written}\n" + YES_NO + "\n* R ?\n- A\n+ B\n") == [(1, reason)]
+
+
+def test_content_error_in_a_choice_names_it():
+    assert skipped("* Q ?\n+ Oui\n- [[$x]]\n\n* R ?\n- A\n+ B\n") == [
+        (1, "proposition B : formule non fermée")
+    ]
+
+
+def test_converted_choice_length_is_checked():
+    fits = "[*" + "x" * (CHOICE_MAX_LENGTH - len("\\textbf{}")) + "*]"
+    assert len(only(f"* Q ?\n+ {fits}\n- Non\n").choices[0].text) == CHOICE_MAX_LENGTH
+    too_long = f"* Q ?\n+ x{fits}\n- Non\n\n* R ?\n- A\n+ B\n"
+    assert skipped(too_long) == [(1, f"proposition A de plus de {CHOICE_MAX_LENGTH} caractères")]
 
 
 def test_plain_text_that_looks_like_marks_is_accepted():
-    for text in ("Combien ! d'élèves ?", "Un [crochet] ?", "a/b et c*d ?", "100 % et 5 $ ?"):
+    for text in ("Combien ! d'élèves ?", "Un [crochet] ?", "a/b et c*d ?", "100 % et A & B ?"):
         assert only(f"* {text}\n" + YES_NO).text == text
 
 
 def test_verbatim_block():
-    text = "* Que fait ce code ?\n[verbatim]\n* pas une question\n- ni une proposition\n"
-    text += "[/verbatim]\n" + YES_NO + "\n* R ?\n" + YES_NO
-    assert skipped(text) == [(1, "code : pas encore pris en charge")]
+    text = "* Que fait ce code ?\n[verbatim]\n* pas une question\n  - ni une proposition\n"
+    text += "\n# ni un commentaire\n[/verbatim]\n" + YES_NO
+    assert only(text).text == (
+        "Que fait ce code ? \\begin{verbatim}\n* pas une question\n  - ni une proposition\n"
+        "\n# ni un commentaire\n\\end{verbatim}"
+    )
     assert errors("* Q ?\n" + YES_NO + "[verbatim]\n- x\n") == [
         "Ligne 4 : bloc [verbatim] jamais fermé"
     ]
 
 
+def test_verbatim_on_one_line_and_closing_in_capitals():
+    assert only("* [verbatim]a  b[/VERBATIM] ?\n" + YES_NO).text == (
+        "\\begin{verbatim}\na  b\n\\end{verbatim} ?"
+    )
+
+
 def test_line_opening_verbatim_is_text_of_the_previous_element_like_amc():
     # AMC ne lit ni question ni commentaire sur la ligne qui ouvre le bloc.
     text = "* Q ?\n" + YES_NO + "* R [verbatim]\n- x\n[/verbatim]\n* S ?\n" + YES_NO
-    assert skipped(text) == [(1, "code : pas encore pris en charge")]
-    assert [q.text for q in read(text).questions] == ["S ?"]
+    first, second = read(text).questions
+    assert first.choices[1].text == "Non * R \\begin{verbatim}\n- x\n\\end{verbatim}"
+    assert second.text == "S ?"
     commented = "* Q ?\n" + YES_NO + "# astuce : [verbatim]\n* R ?\n" + YES_NO + "[/verbatim]\n"
-    assert skipped(commented) == [(1, "code : pas encore pris en charge")]
+    assert [q.text for q in read(commented).questions] == ["Q ?"]
     assert (
         only("* Q [VERBATIM] ?\n" + YES_NO).text == "Q [VERBATIM] ?"
     )  # ouverture sensible à la casse
@@ -388,9 +426,58 @@ def test_line_opening_verbatim_is_text_of_the_previous_element_like_amc():
 def test_disable_turns_a_mark_back_into_text():
     assert only("Disable: embf\n* Le mot [*gras*] ?\n" + YES_NO).text == "Le mot [*gras*] ?"
     assert only("Disable: images\n* Le cri !Ah! ?\n" + YES_NO).text == "Le cri !Ah! ?"
+    assert only("Disable: title\n* [==T==] ?\n" + YES_NO).text == "[==T==] ?"
+    assert only("Disable: local_latex\n* [[$x$]] ?\n" + YES_NO).text == "[[\\$x\\$]] ?"
+    # `[/verbatim]` ouvrirait sinon un souligné (embf), jamais fermé.
+    disabled = "Disable: verbatim, embf\n* Q ?\n+ [verbatim]x[/verbatim]\n- Non\n"
+    assert only(disabled).choices[0].text == "[verbatim]x[/verbatim]"
 
 
-def test_latex_option_makes_special_characters_latex():
+def test_latex_option_makes_the_text_latex():
+    assert only("LaTeX: 1\n* Que vaut $x$ ?\n" + YES_NO).text == "Que vaut $x$ ?"
     text = "LaTeX: 1\n* Coût en $ ?\n" + YES_NO + "\n* R ?\n- A\n+ B\n"
-    assert skipped(text) == [(2, "LaTeX (option LaTeX: 1) : pas encore pris en charge")]
-    assert only("LaTeX: 0\n* Coût en $ ?\n" + YES_NO).text == "Coût en $ ?"
+    assert skipped(text) == [(2, "énoncé : formule non fermée")]
+    assert only("LaTeX: 0\n* Coût en $ ?\n" + YES_NO).text == "Coût en \\$ ?"
+
+
+# --- Images (CNT-03, IMP-08) ------------------------------------------------------------------
+
+
+def with_files(text: str, files: dict[str, bytes]):
+    return parse(text.encode(), "x.txt", files)
+
+
+def test_image_is_stored_under_its_content_name():
+    text = "* Voir !{center}[width=2cm]img/../img/b.png! ?\n" + YES_NO
+    parsed = with_files(text, {"img/b.png": PNG})
+    (image,) = parsed.images
+    assert image.name.startswith("b-") and image.data == PNG
+    assert parsed.questions[0].text == f"Voir \\includegraphics{{{image.name}}} ?"
+
+
+def test_missing_image_refuses_the_file_with_the_question_line():
+    text = "* Q ?\n" + YES_NO + "* Voir ?\n+ !a.png!\n- !b.png!\n"
+    assert errors(text) == ["Ligne 4 : image absente : a.png", "Ligne 4 : image absente : b.png"]
+    # Même dans une question qui serait écartée, et même une image PDF.
+    assert errors("*<> Ouverte !a.pdf! ?\n") == ["Ligne 1 : image absente : a.pdf"]
+
+
+def test_refused_image_skips_its_question_only():
+    text = "".join(
+        f"* {k} !{name}! ?\n" + YES_NO
+        for k, name in [("PDF", "f.pdf"), ("GIF", "g.gif"), ("PNG", "b.png")]
+    )
+    parsed = with_files(text, {"f.pdf": b"%PDF", "g.gif": b"GIF89a", "b.png": PNG})
+    assert parsed.skipped == (
+        (1, "image PDF ou EPS, à convertir en PNG, JPEG ou SVG : f.pdf"),
+        (4, "format d'image non pris en charge (PNG, JPEG ou SVG) : g.gif"),
+    )
+    assert [question.line for question in parsed.questions] == [7]
+    assert len(parsed.images) == 1
+
+
+def test_images_of_skipped_questions_are_not_kept():
+    text = "* !b.png! [[$x]] ?\n" + YES_NO + "* Q ?\n" + YES_NO
+    parsed = with_files(text, {"b.png": PNG})
+    assert parsed.skipped == ((1, "énoncé : formule non fermée"),)
+    assert parsed.images == ()
