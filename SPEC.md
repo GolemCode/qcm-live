@@ -86,6 +86,7 @@ Les questions viennent de fichiers AMC d'anciens QCM. Aucun fichier réel n'est 
 ### Démonstration
 - **[DEM-01]** (I12) Le dépôt contient un **fichier AMC-TXT de démonstration**, `demo/qcm-demo.txt`, aux questions fictives. Il sert aux tests et à la démonstration. Il s'importe sans question écartée, et une session menée avec lui va jusqu'aux résultats et au CSV. *(demande du commanditaire)*
   - En I12, il couvre les questions simples et multiples, le barème (par défaut, par question, `DefaultScoringM`, valeur d'une proposition), « Aucune de ces réponses n'est correcte », l'ordre fixe et un groupe. Les formules, le code et une image s'y ajoutent en I17. *(découpage validé, renuméroté après I12)*
+  - En I17, il reçoit une formule, du code, une image et de la mise en forme. L'image est dans `demo/images/` : le fichier s'importe alors en archive ZIP du dossier `demo/` (IMP-08), et `make demo` construit cette archive lui-même. *(découpage validé ; archive construite par la commande : dérivé)*
 - **[DEM-02]** (I12) Une commande, `make demo`, prépare une **démonstration complète** : un compte enseignant, un groupe d'étudiants fictifs et le QCM importé du fichier de démonstration. *(demande du commanditaire)*
   - Le compte s'appelle `demo`. Un nouveau mot de passe aléatoire est tiré et affiché à chaque lancement : rien de fixe n'est écrit dans le dépôt. *(dérivé)*
   - Relancée, la commande réutilise le groupe et le QCM au lieu d'en créer d'autres. *(dérivé)*
