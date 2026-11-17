@@ -2,7 +2,7 @@
 {% block title %}Supprimer la question — QCM Live{% endblock %}
 {% block content %}
   <h1>Supprimer la question ?</h1>
-  <p>« {{ question.text }} »</p>
+  <p>« {{ question.text|content }} »</p>
   {% with quizzes=question.quizzes.all %}
     {% if quizzes %}
       <p>Elle sera retirée des QCM : {{ quizzes|join:", " }}.</p>

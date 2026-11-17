@@ -24,7 +24,7 @@
             <thead><tr><th scope="col">Inclure</th><th scope="col">Question</th><th scope="col">Type</th>{% if marked %}<th scope="col">Déjà posée</th>{% endif %}</tr></thead>
             <tbody>
               {% for question, field, n in rows %}
-                <tr><td class="center">{{ field }}</td><td>{{ question.text }}</td><td>{{ question.get_kind_display }}</td>{% if marked %}<td>{% if n %}posée à {{ n }} étudiant{{ n|pluralize }} sur {{ n_students }}{% endif %}</td>{% endif %}</tr>
+                <tr><td class="center">{{ field }}</td><td>{{ question.text|content }}</td><td>{{ question.get_kind_display }}</td>{% if marked %}<td>{% if n %}posée à {{ n }} étudiant{{ n|pluralize }} sur {{ n_students }}{% endif %}</td>{% endif %}</tr>
               {% endfor %}
             </tbody>
           </table>

@@ -6,7 +6,11 @@
   <title>{% block title %}QCM Live{% endblock %}</title>
   <link rel="icon" href="data:,">
   <link rel="preload" href="{% static 'fonts/atkinson-hyperlegible-next-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{% static 'vendor/katex/katex.min.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {# Formules (CNT-01) : KaTeX, servi par l'application, sans Internet. #}
+  <script src="{% static 'vendor/katex/katex.min.js' %}" defer></script>
+  <script src="{% static 'js/math.js' %}" defer></script>
 </head>
 {% comment %}Une page qui suit le direct porte data-state-url et data-page sur <body> (body_attrs) : le bandeau, son minuteur et sa barre du temps restent dans le périmètre suivi.{% endcomment %}
 <body class="{% block body_class %}{% endblock %}"{% block body_attrs %}{% endblock %}>

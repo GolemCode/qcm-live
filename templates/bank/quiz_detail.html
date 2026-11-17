@@ -13,7 +13,7 @@
   {% if questions %}
     <ol aria-label="Questions du QCM">
       {% for question in questions %}
-        <li><span class="text">{{ question.text }}</span> <span class="muted">({{ question.get_kind_display }}{% if question.amc_group %} · étiquette {{ question.amc_group }}{% endif %})</span>
+        <li><span class="text">{{ question.text|content }}</span> <span class="muted">({{ question.get_kind_display }}{% if question.amc_group %} · étiquette {{ question.amc_group }}{% endif %})</span>
           <form method="post" action="{% url 'quiz-remove' quiz.pk question.pk %}" class="actions inline">
             {% csrf_token %}
             <a href="{% url 'question-update' question.pk %}?qcm={{ quiz.pk }}">Modifier</a>

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
 
 SOURCE_NAME_MAX_LENGTH = 255
+IMAGE_NAME_MAX_LENGTH = 64  # `<nom, 40 au plus>-<8 hex>.<ext>`
 NONE_OF_THESE = "Aucune de ces réponses n'est correcte"
 
 
@@ -204,6 +205,20 @@ class QuestionOrigin(models.Model):
 
     def __str__(self) -> str:
         return f"{self.sha256[:8]} #{self.rank} : {self.question}"
+
+
+class Image(models.Model):
+    """Image citée par un énoncé ou une proposition (`\\includegraphics{name}`, CNT-03), venue
+    d'un import (IMP-08). Jamais supprimée : une session figée, une ancienne version ou une
+    question masquée peut la citer. Gardée en base, elle entre dans la sauvegarde (SAV-01)."""
+
+    name = models.CharField(max_length=IMAGE_NAME_MAX_LENGTH, unique=True)
+    sha256 = models.CharField(max_length=64)
+    content_type = models.CharField(max_length=32)
+    data = models.BinaryField()
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class PendingImport(models.Model):
