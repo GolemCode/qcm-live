@@ -27,10 +27,13 @@ from config.classroom import GUIDE_URL
 from config.launcher import (
     SETTINGS_FILE,
     ask,
+    create_teacher,
     data_dir,
+    database,
     load_settings,
     prompt_account,
     setup_django,
+    xdg_data_home,
 )
 
 APP_DIR = Path(__file__).resolve().parent.parent
@@ -106,8 +109,7 @@ def write_launchers(data: Path, app: Path = APP_DIR, python: Path | None = None)
     command = folder / "qcm-live"
     command.write_text(unix_command(data, app, python), encoding="utf-8")
     command.chmod(0o755)
-    applications = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
-    applications /= "applications"
+    applications = xdg_data_home() / "applications"
     applications.mkdir(parents=True, exist_ok=True)
     (applications / "qcm-live.desktop").write_text(
         desktop_entry(command, app / "static" / "img" / "qcm-live.svg"), encoding="utf-8"
@@ -123,21 +125,15 @@ def wants_demo(interactive: bool) -> bool:
 
 
 def create_account(interactive: bool) -> None:
-    from django.contrib.auth.models import User
-
     username = os.environ.get("DJANGO_SUPERUSER_USERNAME")
     password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
     if username and password:
-        User.objects.create_superuser(username, email="", password=password)
-        print(f"Compte enseignant créé : {username}.")
+        create_teacher(username, password)
         return
     if interactive:
         print("Création de votre compte enseignant (identifiant vide : plus tard).")
-        try:
-            if prompt_account():
-                return
-        except (EOFError, KeyboardInterrupt):  # Ctrl+C
-            print()
+        if prompt_account():
+            return
     print("Créez votre compte enseignant plus tard, dans un terminal : qcm-live compte")
 
 
@@ -150,8 +146,6 @@ def main() -> int:  # pragma: no cover — testé de bout en bout (INS-01, INS-0
     setup_django()
     from django.contrib.auth import get_user_model
     from django.core.management import call_command
-
-    from config.launcher import database
 
     first = not database().exists()
     interactive = sys.stdin.isatty()

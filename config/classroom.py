@@ -152,7 +152,7 @@ def serve(
         return 1
     if host.startswith("127."):
         print("Attention : aucun réseau détecté, les téléphones ne pourront pas se connecter.")
-    advices = [firewall.advice(found, port) for found in firewall.detect()]
+    advices = firewall.advices(port)
     print(banner(environ["QCM_JOIN_URL"], port, addresses, advices), flush=True)
     if on_ready:
         on_ready(f"http://localhost:{port}/prof/")

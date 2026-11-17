@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
@@ -13,9 +13,8 @@ from django.views.decorators.http import require_GET
 from django.views.generic import TemplateView
 
 from config import firewall, join
+from config.classroom import GUIDE_URL
 from live.models import Session
-
-GUIDE_URL = "https://github.com/GolemCode/qcm-live/blob/main/GUIDE.md"
 
 teacher_home = login_required(
     TemplateView.as_view(template_name="teacher/home.html", extra_context={"guide": GUIDE_URL})
@@ -37,15 +36,15 @@ def network(request: HttpRequest) -> HttpResponse:
     refused = False
     if request.method == "POST":
         if join.choose(request.POST.get("address", "")):
-            return redirect(board or f"{reverse('network')}")
+            return redirect(board or "network")
         refused = True  # adresse absente de la liste : forgée, ou d'un lancement précédent
     url = join.join_url(request)
+    projected = urlsplit(url)
     token = join.new_trial()
     trial_url = urljoin(url, reverse("trial", args=[token]))
-    port = join.projected_port(request)
     context = {
         "join_url": url,
-        "projected": join.projected_host(request),
+        "projected": projected.hostname or "",
         "addresses": join.addresses(),
         "refused": refused,
         "session_code": code if board else "",
@@ -53,7 +52,7 @@ def network(request: HttpRequest) -> HttpResponse:
         "trial_url": trial_url,
         "trial_qr": join.qr_data_uri(trial_url),
         "trial_state_url": reverse("trial-state", args=[token]),
-        "advices": [firewall.advice(found, port) for found in firewall.detect()],
+        "advices": firewall.advices(projected.port or int(request.get_port())),
     }
     return render(request, "teacher/network.html", context, status=400 if refused else 200)
 

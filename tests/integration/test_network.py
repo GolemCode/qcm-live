@@ -77,7 +77,6 @@ def test_join_url_with_an_imposed_address(settings, rf):
     assert join.join_url(request) == "http://pc-prof.local:8000/"
     assert join.choose("192.168.1.20")
     assert join.join_url(request) == "http://192.168.1.20:8000/"
-    assert join.projected_port(request) == 8000
 
 
 def test_join_url_outside_class_mode_is_the_address_of_the_request(settings, rf):
@@ -86,7 +85,6 @@ def test_join_url_outside_class_mode_is_the_address_of_the_request(settings, rf)
     request = rf.get("/", HTTP_HOST="localhost:8765")
     assert join.join_url(request) == "http://localhost:8765/"
     assert not join.choose("192.168.1.20")
-    assert join.projected_port(request) == 8765
 
 
 def test_a_choice_no_longer_offered_is_ignored(settings, rf):

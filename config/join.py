@@ -26,6 +26,10 @@ TRIAL_PREFIX = "qcm-live:trial:"
 TRIAL_S = 3600
 
 
+def offered() -> set[str]:
+    return {item["address"] for item in addresses()}
+
+
 def addresses() -> list[dict]:
     """Adresses proposées à l'enseignant : celles du PC, plus l'adresse imposée au lancement
     (`--adresse`) si elle n'en fait pas partie."""
@@ -38,7 +42,7 @@ def addresses() -> list[dict]:
 
 def choose(address: str) -> bool:
     """Projette `address`, si c'est l'une des adresses proposées."""
-    if address not in {item["address"] for item in addresses()}:
+    if address not in offered():
         return False
     cache.set(CHOICE_KEY, address, timeout=None)
     return True
@@ -54,17 +58,9 @@ def join_url(request: HttpRequest) -> str:
     """Adresse projetée, avec « / » final."""
     base = settings.JOIN_URL or request.build_absolute_uri("/")
     chosen = cache.get(CHOICE_KEY)
-    if chosen and chosen in {item["address"] for item in addresses()}:
+    if chosen and chosen in offered():
         return with_host(base, chosen)
     return base
-
-
-def projected_host(request: HttpRequest) -> str:
-    return urlsplit(join_url(request)).hostname or ""
-
-
-def projected_port(request: HttpRequest) -> int:
-    return urlsplit(join_url(request)).port or int(request.get_port())
 
 
 def qr_data_uri(url: str) -> str:

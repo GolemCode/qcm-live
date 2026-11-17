@@ -11,14 +11,14 @@ en profil « Public », qui bloque les connexions entrantes).
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from config.network import TIMEOUT_S, powershell_items
+
 UFW_CONF = Path("/etc/ufw/ufw.conf")
-TIMEOUT_S = 10
 FIREWALLD_PROBE = ["systemctl", "is-active", "--quiet", "firewalld"]
 WINDOWS_PROBE = [
     "powershell",
@@ -32,7 +32,6 @@ PROBES = (FIREWALLD_PROBE, WINDOWS_PROBE)  # les seules commandes lancées
 
 @dataclass(frozen=True)
 class Advice:
-    name: str  # nom du pare-feu, pour l'enseignant
     text: str
     commands: tuple[str, ...]  # à copier, jamais lancées par QCM Live
 
@@ -40,13 +39,11 @@ class Advice:
 def advice(found: str, port: int) -> Advice:
     if found == "ufw":
         return Advice(
-            "ufw",
             "Le pare-feu ufw est actif. Pour ouvrir le port aux téléphones, dans un terminal :",
             (f"sudo ufw allow {port}/tcp",),
         )
     if found == "firewalld":
         return Advice(
-            "firewalld",
             "Le pare-feu firewalld est actif. Pour ouvrir le port aux téléphones, dans un "
             "terminal :",
             (
@@ -56,7 +53,6 @@ def advice(found: str, port: int) -> Advice:
         )
     if found == "windows-public":
         return Advice(
-            "Pare-feu Windows",
             "Le réseau est en profil « Public » : Windows y bloque les téléphones. Passez-le "
             "en profil « Privé » (Paramètres, Réseau et Internet, propriétés du réseau), ou, "
             "dans PowerShell lancé en administrateur :",
@@ -79,9 +75,8 @@ def ufw_enabled(conf: Path = UFW_CONF) -> bool:
 
 def public_network(powershell_json: str) -> bool:
     """Sortie de `Get-NetConnectionProfile` : un réseau en profil Public (0 sous Windows
-    PowerShell 5.1). Un seul réseau arrive comme un objet, pas une liste."""
-    data = json.loads(powershell_json or "[]")
-    items = data if isinstance(data, list) else [data]
+    PowerShell 5.1)."""
+    items = powershell_items(powershell_json)
     return any(item.get("NetworkCategory") in (0, "Public") for item in items)
 
 
@@ -110,3 +105,8 @@ def detect() -> list[str]:
     if result and result.returncode == 0:
         found.append("firewalld")
     return found
+
+
+def advices(port: int) -> list[Advice]:
+    """Conseils pour chaque pare-feu détecté, avec le port réellement servi."""
+    return [advice(found, port) for found in detect()]

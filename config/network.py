@@ -111,14 +111,18 @@ def parse_ip_json(text: str) -> list[tuple[str, str]]:
     ]
 
 
+def powershell_items(text: str) -> list[dict]:
+    """Sortie de `… | ConvertTo-Json` : un seul résultat arrive comme un objet, pas une liste."""
+    data = json.loads(text or "[]")
+    return data if isinstance(data, list) else [data]
+
+
 def parse_powershell_json(text: str) -> list[tuple[str, str]]:
     """Sortie de `Get-NetIPAddress | ConvertTo-Json` : adresses en service (« Preferred »,
-    4 sous Windows PowerShell 5.1). Un seul résultat arrive comme un objet, pas une liste."""
-    data = json.loads(text or "[]")
-    items = data if isinstance(data, list) else [data]
+    4 sous Windows PowerShell 5.1)."""
     return [
         (item["IPAddress"], item["InterfaceAlias"])
-        for item in items
+        for item in powershell_items(text)
         if item.get("AddressState") in (4, "Preferred")
     ]
 
