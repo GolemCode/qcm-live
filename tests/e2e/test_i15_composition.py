@@ -228,7 +228,8 @@ def test_used_question_gets_a_new_version(teacher_page: Page):
     page = teacher_page
     used = make_question("Capitale ?", [("Paris", True), ("Lyon", False)])
     unused = make_question("Libre ?")
-    quiz = make_quiz("Contrôle", [used, unused])
+    quiz = make_quiz("Contrôle", [used])
+    make_quiz("Jamais lancé", [unused])
     other = make_quiz("Rattrapage", [used])
     session = launch(quiz)  # lancée, jamais démarrée
 
