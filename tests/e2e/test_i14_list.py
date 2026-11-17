@@ -144,9 +144,9 @@ def test_student_picks_name_in_the_group_list(
         expect(entry).to_contain_text(str(number))
         expect(entry).to_contain_text(name)
     expect(phone.locator("input[inputmode=numeric]")).to_have_count(0)
-    expect(phone.locator("body")).not_to_contain_text("21904567")
-    expect(phone.locator("body")).not_to_contain_text("INE-0042b")
-    expect(teacher_page.get_by_role("main")).not_to_contain_text("21904567")
+    # Ni affiché ni présent dans la page, même invisible (attribut, commentaire).
+    assert "21904567" not in phone.content()
+    assert "INE-0042b" not in phone.content()
     for link in group_list(phone).get_by_role("link").all():
         box = link.bounding_box()
         assert box and box["height"] >= 48, box  # cible tactile (VIS-04)
@@ -170,7 +170,7 @@ def test_student_picks_name_in_the_group_list(
     list_entry(phone, "MARTIN Paul").get_by_role("link").click()
     expect(phone.get_by_text("Vous êtes MARTIN Paul ?")).to_be_visible()
     expect(phone.get_by_role("main")).to_contain_text("N° 7")
-    expect(phone.locator("body")).not_to_contain_text("INE-0042b")
+    assert "INE-0042b" not in phone.content()
     check_a11y(phone, "confirmation")
     phone.get_by_role("link", name="Non, revenir à la liste").click()
     expect(group_list(phone)).to_be_visible()
@@ -181,7 +181,7 @@ def test_student_picks_name_in_the_group_list(
     identify(phone, "MARTIN Paul")
     expect(identity(phone)).to_have_text("Vous êtes MARTIN Paul")
     expect(phone.get_by_role("main")).to_contain_text("N° 7")
-    expect(phone.locator("body")).not_to_contain_text("INE-0042b")
+    assert "INE-0042b" not in phone.content()
     expect(connected_names(teacher_page)).to_have_text(["MARTIN Paul"], timeout=LIVE_MS)
 
     # Sur un autre téléphone, le nom pris est grisé, « déjà connecté », et ne se choisit pas.
@@ -201,6 +201,9 @@ def test_student_picks_name_in_the_group_list(
     # Pris pendant la confirmation : refusé, avec un message, et la liste revient.
     list_entry(other, "DUPONT Jeanne").get_by_role("link").click()
     join(new_phone(), live_server.url, code, "DUPONT Jeanne")
+    expect(connected_names(teacher_page)).to_contain_text(["DUPONT Jeanne"], timeout=LIVE_MS)
+    assert "21904567" not in teacher_page.content()  # le tableau : les noms seulement
+    assert "INE-0042b" not in teacher_page.content()
     other.get_by_role("button", name="Oui, c'est moi").click()
     expect(other.get_by_role("status")).to_contain_text("déjà connecté")
     expect(list_entry(other, "DUPONT Jeanne")).to_contain_text("déjà connecté")

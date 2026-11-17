@@ -152,6 +152,17 @@ def test_taken_student_is_refused_and_listed_as_taken(client, session):
     assert reverse("student-confirm", args=[session.code, 2]) in html
 
 
+def test_name_taken_during_the_confirmation_is_refused_with_a_message(client, session, monkeypatch):
+    """Course perdue au POST : l'autre téléphone a confirmé après la vérification de la vue,
+    la contrainte d'unicité tranche (`enrol` renvoie None) et le message l'annonce."""
+    monkeypatch.setattr(Session, "enrol", lambda self, student: None)
+    response = confirm(client, session, 1)
+    html = client.get(response["Location"]).content.decode()
+    assert '<p class="message error">' in html
+    assert "déjà connecté" in html
+    assert not session.participants.exists()
+
+
 def test_taken_student_is_not_offered_for_confirmation(client, session):
     """Un nom pris ne se choisit pas (ETU-13), même par l'adresse ou une liste périmée."""
     participant(session, 1)
