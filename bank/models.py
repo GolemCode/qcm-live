@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import unicodedata
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 from django.conf import settings
@@ -124,6 +125,19 @@ class Choice(models.Model):
 
     def __str__(self) -> str:
         return self.text
+
+
+def title_key(title: str) -> tuple[str, str]:
+    """Clé de l'ordre alphabétique des titres, sans tenir compte des majuscules ni des accents
+    (« Écologie » entre « Biologie » et « Zoologie »), le titre exact départageant."""
+    bare = "".join(c for c in unicodedata.normalize("NFKD", title) if not unicodedata.combining(c))
+    return bare.casefold(), title
+
+
+def by_title(quizzes: Iterable[Quiz]) -> list[Quiz]:
+    """QCM triés par titre (BAN-03, SES-01). Le tri se fait ici et non en base : SQLite ne
+    compare que les octets, et `Meta.ordering` n'agit pas sur une requête agrégée."""
+    return sorted(quizzes, key=lambda quiz: (*title_key(quiz.title), quiz.pk))
 
 
 class Quiz(models.Model):

@@ -8,7 +8,7 @@ from django import forms
 from django.db import IntegrityError, transaction
 from django.db.models import Count
 
-from bank.models import NONE_OF_THESE, Quiz
+from bank.models import NONE_OF_THESE, Quiz, by_title
 from config.forms import PlainForm
 from live.models import CODE_LENGTH, Session, random_code
 from live.results import none_index
@@ -22,8 +22,20 @@ CODE_ATTEMPTS = 20  # un million de codes : une collision est rare, vingt d'affi
 INVALID_ANSWER = "Réponse invalide."
 
 
+class ByTitle(forms.models.ModelChoiceIterator):
+    """Choix de QCM dans l'ordre de leur titre (SES-01, I17)."""
+
+    def __iter__(self):
+        for quiz in by_title(self.queryset):
+            yield self.choice(quiz)
+
+
+class QuizChoiceField(forms.ModelChoiceField):
+    iterator = ByTitle
+
+
 class LaunchSessionForm(PlainForm):
-    quiz = forms.ModelChoiceField(
+    quiz = QuizChoiceField(
         label="QCM",
         queryset=Quiz.objects.alias(n_questions=Count("questions")).filter(n_questions__gt=0),
         empty_label=None,

@@ -12,7 +12,7 @@ from django.template.defaultfilters import pluralize
 from bank.amc_txt import MAX_BYTES, AmcSyntaxError
 from bank.forms import AmcUploadForm, QuestionForm, QuizCopyForm, QuizForm, VersionScopeForm
 from bank.importer import Preview, preview, save_import
-from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz
+from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz, by_title
 from live.history import posed_to
 
 
@@ -75,7 +75,7 @@ def question_delete(request: HttpRequest, pk: int) -> HttpResponse:
 
 @login_required
 def quiz_list(request: HttpRequest) -> HttpResponse:
-    quizzes = Quiz.objects.annotate(n_questions=Count("questions"))
+    quizzes = by_title(Quiz.objects.annotate(n_questions=Count("questions")))
     return render(request, "bank/quiz_list.html", {"quizzes": quizzes})
 
 
