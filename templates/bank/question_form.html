@@ -2,9 +2,22 @@
 {% block title %}{% if question.pk %}Modifier la question{% else %}Nouvelle question{% endif %} — QCM Live{% endblock %}
 {% block content %}
   <h1>{% if question.pk %}Modifier la question{% else %}Nouvelle question{% endif %}</h1>
+  {% if used %}
+    <div class="notice">
+      <p>Cette question a déjà servi dans une session : l'enregistrer crée une nouvelle version. L'ancienne reste inchangée pour les résultats de ses sessions.</p>
+      <p>QCM touchés :</p>
+      <ul aria-label="QCM touchés">{% for touched_quiz in touched %}<li>{{ touched_quiz.title }}</li>{% empty %}<li>aucun</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
   <form method="post" class="form wide" novalidate>
     {% csrf_token %}
     {% include "form_errors.html" %}
+    {% if scope %}
+      <fieldset>
+        <legend>{{ scope.scope.label }}</legend>
+        {% for radio in scope.scope %}<label class="inline">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+      </fieldset>
+    {% endif %}
     {{ form.text.label_tag }}
     {{ form.text }}
     <p class="muted">Une ligne vide sépare deux paragraphes.</p>
@@ -36,7 +49,7 @@
     </fieldset>
     <p class="actions">
       <button type="submit">Enregistrer</button>
-      <a href="{% url 'question-list' %}">Annuler</a>
+      <a href="{% if quiz %}{% url 'quiz-detail' quiz.pk %}{% else %}{% url 'question-list' %}{% endif %}">Annuler</a>
     </p>
   </form>
 {% endblock %}

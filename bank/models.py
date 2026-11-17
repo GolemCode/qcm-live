@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 
 from bank.amc_txt import CHOICE_MAX_LENGTH, GROUP_LABEL_MAX_LENGTH, TITLE_MAX_LENGTH
-from bank.scoring import SCORING_MAX_LENGTH
+from bank.scoring import LETTERS, SCORING_MAX_LENGTH
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
@@ -29,10 +30,19 @@ class Question(models.Model):
     none_of_these = models.BooleanField(NONE_OF_THESE, default=False)  # BAN-09
     ordered = models.BooleanField("ordre fixe", default=False)  # BAN-10
     amc_group = models.CharField("étiquette", max_length=GROUP_LABEL_MAX_LENGTH, blank=True)
+    # Version qu'elle remplace (VER-01) : la précédente reste inchangée pour ses sessions.
+    previous = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="next_versions"
+    )
 
     if TYPE_CHECKING:  # relations inverses, déclarées pour le typage statique
+        from live.models import Session
+
         choices: RelatedManager[Choice]
         quizzes: ManyRelatedManager[Quiz, QuizItem]
+        next_versions: RelatedManager[Question]
+        origins: RelatedManager[QuestionOrigin]
+        sessions: ManyRelatedManager[Session, models.Model]
 
     class Meta:
         ordering = ["pk"]
@@ -44,6 +54,34 @@ class Question(models.Model):
     def none_is_correct(self) -> bool:
         """« Aucune de ces réponses n'est correcte » est la bonne réponse (BAN-09)."""
         return self.none_of_these and not any(choice.correct for choice in self.choices.all())
+
+    def lettered_choices(self) -> list[tuple[str, Choice]]:
+        """Propositions avec leur lettre (A, B, C…), « Aucune de ces réponses… » en dernier,
+        comme au tableau et dans le CSV (VER-03)."""
+        choices = list(self.choices.all())
+        if self.none_of_these:
+            choices.append(Choice(text=NONE_OF_THESE, correct=self.none_is_correct, position=0))
+        return list(zip(LETTERS, choices, strict=False))
+
+    def previous_versions(self) -> list[Question]:
+        """Versions qu'elle remplace, de la plus récente à la plus ancienne (VER-03)."""
+        versions, current = [], self.previous
+        while current is not None:
+            versions.append(current)
+            current = current.previous
+        return versions
+
+    def content(self) -> tuple[object, ...]:
+        """Ce qu'une modification change : une version n'est créée que s'il diffère (VER-01)."""
+        choices = tuple((c.text, c.correct, c.points) for c in self.choices.all())
+        text = self.text.replace("\r\n", "\n")
+        return (text, self.kind, self.scoring, self.none_of_these, self.ordered, choices)
+
+    @classmethod
+    def current(cls) -> models.QuerySet[Question]:
+        """Questions de la banque : sans version plus récente, ou encore dans un QCM (VER-03)."""
+        kept = models.Q(next_versions__isnull=True) | models.Q(quizzes__isnull=False)
+        return cls.objects.filter(pk__in=cls.objects.filter(kept).values("pk"))
 
 
 class Choice(models.Model):
@@ -82,6 +120,22 @@ class Quiz(models.Model):
     def ordered_questions(self) -> models.QuerySet[Question]:
         return self.questions.order_by("quizitem__position")
 
+    def file_ranks(self) -> dict[int, int]:
+        """Rang dans le fichier du QCM de chacune de ses questions qui en vient (CMP-04)."""
+        if not self.source_sha256:
+            return {}
+        origins = QuestionOrigin.objects.filter(sha256=self.source_sha256)
+        return dict(origins.values_list("question_id", "rank"))
+
+    @transaction.atomic
+    def set_questions(self, questions: Sequence[int]) -> None:
+        """Remplace ses questions par celles-ci (pk), dans cet ordre."""
+        QuizItem.objects.filter(quiz=self).delete()
+        QuizItem.objects.bulk_create(
+            QuizItem(quiz=self, question_id=pk, position=position)
+            for position, pk in enumerate(questions, start=1)
+        )
+
 
 class QuizItem(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
@@ -97,6 +151,23 @@ class QuizItem(models.Model):
 
     def __str__(self) -> str:
         return f"{self.quiz} #{self.position} : {self.question}"
+
+
+class QuestionOrigin(models.Model):
+    """D'où vient une question importée : le fichier (son contenu) et son rang, à partir de 1,
+    parmi les questions retenues (IMP-10). Suit la question dans ses nouvelles versions."""
+
+    sha256 = models.CharField(max_length=64)
+    rank = models.PositiveIntegerField()
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="origins")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["sha256", "rank"], name="unique_origin_rank")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.sha256[:8]} #{self.rank} : {self.question}"
 
 
 class PendingImport(models.Model):

@@ -20,6 +20,21 @@
           {% if quizzes %}Utilisée dans : {{ quizzes|join:", " }}{% else %}Utilisée dans aucun QCM{% endif %}
         {% endwith %}
       </p>
+      {% with versions=question.previous_versions %}
+        {% if versions %}
+          <details>
+            <summary>Versions précédentes ({{ versions|length }})</summary>
+            {% for version in versions %}
+              <p class="text">{{ version.text }}</p>
+              <ul class="choices plain" aria-label="Propositions : {{ version.text }}">
+                {% for letter, choice in version.lettered_choices %}
+                  <li>{{ letter }}. <span class="text">{{ choice.text }}</span>{% if choice.correct %} <strong>(juste)</strong>{% endif %}{% if choice.points is not None %} <span class="muted">({{ choice.points|floatformat:"-3" }} pt)</span>{% endif %}</li>
+                {% endfor %}
+              </ul>
+            {% endfor %}
+          </details>
+        {% endif %}
+      {% endwith %}
       <p class="actions">
         <a href="{% url 'question-update' question.pk %}">Modifier</a>
         <a href="{% url 'question-delete' question.pk %}">Supprimer</a>

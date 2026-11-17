@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from bank import importer
 from bank.amc_txt import MAX_BYTES, AmcSyntaxError
-from bank.importer import NOTHING_TO_IMPORT, AlreadyImported, import_quiz, preview
+from bank.importer import NOTHING_TO_IMPORT, import_quiz, preview
 from bank.models import PendingImport, Question, Quiz, QuizItem
 from bank.views import EXPIRED
 from tests.factories import make_question
@@ -89,13 +89,13 @@ def test_the_oldest_identical_question_is_chosen():
     assert older in import_quiz(FILE, "x.txt").questions.all()
 
 
-def test_same_bytes_are_refused_with_the_quiz_name():
-    import_quiz(FILE, "controle.txt")
-    with pytest.raises(AlreadyImported) as error:
-        preview(FILE, "autre-nom.txt")
-    assert str(error.value) == "Fichier déjà importé : QCM « Contrôle »."
-    with pytest.raises(AlreadyImported):
-        import_quiz(FILE, "autre-nom.txt")
+def test_same_bytes_complete_the_same_quiz():
+    first = import_quiz(FILE, "controle.txt")
+    found = preview(FILE, "autre-nom.txt")
+    assert found.target == first
+    assert (found.already_there, found.added) == (3, 0)
+    assert import_quiz(FILE, "autre-nom.txt") == first  # IMP-10, plus refusé
+    assert Quiz.objects.count() == 1
     # Un octet de plus : un autre fichier ; ses questions sont toutes partagées.
     quiz = import_quiz(FILE + b"\n", "controle.txt")
     assert Question.objects.count() == 3
@@ -203,18 +203,17 @@ def test_file_imported_in_the_meantime(admin_client):
     url = upload(admin_client, FILE)["Location"]
     import_quiz(FILE, "controle.txt")  # depuis un autre onglet
     page = admin_client.get(url)
-    assert page["Location"] == reverse("quiz-import")
-    assert messages_of(page) == ["Fichier déjà importé : QCM « Contrôle »."]
-    assert not PendingImport.objects.exists()
+    assert page.status_code == 200
+    assert "complète le QCM « Contrôle »" in page.content.decode()
 
 
 def test_confirmation_of_a_file_imported_in_the_meantime(admin_client):
     url = upload(admin_client, FILE)["Location"]
     import_quiz(FILE, "controle.txt")
     response = admin_client.post(url, {"action": "import"})
-    assert response["Location"] == reverse("quiz-import")
-    assert messages_of(response) == ["Fichier déjà importé : QCM « Contrôle »."]
-    assert Quiz.objects.count() == 1
+    quiz = Quiz.objects.get()
+    assert response["Location"] == reverse("quiz-detail", args=[quiz.pk])
+    assert messages_of(response) == ["QCM complété : rien à ajouter."]
 
 
 def test_refused_file_shows_the_reasons_on_the_form(admin_client):

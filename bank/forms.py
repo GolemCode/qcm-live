@@ -7,6 +7,7 @@ from decimal import Decimal
 from django import forms
 from django.db import transaction
 
+from bank.composition import arrange
 from bank.models import CHOICE_MAX_LENGTH, NONE_OF_THESE, Choice, Question, Quiz, QuizItem
 from bank.scoring import (
     LETTERS,
@@ -23,6 +24,7 @@ from config.forms import PlainForm, TeacherForm, table_field
 MIN_CHOICES = 2
 SLOTS = LETTERS[:MAX_CHOICES]
 KEEP_ORDER = "Ne pas mélanger les propositions"
+INCLUDE = "Inclure la question : "  # libellé de la case de composition (CMP-04)
 
 
 class QuestionForm(TeacherForm):
@@ -133,6 +135,31 @@ class QuestionForm(TeacherForm):
         except ScoringError as error:
             raise forms.ValidationError(f"Points de la proposition {letter} : {error}.") from None
 
+    def content(self) -> tuple[object, ...]:
+        """Contenu saisi, comparable à `Question.content` (VER-01)."""
+        data = self.cleaned_data
+        text = data["text"].replace("\r\n", "\n")  # le navigateur renvoie des CRLF
+        fields = (data["kind"], data["scoring"], data["none_of_these"], data["ordered"])
+        return (text, *fields, tuple(data["choices"]))
+
+    @transaction.atomic
+    def save_version(self, only: Quiz | None = None) -> Question:
+        """Enregistre la saisie comme nouvelle version de la question, qui reste inchangée
+        (VER-01), et la met à sa place dans ses QCM, ou dans le seul `only` (VER-02)."""
+        old = Question.objects.get(pk=self.instance.pk)
+        new = self.instance  # porte déjà la saisie, et l'étiquette AMC de l'ancienne
+        new.pk, new.previous = None, old
+        new._state.adding = True
+        self.save()
+        items = QuizItem.objects.filter(question=old)
+        if only is not None:
+            items = items.filter(quiz=only)
+        items.update(question=new)
+        # L'origine (IMP-10) suit la version qui occupe sa place dans le QCM de son fichier.
+        kept = Quiz.objects.filter(quizitem__question=old).values("source_sha256")
+        old.origins.exclude(sha256__in=kept).update(question=new)
+        return new
+
     @transaction.atomic
     def save(self, commit: bool = True) -> Question:
         question = super().save(commit=commit)
@@ -146,8 +173,23 @@ class QuestionForm(TeacherForm):
         return question
 
 
+class VersionScopeForm(PlainForm):
+    """Portée d'une nouvelle version modifiée depuis la fiche d'un QCM (VER-02)."""
+
+    ALL, ONLY = "all", "only"
+
+    def __init__(self, *args, quiz: Quiz, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["scope"] = forms.ChoiceField(
+            label="Remplacer la question",
+            choices=[(self.ALL, "Dans tous ces QCM"), (self.ONLY, f"Seulement dans « {quiz} »")],
+            initial=self.ALL,
+            widget=forms.RadioSelect,
+        )
+
+
 class QuizForm(TeacherForm):
-    """Titre et un champ « ordre » par question de la banque (vide = non incluse)."""
+    """Titre et une case par question de la banque (CMP-04) ; l'ordre suit `arrange`."""
 
     class Meta:
         model = Quiz
@@ -155,62 +197,65 @@ class QuizForm(TeacherForm):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        positions = {}
-        if self.instance.pk:
-            positions = dict(
-                QuizItem.objects.filter(quiz=self.instance).values_list("question_id", "position")
+        self.current = (
+            list(
+                self.instance.questions.values_list("pk", flat=True).order_by("quizitem__position")
             )
-        self.bank = list(Question.objects.all())
+            if self.instance.pk
+            else []
+        )
+        included = set(self.current)
+        self.bank = list(Question.current())
         for question in self.bank:
-            self.fields[self.order_field(question)] = table_field(
-                forms.IntegerField(
-                    label=f"Ordre de la question : {question.text}",
-                    min_value=1,
+            self.fields[self.include_field(question)] = table_field(
+                forms.BooleanField(
+                    label=f"{INCLUDE}{question.text}",
                     required=False,
-                    initial=positions.get(question.pk),
+                    initial=question.pk in included,
                 )
             )
 
     @staticmethod
-    def order_field(question: Question) -> str:
-        return f"order_{question.pk}"
+    def include_field(question: Question) -> str:
+        return f"include_{question.pk}"
 
     def question_rows(self):
-        """(question, champ ordre) pour le gabarit."""
-        return [(q, self[self.order_field(q)]) for q in self.bank]
+        """(question, case à cocher) pour le gabarit."""
+        return [(q, self[self.include_field(q)]) for q in self.bank]
 
     def clean(self):
         super().clean()
-        data = self.cleaned_data
-        if any(self.order_field(q) in self.errors for q in self.bank):
-            return data  # un numéro d'ordre invalide : son erreur suffit, pas de contrôle croisé
-        chosen = [
-            (data[self.order_field(q)], q)
-            for q in self.bank
-            if data.get(self.order_field(q)) is not None
-        ]
+        chosen = [q.pk for q in self.bank if self.cleaned_data.get(self.include_field(q))]
         if not chosen:
-            raise forms.ValidationError(
-                "Choisissez au moins une question en lui donnant un numéro d'ordre (1, 2, 3…)."
-            )
-        ranks = [rank for rank, _ in chosen]
-        if len(set(ranks)) != len(ranks):
-            raise forms.ValidationError(
-                "Deux questions ont le même rang dans l'ordre : chaque numéro est unique."
-            )
-        data["ordered_questions"] = [q for _, q in sorted(chosen, key=lambda item: item[0])]
-        return data
+            raise forms.ValidationError("Cochez au moins une question.")
+        self.cleaned_data["chosen"] = chosen
+        return self.cleaned_data
 
     @transaction.atomic
     def save(self, commit: bool = True) -> Quiz:
         quiz = super().save(commit=commit)
-        if not commit:
-            return quiz
-        QuizItem.objects.filter(quiz=quiz).delete()
-        QuizItem.objects.bulk_create(
-            QuizItem(quiz=quiz, question=question, position=position)
-            for position, question in enumerate(self.cleaned_data["ordered_questions"], start=1)
-        )
+        if commit:
+            chosen = self.cleaned_data["chosen"]
+            quiz.set_questions(arrange(self.current, chosen, quiz.file_ranks()))
+        return quiz
+
+
+class QuizCopyForm(TeacherForm):
+    """Nouveau QCM qui reprend un ancien en entier (CMP-01) : seul le titre se saisit."""
+
+    class Meta:
+        model = Quiz
+        fields = ["title"]
+
+    def __init__(self, *args, source: Quiz, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.source = source
+
+    @transaction.atomic
+    def save(self, commit: bool = True) -> Quiz:
+        quiz = super().save(commit=commit)
+        if commit:
+            quiz.set_questions(self.source.ordered_questions().values_list("pk", flat=True))
         return quiz
 
 
