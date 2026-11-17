@@ -37,6 +37,7 @@ from tests.e2e.live_ui import (
     phones_joined,
     results_rows,
     save_status,
+    select_group,
     start,
 )
 from tests.factories import jump_to, make_group, make_question, make_quiz, make_session
@@ -148,7 +149,7 @@ def test_four_questions_at_once_by_default(teacher_page: Page, live_server, new_
     open_sessions(page)
     page.get_by_role("link", name="Lancer une session").click()
     page.get_by_label("QCM").select_option(label=quiz.title)
-    page.get_by_label("Groupe").select_option(label="TD1")
+    select_group(page, "TD1")
     # Sans toucher au champ : la valeur par défaut.
     expect(page.get_by_label("Questions affichées en même temps")).to_have_value("4")
     page.get_by_role("button", name="Lancer").click()

@@ -7,6 +7,9 @@
     {% include "form_errors.html" %}
     {{ form.name.label_tag }}
     {{ form.name }}
+    {{ form.year.label_tag }}
+    {{ form.year }}
+    <p class="muted">Année universitaire, par exemple 2025-2026 : le même nom peut servir une autre année.</p>
     {{ form.file.label_tag }}
     {{ form.file }}
     <div class="muted">

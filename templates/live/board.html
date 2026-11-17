@@ -8,6 +8,8 @@
   <h1 class="band-title">Session {% include "live/code.html" with code=session.code %}</h1>
   {% if state.phase == "running" %}
     <p class="band-position">{{ position_label }}</p>
+    {# DER-04 : nombres mis à jour par board.js. #}
+    <p class="band-answered"><span id="answered">{{ answered }}</span> / <span id="present">{{ present }}</span> ont répondu</p>
   {% endif %}
   {# Page non projetée (SES-04), à toute phase. #}
   <a class="band-link" href="{% url 'participants' session.code %}">Gérer les connectés</a>
@@ -17,6 +19,12 @@
       {% csrf_token %}
       <input type="hidden" name="slot" value="{{ state.position.slot.index }}">
       <button type="submit" class="on-band">+10 s</button>
+    </form>
+    {# TPS-02 : board.js demande confirmation (« Confirmer » pendant 3 s) avant l'envoi. #}
+    <form method="post" action="{% url 'session-end-slot' session.code %}" data-confirm="Confirmer">
+      {% csrf_token %}
+      <input type="hidden" name="slot" value="{{ state.position.slot.index }}">
+      <button type="submit" class="on-band">Terminer le créneau</button>
     </form>
   {% endif %}
 {% endblock %}
@@ -37,7 +45,7 @@
         <p class="join-code">{% include "live/code.html" with code=session.code %}</p>
         <p class="meta">
           {{ session.quiz_title }} ({{ session.n_questions }} question{{ session.n_questions|pluralize }})
-          · Groupe {{ session.group_name }}
+          · Groupe {{ session.group_label }}
           · {{ session.shown }} question{{ session.shown|pluralize }} à la fois
           · {{ session.seconds }} s par question
         </p>

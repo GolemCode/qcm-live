@@ -23,10 +23,19 @@ def open_sessions(page: Page) -> None:
 
 def fill_launch(page: Page, quiz: str, group: str, shown: int | str, seconds: int | str) -> None:
     page.get_by_label("QCM").select_option(label=quiz)
-    page.get_by_label("Groupe").select_option(label=group)
+    select_group(page, group)
     page.get_by_label("Questions affichées en même temps").fill(str(shown))
     page.get_by_label("Temps par question (secondes)").fill(str(seconds))
     page.get_by_role("button", name="Lancer").click()
+
+
+def select_group(page: Page, group: str) -> None:
+    """Choisit le groupe au lancement : `group` est son libellé entier (« ITI4 — 2025-2026 »)
+    ou, s'il n'y a qu'un groupe de ce nom, son seul nom (GRP-04)."""
+    select = page.get_by_label("Groupe", exact=True)
+    option = select.locator("option").filter(has_text=re.compile(f"^{re.escape(group)}( — |$)"))
+    expect(option).to_have_count(1)
+    select.select_option(value=option.get_attribute("value"))
 
 
 def leave_board(page: Page) -> None:
@@ -178,6 +187,35 @@ def add_time_button(page: Page) -> Locator:
 
 def add_time(page: Page) -> None:
     add_time_button(page).click()
+
+
+def end_slot_button(page: Page) -> Locator:
+    """Bouton du tableau qui termine le créneau en cours, en deux clics (TPS-02)."""
+    return page.get_by_role("button", name="Terminer le créneau")
+
+
+def confirm_button(page: Page) -> Locator:
+    """Libellé du même bouton après le premier clic, pendant 3 secondes (TPS-02)."""
+    return page.get_by_role("button", name="Confirmer")
+
+
+GUARD_MS = 500  # board.js : un second clic plus rapproché ne confirme pas (double-clic)
+
+
+def confirm(page: Page) -> None:
+    """Second clic, délibéré : après la demi-seconde où il serait pris pour un double-clic."""
+    page.wait_for_timeout(GUARD_MS + 200)
+    confirm_button(page).click()
+
+
+def end_slot(page: Page) -> None:
+    end_slot_button(page).click()
+    confirm(page)
+
+
+def answered(page: Page) -> Locator:
+    """Décompte « k / n ont répondu » du bandeau, pendant le déroulement (DER-04)."""
+    return page.get_by_role("banner").get_by_text(re.compile(r"ont répondu$"))
 
 
 def clear_button(phone: Page) -> Locator:

@@ -5,7 +5,7 @@
     <h1>Résultats</h1>
     {% if over %}<a class="button" href="{% url 'results-csv' session.code %}" download>Télécharger le CSV</a>{% endif %}
   </div>
-  <p class="muted">Session {{ session.code }} · {{ session.quiz_title }} · Groupe {{ session.group_name }}</p>
+  <p class="muted">Session {{ session.code }} · {{ session.quiz_title }} · Groupe {{ session.group_label }}</p>
   {% if over %}
     <details class="grades">
       <summary>Afficher les notes</summary>

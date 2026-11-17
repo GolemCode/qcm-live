@@ -20,7 +20,7 @@ from tests.e2e.live_ui import (
     open_sessions,
     timer,
 )
-from tests.factories import make_group, make_question, make_quiz
+from tests.factories import current_year, make_group, make_question, make_quiz
 
 TD1 = [("00123", "DURAND Élise"), ("42", "MARTIN Léo"), ("7", "Ng Anh")]
 LIVE_MS = 2_000  # « en direct » : 2 s au plus (SPEC SES-02)
@@ -44,7 +44,10 @@ def test_launch_session(teacher_page: Page, quiz_and_group):
     expect(page.get_by_text("Aucune session")).to_be_visible()
     page.get_by_role("link", name="Lancer une session").click()
     expect(page.get_by_label("QCM").locator("option")).to_have_text(["Contrôle 1"])
-    expect(page.get_by_label("Groupe").locator("option")).to_have_text(["TD1", "TD2"])
+    year = current_year()  # le groupe se choisit avec son année (GRP-04)
+    expect(page.get_by_label("Groupe").locator("option")).to_have_text(
+        [f"TD1 — {year}", f"TD2 — {year}"]
+    )
     expect(page.get_by_label("Questions affichées en même temps")).to_have_value("4")
     expect(page.get_by_label("Temps par question (secondes)")).to_have_value("30")
 

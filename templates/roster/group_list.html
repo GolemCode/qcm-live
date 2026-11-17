@@ -7,11 +7,12 @@
   </div>
   {% if groups %}
     <table class="grid">
-      <thead><tr><th scope="col">Groupe</th><th scope="col">Étudiants</th></tr></thead>
+      <thead><tr><th scope="col">Groupe</th><th scope="col">Année</th><th scope="col">Étudiants</th></tr></thead>
       <tbody>
         {% for group in groups %}
           <tr>
             <td><a href="{% url 'group-detail' group.pk %}">{{ group.name }}</a></td>
+            <td>{{ group.year }}</td>
             <td>{{ group.n_students }} étudiant{{ group.n_students|pluralize }}</td>
           </tr>
         {% endfor %}

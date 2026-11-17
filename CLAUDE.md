@@ -16,7 +16,7 @@ Relu à chaque appel : règles et pièges seulement, une ligne chacun. L'origine
 - `make verify` : tout, comme la CI ; il enregistre son résultat dans `.verify-result.json`.
 - `make accept INC=n` : exigences de l'incrément n ; reprend le résultat du dernier `make verify` vert si aucun fichier n'a changé depuis (REX exclu), sinon relance les tests.
 - Un test : `uv run pytest tests/e2e/test_x.py -k nom` (`UV_ENV_FILE=.env.test`, sans secret, fourni par `.claude/settings.json`).
-- Consommation d'une période : `uv run --no-env-file python scripts/usage.py <début> <fin>` (tokens, appels, temps actif, par agent).
+- Consommation d'une période : `uv run --no-env-file python scripts/usage.py <début> <fin>` (tokens, appels, temps actif, par agent, compactions).
 - Enseignant : `install.sh` / `install.ps1`, commande `qcm-live` (`config/launcher.py`), guide `GUIDE.md` ; essai : `QCM_LIVE_ARCHIVE=<tar.gz> HOME=<dossier jetable> sh install.sh`.
 
 ## Règles non négociables
@@ -71,3 +71,16 @@ Relu à chaque appel : règles et pièges seulement, une ligne chacun. L'origine
 - Tests de refus aux limites : le cas refusé et le cas tout juste accepté ; relire défauts et valeurs vides après enregistrement.
 - `TeacherForm` : `label_suffix` vide ; un champ de tableau sans `<label>` passe par `table_field()`.
 - Ne pas lire un gros fichier en entier quand un `grep -n` ou une plage suffit ; garder courtes les sorties de tests (`-q`, fin du journal).
+
+# Compact instructions
+Le résumé garde :
+- le plan de l'incrément en cours, l'étape atteinte du skill `increment`, ce qui reste à faire, et l'heure de départ (mesure de consommation) ;
+- l'état du dépôt : branche, derniers commits (empreinte et objet), fichiers modifiés non commités, PR et état de la CI, processus d'arrière-plan en cours (pid, journal) ;
+- les décisions du commanditaire, mot pour mot, les questions qui lui sont posées et en attente, et les choix de conception avec leur raison ;
+- les réserves (audit, revues, contre-épreuves), ouvertes ou corrigées, les incidents à porter au REX, le modèle et le niveau des revues ;
+- le nombre de résumés déjà faits dans la session.
+
+Le résumé peut laisser :
+- le contenu des fichiers qu'on peut relire : n'en garder que le chemin et les lignes utiles ;
+- les sorties des tests déjà passés : n'en garder que le verdict, et pour un échec non résolu, son message ;
+- les diffs déjà commités et le texte des rapports de revue déjà traités : n'en garder que les décisions.

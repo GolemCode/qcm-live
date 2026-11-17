@@ -13,6 +13,7 @@ from bank.amc_txt import MAX_BYTES, AmcSyntaxError
 from bank.forms import AmcUploadForm, QuestionForm, QuizCopyForm, QuizForm, VersionScopeForm
 from bank.importer import Preview, preview, save_import
 from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz
+from live.history import posed_to
 
 
 @login_required
@@ -111,6 +112,15 @@ def quiz_copy(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 def quiz_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     quiz = get_object_or_404(Quiz, pk=pk) if pk is not None else Quiz()
+    if request.method == "POST" and "mark_posed" in request.POST:
+        # CMP-03 : réafficher la saisie, avec les questions déjà posées au groupe choisi.
+        form = QuizForm.as_typed(request.POST, quiz)
+        group = form.marked_group()
+        context = {"form": form, "quiz": quiz, "marked": group is not None}
+        if group is not None:
+            form.posed = posed_to(group, form.bank)
+            context["n_students"] = group.students.count()
+        return render(request, "bank/quiz_form.html", context)
     form = QuizForm(request.POST or None, instance=quiz)
     if request.method == "POST" and form.is_valid():
         quiz = form.save()

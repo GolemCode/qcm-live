@@ -4,6 +4,8 @@
   <h1>{% if quiz.pk %}Modifier le QCM{% else %}Nouveau QCM{% endif %}</h1>
   <form method="post" class="form wide" novalidate>
     {% csrf_token %}
+    {# Entrée dans le titre : « Enregistrer », pas « Marquer », premier bouton visible du formulaire. #}
+    <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Enregistrer</button>
     {% include "form_errors.html" %}
     {{ form.title.label_tag }}
     {{ form.title }}
@@ -12,11 +14,17 @@
       {% with rows=form.question_rows %}
         {% if rows %}
           <p class="muted">Cochez les questions du QCM. Celles de son fichier AMC suivent l'ordre du fichier ; les autres viennent à la suite, les nouvelles à la fin.</p>
+          {# CMP-03 : marquer réaffiche la saisie, sans l'enregistrer. #}
+          <p class="mark-posed">
+            {{ form.mark.label_tag }}
+            {{ form.mark }}
+            <button type="submit" name="mark_posed" value="1" class="secondary">Marquer</button>
+          </p>
           <table class="grid">
-            <thead><tr><th scope="col">Inclure</th><th scope="col">Question</th><th scope="col">Type</th></tr></thead>
+            <thead><tr><th scope="col">Inclure</th><th scope="col">Question</th><th scope="col">Type</th>{% if marked %}<th scope="col">Déjà posée</th>{% endif %}</tr></thead>
             <tbody>
-              {% for question, field in rows %}
-                <tr><td class="center">{{ field }}</td><td>{{ question.text }}</td><td>{{ question.get_kind_display }}</td></tr>
+              {% for question, field, n in rows %}
+                <tr><td class="center">{{ field }}</td><td>{{ question.text }}</td><td>{{ question.get_kind_display }}</td>{% if marked %}<td>{% if n %}posée à {{ n }} étudiant{{ n|pluralize }} sur {{ n_students }}{% endif %}</td>{% endif %}</tr>
               {% endfor %}
             </tbody>
           </table>

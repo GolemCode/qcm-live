@@ -18,6 +18,7 @@ from tests.e2e.live_setup import (
 )
 from tests.e2e.live_ui import (
     LIVE_MS,
+    answered,
     background,
     card,
     choose,
@@ -272,6 +273,10 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
     allowed = {"QCM Live", ": sessions", "Session", code[:3], code[3:], "Gérer les connectés"}
     allowed.add("Questions 1\N{EN DASH}2 sur 2")  # place du groupe (VIS-02)
     allowed.add("+10 s")  # bouton de l'enseignant (TPS-01)
+    allowed.add("Terminer le créneau")  # bouton de l'enseignant (TPS-02, I16)
+    # DER-04 (I16) : seule exception, le nombre de connectés qui ont répondu, ici 2 sur 2.
+    expect(answered(page)).to_have_text("2 / 2 ont répondu")
+    allowed |= {"/", "ont répondu"}
     allowed |= {"1", "2"}  # numéros des couleurs
     allowed.add("Plusieurs réponses possibles")  # mention des questions multiples (AFF-02)
     allowed |= set(list(QUESTIONS)[:2])
