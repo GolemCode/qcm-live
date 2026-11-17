@@ -88,7 +88,7 @@ def quiz_detail(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 def quiz_remove(request: HttpRequest, pk: int, question: int) -> HttpResponse:
     """Retire une question de ce seul QCM ; elle reste dans la banque (CMP-05)."""
-    quiz = get_object_or_404(Quiz, pk=pk)
+    quiz = get_object_or_404(Quiz, pk=pk, questions=question)
     if request.method == "POST":
         kept = quiz.ordered_questions().exclude(pk=question).values_list("pk", flat=True)
         quiz.set_questions(list(kept))

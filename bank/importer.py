@@ -120,8 +120,9 @@ def preview(data: bytes, filename: str) -> Preview:
     known = recognise(parsed.questions, digest, target)
     identical = find_existing(parsed.questions)
     matches: list[Question | None] = []
+    taken = set(known.values())  # une question reconnue reste à son rang
     for rank, same in enumerate(identical, start=1):
-        match = known.get(rank) or same
+        match = known.get(rank) or (None if same in taken else same)
         matches.append(None if match in matches else match)  # jamais deux fois la même
     present: tuple[bool, ...] = ()
     if target is not None:
