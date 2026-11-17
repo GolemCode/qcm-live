@@ -134,6 +134,22 @@ def test_extract_refuses_what_is_not_a_backup(tmp_path, content, reason):
     assert reason in str(refused.value)
 
 
+def test_extract_refuses_a_readable_but_damaged_base(tmp_path):
+    damaged = tmp_path / "abimee.sqlite3"
+    with sqlite3.connect(damaged) as db:
+        db.execute("CREATE TABLE t (a TEXT)")
+        db.execute("CREATE INDEX t_a ON t (a)")
+        db.executemany("INSERT INTO t VALUES (?)", [(str(i) * 20,) for i in range(1000)])
+        db.commit()
+        db.execute("PRAGMA writable_schema = ON")
+        db.execute("DELETE FROM sqlite_master WHERE name = 't_a'")
+    db.close()
+    (tmp_path / "work").mkdir()
+    archive = archive_with(tmp_path, {"db.sqlite3": damaged.read_bytes()})
+    with pytest.raises(backup.BackupError, match="base abîmée"):
+        backup.extract(archive, tmp_path / "work", KNOWN)
+
+
 def test_extract_refuses_a_sqlite_base_that_is_not_qcm_live(tmp_path):
     with sqlite3.connect(tmp_path / "autre.sqlite3") as db:
         db.execute("CREATE TABLE notes (t TEXT)")

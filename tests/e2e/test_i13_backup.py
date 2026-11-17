@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 from django.conf import global_settings
+from django.core.management import call_command
 from playwright.sync_api import Page, expect
 
 from roster.models import StudentGroup
@@ -121,6 +122,32 @@ def test_first_launch_creates_the_backup_folder(home, env, tmp_path):
     assert backups(home).stat().st_mode & 0o777 == 0o700  # données personnelles
 
 
+def applied(database: Path) -> set[tuple[str, str]]:
+    with sqlite3.connect(database) as db:
+        found = set(db.execute("SELECT app, name FROM django_migrations").fetchall())
+    db.close()
+    return found
+
+
+@pytest.mark.spec("SAV-01")
+def test_the_launch_backup_is_made_before_the_database_is_migrated(home, env, tmp_path):
+    """Une migration ratée se rattrape par la sauvegarde du lancement : elle doit donc précéder
+    les migrations. La base est ramenée avant la dernière migration de `bank`, comme une base
+    d'avant la mise à jour ; le lancement l'applique."""
+    latest = ("bank", "0003_pending_import")
+    call_command("migrate", "bank", "0002", verbosity=0)
+    try:
+        with launched(env):
+            pass
+    finally:
+        call_command("migrate", "bank", verbosity=0)  # pour les tests suivants, quoi qu'il arrive
+    (newest,) = archives(home)
+    with zipfile.ZipFile(backups(home) / newest) as content:
+        content.extract("db.sqlite3", tmp_path / "lue")
+    assert latest not in applied(tmp_path / "lue" / "db.sqlite3")
+    assert latest in applied(Path(env["DJANGO_DB_PATH"]))
+
+
 @pytest.mark.spec("SAV-02")
 def test_save_then_restore_round_trip(home, env, teacher, page: Page, tmp_path):
     with launched(env) as server:
@@ -174,12 +201,16 @@ def test_restore_by_path_asks_for_confirmation(home, env, tmp_path):
 
 
 @pytest.mark.spec("SAV-02")
-@pytest.mark.parametrize("case", ["autre zip", "base abîmée", "pas un zip"])
+@pytest.mark.parametrize("case", ["autre zip", "base illisible", "base abîmée", "pas un zip"])
 def test_restore_refuses_what_is_not_a_backup(home, env, tmp_path, case):
     make_group("TD1", [("00123", "DURAND Élise")])
     archive = tmp_path / "qcm-live-2026-01-01-10h00m00s.zip"
     if case == "pas un zip":
         archive.write_bytes(b"ceci n'est pas une archive")
+    elif case == "base abîmée":
+        damaged_database(tmp_path / "abimee.sqlite3")
+        with zipfile.ZipFile(archive, "w") as content:
+            content.write(tmp_path / "abimee.sqlite3", "db.sqlite3")
     else:
         with zipfile.ZipFile(archive, "w") as content:
             if case == "autre zip":
@@ -190,6 +221,8 @@ def test_restore_refuses_what_is_not_a_backup(home, env, tmp_path, case):
     refused = run([*LAUNCHER, "restaurer", str(archive)], env=env, answers="o\n")
     assert refused.returncode != 0
     assert "n'est pas une sauvegarde de QCM Live" in refused.stdout + refused.stderr
+    if case.startswith("base"):
+        assert f"({case})" in refused.stdout + refused.stderr  # le motif, que l'on corrige
     assert "Rien n'a été changé" in refused.stdout + refused.stderr
     assert _groups() == ["TD1"]
 
@@ -217,6 +250,23 @@ def test_restore_refuses_a_backup_from_a_newer_version(home, env, tmp_path):
     assert refused.returncode != 0
     assert "version plus récente" in refused.stdout + refused.stderr
     assert _groups() == []
+
+
+def damaged_database(path: Path) -> None:
+    """Base lisible mais abîmée : la ligne d'un index est retirée du schéma, ses pages restent
+    orphelines. `PRAGMA integrity_check` la refuse ; une requête ordinaire la lit encore."""
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE t (a TEXT)")
+        db.execute("CREATE INDEX t_a ON t (a)")
+        db.executemany("INSERT INTO t VALUES (?)", [(str(i) * 20,) for i in range(1000)])
+        db.commit()
+        db.execute("PRAGMA writable_schema = ON")
+        db.execute("DELETE FROM sqlite_master WHERE name = 't_a'")
+    db.close()
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT count(*) FROM t").fetchone() == (1000,)
+        assert db.execute("PRAGMA integrity_check").fetchone() != ("ok",)
+    db.close()
 
 
 def _groups() -> list[str]:

@@ -3,11 +3,16 @@ d'un téléphone, accès."""
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+
 import pytest
 from django.core.cache import cache
 from django.urls import reverse
+from django.utils.html import escape
 
-from config import join
+from config import firewall, join
 
 pytestmark = pytest.mark.django_db
 
@@ -114,3 +119,60 @@ def test_trial_token(client, teacher):
 def test_unknown_trial_token(client, teacher):
     assert client.get(reverse("trial", args=["inconnu"])).status_code == 404
     assert teacher.get(reverse("trial-state", args=["inconnu"])).status_code == 404
+
+
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_the_firewall_is_never_opened_only_probed(teacher, settings, monkeypatch, platform):
+    """CLA-03 : détection, conseils et page « Réseau » ne lancent que les sondes `PROBES`.
+    `subprocess.Popen` porte `run`, `call`, `check_output` et `os.popen` ; `os.system` et
+    `os.posix_spawn` sont interceptés à part. Toute autre commande fait échouer le test."""
+    settings.LAN_ADDRESSES = LAN
+    settings.JOIN_URL = "http://192.168.1.20:8000/"
+    launched: list[list[str]] = []
+
+    class FakePopen:
+        returncode = 0
+
+        def __init__(self, args, **kwargs):
+            launched.append(list(args))
+            self.args = args
+            self.text = kwargs.get("text") or kwargs.get("encoding")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def communicate(self, input=None, timeout=None):  # signature de Popen
+            out = '{"NetworkCategory":0}'
+            return (out, "") if self.text else (out.encode(), b"")
+
+        def poll(self):
+            return 0
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):
+            pass
+
+    def forbidden(*args, **kwargs):
+        pytest.fail(f"commande lancée hors des sondes : {args}")
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    for name in ("system", "posix_spawn", "posix_spawnp"):
+        monkeypatch.setattr(os, name, forbidden, raising=False)
+    monkeypatch.setattr(firewall, "ufw_enabled", lambda: True)
+    monkeypatch.setattr(sys, "platform", platform)
+
+    found = firewall.detect()
+    assert found == (["ufw", "firewalld"] if platform == "linux" else ["windows-public"])
+    advices = firewall.advices(8000)  # port de JOIN_URL, celui que la page affiche
+    response = teacher.get(reverse("network"))
+    assert response.status_code == 200
+    for advice in advices:
+        for command in advice.commands:
+            assert escape(command) in response.text  # affichée, à copier
+    assert launched, "aucune sonde lancée : le test ne vérifie rien"
+    assert all(command in firewall.PROBES for command in launched), launched

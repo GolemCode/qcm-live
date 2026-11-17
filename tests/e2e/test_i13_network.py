@@ -144,6 +144,22 @@ def test_terminal_lists_every_address_of_the_pc_with_its_card(transactional_db):
         assert "Changer d'adresse" in text  # la façon d'en changer
 
 
+@pytest.mark.spec("CLA-02")
+def test_every_address_of_the_pc_is_served_even_when_another_is_projected(transactional_db):
+    """Sur un PC à une seule carte, l'adresse projetée d'office est aussi la seule adresse du
+    PC : elle serait acceptée à ce titre. Avec une adresse imposée au lancement, chaque adresse
+    réelle n'est acceptée que parce que c'est une adresse du PC (sinon : 400 aux téléphones
+    quand l'enseignant la choisit)."""
+    addresses = up_addresses()
+    assert addresses, "aucune carte réseau active : le mode classe ne peut pas se tester ici"
+    with class_mode("ADRESSE=pc-prof.local") as server:
+        port = int(server.local_url.rsplit(":", 1)[1])
+        assert "//pc-prof.local:" in server.phone_url, server.output
+        for address in addresses:
+            assert status_as(port, address) == 200, address
+        assert status_as(port, "autre-machine.local") == 400  # un hôte inconnu reste refusé
+
+
 # --- CLA-03 : pare-feu signalé, jamais ouvert ---------------------------------------------------
 
 FIREWALLS = {
