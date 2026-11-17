@@ -20,17 +20,26 @@
       {% if participant %}<p id="transmission" class="transmission" hidden></p>{% endif %}
     </section>
   {% elif not participant %}
-    <form method="post" class="form" novalidate>
-      {% csrf_token %}
-      {% include "form_errors.html" %}
-      {{ form.number.label_tag }}
-      {{ form.number }}
-      <button type="submit">Valider</button>
-    </form>
+    {% comment %}ETU-13 : l'étudiant choisit son nom. La recherche n'apparaît qu'avec le script (static/js/identify.js) ; sans lui, la liste entière reste utilisable.{% endcomment %}
+    <section class="pick">
+      <h2 class="pick-title">Choisissez votre nom</h2>
+      <p class="search" hidden><label for="search">Rechercher votre nom</label> <input type="search" id="search" autocomplete="off" spellcheck="false"></p>
+      <ul class="roster" aria-label="Liste du groupe">
+        {% for list_number, name, taken in students %}
+          {% if taken %}
+            <li class="taken"><span class="list-number">{{ list_number }}</span> <span class="list-name">{{ name }}</span> <span class="taken-note">déjà connecté</span></li>
+          {% else %}
+            <li><a href="{% url 'student-confirm' session.code list_number %}"><span class="list-number">{{ list_number }}</span> <span class="list-name">{{ name }}</span></a></li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+      <p class="no-match" hidden>Aucun nom ne correspond.</p>
+    </section>
+    <script src="{% static 'js/identify.js' %}" defer></script>
   {% elif state.phase == "waiting" %}
     <section class="whoami">
       <p class="identity"><span class="label">Vous êtes</span> <span class="name">{{ participant.name }}</span></p>
-      <p class="number">N°&nbsp;{{ participant.number }}</p>
+      <p class="number">N°&nbsp;{{ participant.list_number }}</p>
       <p class="waiting-note">En attente du démarrage</p>
     </section>
   {% else %}
@@ -63,6 +72,6 @@
   {% endif %}
 {% endblock %}
 {% block footer %}
-  {% comment %}En pied, le nom et le numéro (VIS-04) : la confirmation d'identité d'un étudiant arrivé après le démarrage (ETU-01, ETU-08).{% endcomment %}
-  {% if color %}<footer class="phone-foot"><p>Vous êtes <span class="who">{{ participant.name }}</span> · N°&nbsp;{{ participant.number }}</p></footer>{% endif %}
+  {% comment %}En pied, le nom et le n° de liste (VIS-04) : la confirmation d'identité d'un étudiant arrivé après le démarrage (ETU-01, ETU-08).{% endcomment %}
+  {% if color %}<footer class="phone-foot"><p>Vous êtes <span class="who">{{ participant.name }}</span> · N°&nbsp;{{ participant.list_number }}</p></footer>{% endif %}
 {% endblock %}

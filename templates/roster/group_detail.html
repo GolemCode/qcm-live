@@ -8,10 +8,12 @@
   {% with students=group.students.all %}
   <p class="muted">{{ students|length }} étudiant{{ students|length|pluralize }}</p>
   <table class="grid" aria-label="Étudiants du groupe">
-    <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th></tr></thead>
+    <thead>
+      <tr><th scope="col">N°</th><th scope="col">Numéro étudiant</th><th scope="col">Nom</th></tr>
+    </thead>
     <tbody>
       {% for student in students %}
-        <tr><td>{{ student.number }}</td><td>{{ student.name }}</td></tr>
+        <tr><td>{{ student.list_number }}</td><td>{{ student.student_number }}</td><td>{{ student.name }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

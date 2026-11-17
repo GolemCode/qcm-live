@@ -9,6 +9,7 @@ from live import views as live_views
 urlpatterns = [
     path("", live_views.home, name="home"),
     path("s/<str:code>/", live_views.student_session, name="student-session"),
+    path("s/<str:code>/moi/<int:list_number>/", live_views.student_confirm, name="student-confirm"),
     path("s/<str:code>/etat/", live_views.student_state, name="student-state"),
     path("s/<str:code>/reponse/", live_views.student_answer, name="student-answer"),
     path("s/<str:code>/reponses/", live_views.student_answers, name="student-answers"),

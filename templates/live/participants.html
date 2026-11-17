@@ -5,19 +5,20 @@
     <h1>Connectés</h1>
     <a href="{% url 'board' session.code %}">Retour au tableau</a>
   </div>
-  <p class="muted">Session {{ session.code }} · page à ne pas projeter : elle montre les numéros.</p>
+  <p class="muted">Session {{ session.code }} · page à ne pas projeter : elle montre les numéros étudiants.</p>
   {% if can_release %}
-    <p>Un numéro pris par erreur ou par un autre étudiant ? Libérez-le : l'appareil qui l'occupe perd son identité et le vrai étudiant peut le saisir.</p>
+    <p>Un nom pris par erreur ou par un autre étudiant ? Libérez-le : l'appareil qui l'occupe perd son identité et le vrai étudiant peut de nouveau le choisir.</p>
   {% else %}
     <p>{{ release_closed }}</p>
   {% endif %}
   {% if participants %}
     <table class="grid">
-      <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th>{% if can_release %}<th scope="col"></th>{% endif %}</tr></thead>
+      <thead><tr><th scope="col">N°</th><th scope="col">Numéro étudiant</th><th scope="col">Nom</th>{% if can_release %}<th scope="col"></th>{% endif %}</tr></thead>
       <tbody>
         {% for participant in participants %}
           <tr>
-            <td>{{ participant.number }}</td>
+            <td>{{ participant.list_number }}</td>
+            <td>{{ participant.student_number }}</td>
             <td>{{ participant.name }}</td>
             {% if can_release %}
               <td>

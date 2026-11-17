@@ -10,11 +10,12 @@
     <details class="grades">
       <summary>Afficher les notes</summary>
       <table class="grid" aria-label="Résultats">
-        <thead><tr><th scope="col">Numéro</th><th scope="col">Nom</th><th scope="col" class="num">Note</th><th scope="col" class="num">Note maximale</th><th scope="col" class="num">Note /20</th></tr></thead>
+        <thead><tr><th scope="col">N°</th><th scope="col">Numéro étudiant</th><th scope="col">Nom</th><th scope="col" class="num">Note</th><th scope="col" class="num">Note maximale</th><th scope="col" class="num">Note /20</th></tr></thead>
         <tbody>
           {% for result, out_of_20 in rows %}
             <tr>
-              <td>{{ result.number }}</td>
+              <td>{{ result.list_number }}</td>
+              <td>{{ result.student_number }}</td>
               <td>{{ result.name }}</td>
               <td class="num{% if result.marks is None %} muted{% endif %}">{{ result.total_text }}</td>
               <td class="num">{{ maximum }}</td>

@@ -33,7 +33,8 @@ class FrozenQuiz(TypedDict):
 
 
 class FrozenStudent(TypedDict):
-    number: str
+    list_number: int  # n° de liste : l'identifiant de l'étudiant dans la session (I14)
+    student_number: str  # vide s'il manque ; jamais montré sur un téléphone
     name: str
 
 
@@ -65,5 +66,8 @@ def freeze_quiz(quiz: Quiz) -> FrozenQuiz:
 
 
 def freeze_group(group: StudentGroup) -> list[FrozenStudent]:
-    """Étudiants dans l'ordre du fichier importé."""
-    return [{"number": s.number, "name": s.name} for s in group.students.all()]
+    """Étudiants par n° de liste."""
+    return [
+        {"list_number": s.list_number, "student_number": s.student_number, "name": s.name}
+        for s in group.students.all()
+    ]

@@ -30,7 +30,12 @@ class GroupImportForm(TeacherForm):
         group = super().save(commit=commit)
         if commit:
             Student.objects.bulk_create(
-                Student(group=group, number=entry.number, name=entry.name, position=position)
-                for position, entry in enumerate(self.cleaned_data["file"].entries)
+                Student(
+                    group=group,
+                    list_number=entry.list_number,
+                    student_number=entry.student_number,
+                    name=entry.name,
+                )
+                for entry in self.cleaned_data["file"].entries
             )
         return group

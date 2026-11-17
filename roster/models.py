@@ -1,4 +1,4 @@
-"""Groupes d'étudiants importés depuis un CSV (numéro, nom)."""
+"""Groupes d'étudiants importés depuis un CSV (n°, numéro étudiant, nom : GRP-05)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from django.db import models
 
-from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
+from roster.csv_import import MAX_NAME_LENGTH, MAX_STUDENT_NUMBER_LENGTH
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
@@ -29,18 +29,25 @@ class StudentGroup(models.Model):
 
 
 class Student(models.Model):
-    """Un étudiant d'un groupe ; `position` garde l'ordre du fichier importé."""
+    """Un étudiant d'un groupe, désigné par son n° de liste (GRP-05)."""
 
     group = models.ForeignKey(StudentGroup, on_delete=models.CASCADE, related_name="students")
-    number = models.CharField("numéro", max_length=MAX_NUMBER_LENGTH)
+    list_number = models.PositiveSmallIntegerField("n°")
+    student_number = models.CharField(
+        "numéro étudiant", max_length=MAX_STUDENT_NUMBER_LENGTH, blank=True
+    )
     name = models.CharField("nom", max_length=MAX_NAME_LENGTH)
-    position = models.PositiveIntegerField()
 
     class Meta:
-        ordering = ["position"]
+        ordering = ["list_number"]
         constraints = [
-            models.UniqueConstraint(fields=["group", "number"], name="unique_student_number"),
+            models.UniqueConstraint(fields=["group", "list_number"], name="unique_list_number"),
+            models.UniqueConstraint(
+                fields=["group", "student_number"],
+                condition=~models.Q(student_number=""),
+                name="unique_student_number",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.number} {self.name}"
+        return f"{self.list_number} {self.name}"

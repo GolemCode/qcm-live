@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Session {{ session.code }} — QCM Live{% endblock %}
+{% block body_class %}phone{% endblock %}
+{% block brand %}<span class="brand">{% include "logo.html" %}QCM Live</span>{% endblock %}
+{% block band %}<h1 class="band-title">Session {% include "live/code.html" with code=session.code %}</h1>{% endblock %}
+{% block content %}
+  {% comment %}ETU-13 : le n° de liste et le nom, jamais le numéro étudiant.{% endcomment %}
+  <section class="whoami confirm">
+    <h2 class="confirm-question">Vous êtes {{ student.name }} ?</h2>
+    <p class="number">N°&nbsp;{{ student.list_number }}</p>
+    <form method="post" class="confirm-actions">
+      {% csrf_token %}
+      <button type="submit">Oui, c'est moi</button>
+      <a class="button secondary" href="{% url 'student-session' session.code %}">Non, revenir à la liste</a>
+    </form>
+  </section>
+{% endblock %}

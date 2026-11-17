@@ -35,7 +35,8 @@ class Mark:
 
 @dataclass(frozen=True)
 class StudentResult:
-    number: str
+    list_number: int
+    student_number: str
     name: str
     marks: list[Mark] | None  # une par question, dans l'ordre du QCM ; None : absent
 
@@ -90,17 +91,18 @@ def max_total(quiz: FrozenQuiz) -> Decimal:
 
 
 def results(
-    quiz: FrozenQuiz, students: Sequence[FrozenStudent], present: Mapping[str, Answers]
+    quiz: FrozenQuiz, students: Sequence[FrozenStudent], present: Mapping[int, Answers]
 ) -> list[StudentResult]:
-    """Un résultat par étudiant du groupe, dans l'ordre du fichier importé. `present` : les
-    réponses de chaque étudiant connecté, par numéro."""
+    """Un résultat par étudiant du groupe, par n° de liste (RES-05). `present` : les réponses
+    de chaque étudiant connecté, par n°."""
     return [
         StudentResult(
-            s["number"],
+            s["list_number"],
+            s["student_number"],
             s["name"],
-            grade(quiz, present[s["number"]]) if s["number"] in present else None,
+            grade(quiz, present[s["list_number"]]) if s["list_number"] in present else None,
         )
-        for s in students
+        for s in sorted(students, key=lambda s: s["list_number"])
     ]
 
 
@@ -138,12 +140,13 @@ def csv_rows(quiz: FrozenQuiz, rows: Sequence[StudentResult]) -> list[list[str]]
     n = len(quiz["questions"])
     top = max_total(quiz)
     maximum = decimal_fr(top)
-    header = ["numéro", "nom", "note", "note max", "note /20"]
+    header = ["n°", "numéro étudiant", "nom", "note", "note max", "note /20"]
     for rank in range(1, n + 1):  # référence d'une question : son rang dans le QCM figé
         header += [f"Q{rank} réponse", f"Q{rank} points"]
     lines = [header]
     for row in rows:
-        identity = [neutralised(row.number), neutralised(row.name)]
+        # Numéro étudiant et nom : texte libre venu du fichier importé.
+        identity = [str(row.list_number), neutralised(row.student_number), neutralised(row.name)]
         cells = [*identity, row.total_text, maximum, grade_20_text(row.total, top)]
         if row.marks is None:  # absent
             lines.append(cells + [""] * (2 * n))
