@@ -9,6 +9,7 @@ from tests.e2e.amc_ui import expect_recap, upload_amc
 from tests.e2e.bank_ui import (
     open_bank,
     open_quiz,
+    open_quizzes,
     question_card,
     quiz_question_items,
 )
@@ -66,3 +67,29 @@ def test_question_posed_in_a_session_is_hidden_not_deleted(teacher_page: Page):
     upload_amc(page, f"* {CAPITAL}\n+ Paris\n- Lyon\n")
     expect_recap(page)
     expect(page.get_by_role("main")).to_contain_text("dont 0 déjà dans la banque")
+
+
+TITLES = ["Zoologie", "algèbre", "Écologie", "Biologie"]  # dans l'ordre de création
+BY_TITLE = ["algèbre", "Biologie", "Écologie", "Zoologie"]  # sans tenir compte des accents
+
+
+@pytest.mark.spec("BAN-03")
+def test_quiz_list_is_sorted_by_title(teacher_page: Page):
+    page = teacher_page
+    question = make_question("Q")
+    for title in TITLES:
+        make_quiz(title, [question])
+    open_quizzes(page)
+    expect(page.get_by_role("table").get_by_role("link")).to_have_text(BY_TITLE)
+
+
+@pytest.mark.spec("SES-01")
+def test_launch_lists_quizzes_by_title(teacher_page: Page):
+    page = teacher_page
+    question = make_question("Q")
+    for title in TITLES:
+        make_quiz(title, [question])
+    make_group("ITI4", STUDENTS, "2025-2026")
+    open_sessions(page)
+    page.get_by_role("link", name="Lancer une session").click()
+    expect(page.get_by_label("QCM").locator("option")).to_have_text(BY_TITLE)
