@@ -27,5 +27,6 @@ def import_group(page: Page, name: str, content: bytes) -> None:
 
 
 def student_rows(page: Page) -> Locator:
-    """Lignes (numéro, nom) du tableau des étudiants du groupe affiché, sans l'en-tête."""
+    """Lignes (n°, numéro étudiant, nom) du tableau des étudiants du groupe affiché, sans
+    l'en-tête."""
     return page.get_by_role("table", name="Étudiants du groupe").locator("tbody tr")

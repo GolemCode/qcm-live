@@ -54,18 +54,19 @@ def test_board_qr_code_opens_the_session_on_a_phone(teacher_page: Page, live_ser
     expect(hint).to_contain_text(f"{live_server.url}/")
     expect(hint).to_contain_text(session.code)
 
-    # Le téléphone arrive directement sur l'écran de la session : il n'y a plus que le numéro.
+    # Le téléphone arrive directement sur l'écran de la session : il n'y a plus qu'à choisir
+    # son nom (I14).
     phone = new_phone()
     phone.goto(scanned)
     expect(phone.get_by_label("Code de session")).to_have_count(0)
-    identify(phone, "00123")
+    identify(phone, "DURAND Élise")
     expect(identity(phone)).to_have_text("Vous êtes DURAND Élise")
     expect(connected_names(page)).to_have_text(["DURAND Élise"], timeout=LIVE_MS)
 
     # Un téléphone déjà identifié qui relit le QR code retrouve son écran, sans nouvelle saisie.
     phone.goto(scanned)
     expect(identity(phone)).to_have_text("Vous êtes DURAND Élise")
-    expect(phone.get_by_label("Numéro d'étudiant")).to_have_count(0)
+    expect(phone.get_by_role("list", name="Liste du groupe")).to_have_count(0)
 
 
 @pytest.mark.spec("SES-05")
@@ -101,7 +102,7 @@ def test_join_qr_code_is_gone_once_started(teacher_page: Page, live_server):
 def test_phone_only_says_the_session_is_over(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_live(2, shown=1, seconds=30)
-    (phone,) = phones_joined(new_phone, live_server.url, session.code, ["00123"])
+    (phone,) = phones_joined(new_phone, live_server.url, session.code, ["DURAND Élise"])
     open_board(page, live_server.url, session)
     start(page)
     expect_slot(phone, 0)

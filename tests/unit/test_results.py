@@ -49,8 +49,9 @@ QUIZ: FrozenQuiz = {
     ],
 }
 STUDENTS: list[FrozenStudent] = [
-    {"number": "00123", "name": "DURAND Élise"},
-    {"number": "42", "name": "=1+1"},
+    {"list_number": 3, "student_number": "00123", "name": "DURAND Élise"},
+    {"list_number": 12, "student_number": "", "name": "=1+1"},
+    {"list_number": 5, "student_number": "@42", "name": "MARTIN Léo"},
 ]
 
 
@@ -67,15 +68,18 @@ def test_max_total_sums_each_question_maximum():
     assert max_total(QUIZ) == D(5)  # 2 + 1 x 3 propositions
 
 
-def test_results_follow_roster_order_and_mark_absents():
-    rows = results(QUIZ, STUDENTS, {"00123": {0: [0]}})
-    assert [r.number for r in rows] == ["00123", "42"]
+def test_results_follow_list_numbers_and_mark_absents():
+    """RES-05 : une ligne par étudiant de la liste figée, par n° croissant."""
+    rows = results(QUIZ, STUDENTS, {3: {0: [0]}, 5: {}})
+    assert [(r.list_number, r.student_number) for r in rows] == [(3, "00123"), (5, "@42"), (12, "")]
     assert rows[0].total == D("2.5")  # 2 + v (0,5)
-    assert rows[1].marks is None and rows[1].total is None
+    assert rows[1].total == D("0.75")  # connecté sans réponse : v partout
+    assert rows[2].marks is None and rows[2].total is None
 
 
 def test_result_total_can_be_negative():
-    assert StudentResult("1", "A", [Mark("B", D("-0.5")), Mark("", D(-1))]).total == D("-1.5")
+    marks = [Mark("B", D("-0.5")), Mark("", D(-1))]
+    assert StudentResult(1, "", "A", marks).total == D("-1.5")
 
 
 @pytest.mark.parametrize(
@@ -113,10 +117,11 @@ def test_neutralised(text, safe):
 
 
 def test_csv_rows():
-    rows = csv_rows(QUIZ, results(QUIZ, STUDENTS, {"00123": {0: [1], 1: [0, 1]}}))
+    rows = csv_rows(QUIZ, results(QUIZ, STUDENTS, {3: {0: [1], 1: [0, 1]}}))
     assert rows == [
         [
-            "numéro",
+            "n°",
+            "numéro étudiant",
             "nom",
             "note",
             "note max",
@@ -124,14 +129,16 @@ def test_csv_rows():
             *["Q1 réponse", "Q1 points"],
             *["Q2 réponse", "Q2 points"],
         ],
-        ["00123", "DURAND Élise", "2,5", "5", "10", "B", "-0,5", "AB", "3"],
-        ["42", "'=1+1", ABSENT, "5", "", "", "", "", ""],
+        ["3", "00123", "DURAND Élise", "2,5", "5", "10", "B", "-0,5", "AB", "3"],
+        # Le numéro étudiant, texte libre, est neutralisé comme le nom (RES-05).
+        ["5", "'@42", "MARTIN Léo", ABSENT, "5", "", "", "", "", ""],
+        ["12", "", "'=1+1", ABSENT, "5", "", "", "", "", ""],  # sans numéro : cellule vide
     ]
 
 
 def test_csv_rows_mark_no_answer_with_a_dash():
-    rows = csv_rows(QUIZ, results(QUIZ, STUDENTS[:1], {"00123": {}}))
-    assert rows[1] == ["00123", "DURAND Élise", "0,75", "5", "3", "-", "0,25", "-", "0,5"]
+    rows = csv_rows(QUIZ, results(QUIZ, STUDENTS[:1], {3: {}}))
+    assert rows[1] == ["3", "00123", "DURAND Élise", "0,75", "5", "3", "-", "0,25", "-", "0,5"]
 
 
 def test_letters_follow_the_bank_order():
@@ -152,7 +159,7 @@ def test_none_of_these_has_the_letter_after_the_last_choice():
     quiz: FrozenQuiz = {"questions": [question(True, False, False, True, none=True)]}
     assert grade(quiz, {0: [2]}) == [Mark("C", D(2))]  # A et B non cochées, justes : 1 + 1
     assert grade(quiz, {0: [0, 2]}) == [Mark("AC", D(0))]  # « Aucune » combinée : e
-    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {"00123": {0: [2]}}))[1][5:] == ["C", "2"]
+    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {3: {0: [2]}}))[1][6:] == ["C", "2"]
 
 
 @pytest.mark.parametrize(

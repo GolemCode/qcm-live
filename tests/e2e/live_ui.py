@@ -67,16 +67,32 @@ def enter_code(phone: Page, base_url: str, code: str) -> None:
     phone.get_by_role("button", name="Rejoindre").click()
 
 
-def identify(phone: Page, number: str) -> None:
-    """Sur l'écran de la session, l'étudiant saisit son numéro."""
-    phone.get_by_label("Numéro d'étudiant").fill(number)
-    phone.get_by_role("button", name="Valider").click()
+def group_list(phone: Page) -> Locator:
+    """Liste du groupe, sur le téléphone d'un étudiant pas encore identifié (ETU-13)."""
+    return phone.get_by_role("list", name="Liste du groupe")
 
 
-def join(phone: Page, base_url: str, code: str, number: str) -> None:
-    """L'étudiant ouvre l'adresse projetée, saisit le code puis son numéro."""
+def list_entry(phone: Page, name: str) -> Locator:
+    """Ligne de l'étudiant `name` dans la liste du groupe : son n°, son nom, et « déjà
+    connecté » s'il est pris."""
+    return group_list(phone).get_by_role("listitem").filter(has=phone.get_by_text(name, exact=True))
+
+
+def search(phone: Page) -> Locator:
+    return phone.get_by_label("Rechercher votre nom")
+
+
+def identify(phone: Page, name: str) -> None:
+    """Sur l'écran de la session, l'étudiant cherche son nom, le touche, puis confirme."""
+    search(phone).fill(name)
+    list_entry(phone, name).get_by_role("link").click()
+    phone.get_by_role("button", name="Oui, c'est moi").click()
+
+
+def join(phone: Page, base_url: str, code: str, name: str) -> None:
+    """L'étudiant ouvre l'adresse projetée, saisit le code puis choisit son nom."""
     enter_code(phone, base_url, code)
-    identify(phone, number)
+    identify(phone, name)
 
 
 LIVE_MS = 2_000  # « en direct » : 2 s au plus (SPEC SES-02, DER-02)
@@ -139,16 +155,17 @@ def manage_participants(page: Page) -> None:
 
 
 def identity(phone: Page) -> Locator:
-    """Confirmation d'identité affichée sur le téléphone (« Vous êtes … »)."""
-    return phone.get_by_text(re.compile(r"^Vous êtes "))
+    """Identité affichée sur le téléphone (« Vous êtes … »), une fois l'étudiant identifié :
+    pas la question « Vous êtes … ? » de la confirmation (ETU-13)."""
+    return phone.get_by_text(re.compile(r"^Vous êtes .*[^?]$"))
 
 
-def phones_joined(new_phone, base_url: str, code: str, numbers) -> list[Page]:
-    """Un nouveau téléphone par numéro, identifié dans la session `code`."""
+def phones_joined(new_phone, base_url: str, code: str, names) -> list[Page]:
+    """Un nouveau téléphone par nom, identifié dans la session `code`."""
     phones = []
-    for number in numbers:
+    for name in names:
         phone = new_phone()
-        join(phone, base_url, code, number)
+        join(phone, base_url, code, name)
         expect(identity(phone)).to_be_visible()
         phones.append(phone)
     return phones

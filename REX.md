@@ -1327,8 +1327,10 @@ Les tests d'installation reproduisent l'usage réel sans réseau : une archive e
 - **Icône SVG** reprenant les quatre carrés du logo ; aucune dépendance nouvelle dans l'application.
 
 ### Ce qui n'est garanti que par la consigne ou reste à vérifier
-- **Windows n'est pas vérifié.** `install.ps1` n'a été que soumis à l'analyseur syntaxique de PowerShell (aucune erreur, texte ASCII pour PowerShell 5.1) ; il n'a jamais été exécuté. La détection des adresses et du pare-feu sous Windows ne s'appuie que sur la lecture de vraies sorties de `powershell.exe`, en lecture seule. Le raccourci du menu Démarrer n'a pas d'icône (un `.ico` serait nécessaire). L'essai revient au commanditaire.
-- **La cause du 127.0.0.1 n'a pas été reproduite** : l'enseignant peut désormais choisir l'adresse, et l'adresse d'un point d'accès ouvert par le PC passe en tête, mais rien ne prouve que la détection Windows la trouve.
+- **Windows : vérifié par le commanditaire pour un parcours, après la fusion.** À la livraison, `install.ps1` n'avait été que soumis à l'analyseur syntaxique de PowerShell (aucune erreur, texte ASCII pour PowerShell 5.1), sans jamais être exécuté, et la détection des adresses et du pare-feu ne s'appuyait que sur la lecture de vraies sorties de `powershell.exe`. Puis le commanditaire l'a essayé sur un vrai PC Windows, relié au partage de connexion d'un téléphone : installation par `install.ps1`, lancement par le raccourci du menu Démarrer, adresse projetée trouvée seule (sans « Changer d'adresse »), téléphone connecté, session de démonstration jouée jusqu'au bout. Tout a fonctionné. *(constat du commanditaire, que je n'ai pas observé moi-même)*
+  - Restent non vérifiés sous Windows : le PC qui partage lui-même sa connexion (adresse 192.168.137.1), l'avertissement du pare-feu sur un réseau « Public », la mise à jour par une seconde installation, la sauvegarde et la restauration, et un commutateur Hyper-V externe (réserve ouverte ci-dessous).
+  - Le raccourci du menu Démarrer n'a toujours pas d'icône (un `.ico` serait nécessaire).
+- **La cause du 127.0.0.1 d'après I12 n'a pas été reproduite.** Dans la même situation (PC relié au partage d'un téléphone), la détection d'I13 a trouvé la bonne adresse : le défaut constaté après I12 ne se reproduit pas, sans que sa cause soit connue.
 - **Le choix d'adresse n'est pas gardé d'un lancement à l'autre**, et une carte apparue après le lancement demande de relancer (la page le dit).
 - **Depuis WSL**, l'adresse n'est joignable qu'en réseau « mirrored ».
 - **La restauration se fait QCM Live arrêté** : seul le guide le dit ; rien n'empêche de restaurer pendant qu'un serveur tourne.
@@ -1382,3 +1384,101 @@ Audit spec-auditor : 4b1d013
 - **Une « base abîmée » faite de zéros n'atteint jamais `integrity_check`** : SQLite la refuse avant. Pour tester un contrôle, construire l'entrée qui passe tous les contrôles précédents, et vérifier le motif du refus, pas seulement le refus.
 - **Intercepter `subprocess.run` ne prouve pas qu'aucune autre commande ne part** : `Popen`, `os.system` et `os.posix_spawn` sont d'autres portes. Écrire ce que le test couvre, pas davantage.
 - **Une contre-épreuve doit reproduire la faute visée**, pas une autre : ma première version de la sauvegarde « après les migrations » supprimait la sauvegarde, et le test échouait pour cette raison-là.
+
+## I14 — Identification par la liste du groupe
+
+### Objectif
+Décision prise avec le commanditaire après I12 (SPEC §6) : l'étudiant ne tape plus son numéro, il choisit son nom dans la liste du groupe, puis confirme. Le n° de liste, stable, devient l'identifiant interne ; aucun numéro n'est saisi ni projeté ; 70 étudiants au plus par groupe ; fichier à en-tête `n°;numéro étudiant;nom`, l'ancien format restant accepté ; CSV des résultats `n°`, `numéro étudiant`, `nom`, puis les notes. Les migrations des groupes et sessions existants devaient être testées sur des données à l'ancien format, comme en I12.
+
+En ouverture de l'incrément, le REX d'I13 a reçu l'essai réel sous Windows rapporté par le commanditaire (commit à part).
+
+**Questions posées avant de concevoir**, en une fois. Réponses reportées dans SPEC.md (GRP-05, ETU-13, journal §6) :
+- numéro étudiant **facultatif, texte libre** (20 caractères au plus, unique s'il est rempli) ;
+- n° **entier de 1 à 999, unique, trous permis** ; dans l'ancien format, n° = rang dans le fichier ;
+- noms déjà pris **grisés, « déjà connecté »**, non sélectionnables ;
+- le téléphone montre le **n° de liste**, jamais le numéro étudiant.
+
+**Plan mode** pour la conception (modèle, migrations, route de confirmation, résultats), approuvé avant les tests. SPEC.md a été mise à jour avant les tests (nouvelles exigences GRP-05, ETU-13, RES-05, MIG-01 ; exigences existantes annotées *modifié en I14* ; §5 : la liste des noms est visible de qui a le code).
+
+### Tests d'acceptation
+Écrits avant le code et lancés aussitôt : en échec pour la raison attendue (format à en-tête refusé, liste du groupe absente du téléphone, champs `list_number` et `Session.student` inexistants, migrations absentes). Les tests des incréments passés qui faisaient taper un numéro ont été passés à l'identification par la liste dans le même commit (`join(phone, url, code, nom)`).
+
+MIG-01 est vérifiée sur des données **créées à l'ancien schéma** par `MigrationExecutor` (groupe, sessions en attente, en cours et terminée, participants, réponses), puis migrées : en intégration (n° = rang, zéros de tête conservés, notes identiques avant et après) et de bout en bout (résultats et CSV au navigateur, nouvelle session sur le groupe migré).
+
+### Problèmes rencontrés
+- **Un test d'I2 oublié dans les tests rouges** : la page du groupe montre désormais trois colonnes, et `test_i2_groups` en attendait deux. Vu au premier `make verify`, corrigé dans un commit de tests à part (0b005f4), avec trois autres corrections de tests relevées à l'implémentation, dont un `leave_board` manquant dans le test E2E de MIG-01 (la page restait sur le tableau démarré, la navigation dépassait son délai).
+- **Messages d'erreur affichés en vert**, relevés au contrôle visuel : `base.html` ignorait le niveau du message. Le défaut est antérieur à I14 : « créneau terminé », « libération impossible » ou un import expiré s'affichaient déjà comme un succès. Chaque message porte désormais la classe de son niveau, et un test E2E la vérifie sur le refus d'un nom déjà pris.
+- **Ponctuation** : « ? » et « : » passaient seuls en début de ligne sur le téléphone. Espace insécable, comme le veut la typographie française.
+- **Captures trompeuses** : le serveur de capture, lancé sans rechargement (`--noreload`), gardait les gabarits en cache ; une capture prise pendant une redirection montrait l'écran précédent. Serveur relancé, et la capture attend désormais l'écran visé.
+- **Le contexte de la session a été résumé** pendant les revues ; le travail a repris sur le plan et l'état du dépôt.
+
+### Choix techniques et leur raison
+- **Le n° de liste désigne l'étudiant partout** (groupe, copie figée, participant, résultats), le numéro étudiant n'est plus qu'une donnée affichée à l'enseignant. Il n'est jamais montré au téléphone ni projeté.
+- **Confirmation par une page à part** (`/s/<code>/moi/<n°>/`) : sans JavaScript, toucher un nom est un simple lien, et « Non, revenir à la liste » un autre. La recherche (`identify.js`) ne fait que masquer des lignes : sans elle, la liste entière reste utilisable.
+- **La contrainte d'unicité en base reste le seul arbitre** quand deux téléphones confirment le même nom : le second est refusé, le premier garde son identité.
+- **Migrations réversibles, en `RunPython`**, sur le modèle de celles d'I12 : n° = rang dans le fichier importé (ordre enregistré), participants rattachés par leur ancien numéro. Le retour arrière a été essayé sur une vraie base.
+- **Essai réel de la migration** : base créée sous `main` (démonstration, session jouée), puis bascule sur la branche et `migrate` : n° égaux au rang, participants rattachés (sessions terminée et en attente), notes identiques ; puis retour arrière, tables identiques à l'origine.
+- **Numéro étudiant et nom neutralisés** dans le CSV : le numéro étudiant, désormais texte libre, peut commencer par `=` comme le nom.
+- **Aucune dépendance nouvelle.**
+
+### Ce qui n'est garanti que par la consigne ou reste à vérifier
+- **Usurpation** : qui a le code de session voit la liste des noms et peut en choisir un autre que le sien, ou réserver tous les noms par un script. Le recours reste l'enseignant (« Gérer les connectés », SES-04). C'était déjà possible avec les numéros, mais plus facile désormais : risque signalé au commanditaire et consigné dans SPEC §5.
+- **Une identité par appareil et par session**, tenue par la session Django (cookie) : un autre navigateur du même téléphone peut s'identifier sous un autre nom.
+- **70 étudiants au plus** : seul l'import l'impose. La liste n'a pas été essayée sur un vrai téléphone, seulement en Pixel 7 émulé.
+
+### Revues
+- **`/simplify`** (quatre angles). Corrigé : l'identification passe par `Session.enrol(student)`, qui remplace un formulaire sans champ, et `make_participant` emprunte ce même chemin ; l'ordre par n° est fixé à la copie figée, plus de tri dans la vue ; la page de confirmation ne charge plus le QCM figé ; une seule fonction rogne les colonnes vides de fin de ligne ; les clés de l'en-tête dérivent de `HEADER`, réutilisé par la démonstration et les tests ; les tests de migration partagent `tests/migrations.py`. Écarté, avec la raison :
+  - accepter tout n° de chiffres (`[0-9]+`) : « 0001 » devenait valable, un test unitaire l'a montré aussitôt, et cela changeait un comportement ;
+  - retirer le tri de `results()` : c'est le contrat de la fonction pure, que les tests unitaires appellent dans le désordre ;
+  - réécrire les aides de test fondées sur le numéro étudiant, ou ajouter une aide `confirm(phone)` : les tests d'acceptation gardent le libellé « Oui, c'est moi » en clair ;
+  - `bulk_update` dans les migrations, `{% url %}` calculé une fois, largeur déduite : gains négligeables pour 70 lignes.
+- **`/code-review`** (huit constats). Corrigé, avec un test rouge d'abord (de0fbe0, puis 50d53e5) :
+  - **double appui sur « Oui, c'est moi »**, ou réponse perdue sur un Wi-Fi lent : le premier envoi créait le participant, mais l'identité n'atteignait le téléphone que par le cookie de sa réponse. Le second envoi se voyait refuser « déjà connecté », et après « Démarrer », plus rien ne libérait le nom. Désormais, la session Django existe dès l'affichage de la confirmation : l'identité s'écrit côté serveur, et le second envoi la retrouve ;
+  - **les migrations ne revenaient pas en arrière** dès que deux étudiants ou participants n'avaient pas de numéro étudiant : l'ancienne contrainte d'unicité échouait. Le retour arrière invente désormais l'ancien numéro (« n°3 », ou « n°3-1 » s'il est pris). Il n'était testé que sur une base vide ;
+  - **un doublon n'était pas signalé** quand la première ligne avait une autre faute : l'enseignant devait s'y reprendre à plusieurs fois, contre GRP-02 ;
+  - **la page « Vous êtes … ? » s'ouvrait pour un nom déjà pris** (adresse saisie, liste périmée) : elle renvoie à la liste avec le message ;
+  - un message d'erreur avait une marge plus étroite qu'un message de succès (règle `.error` générale), non testé.
+
+  Écarté, avec la raison :
+  - un numéro sans chiffre sur la première ligne de l'ancien format est pris pour un en-tête, comme depuis I2 : le message de fin d'import l'annonce déjà (« Ligne 1 ignorée comme en-tête : « … » »), et le nouveau format, à en-tête obligatoire, n'a pas cette ambiguïté ;
+  - un participant absent de la liste figée ferait échouer `live.0006` : aucune donnée créée par l'application ne le permet, et le lanceur sauvegarde avant de migrer.
+- **`/security-review`** : aucune faille au-dessus du seuil. Contrôlés :
+  - prise d'une identité déjà confirmée et action dans une autre session : impossibles ;
+  - CSRF de la confirmation, échappement des noms (gabarits et `identify.js`), neutralisation du CSV ;
+  - absence du numéro étudiant au téléphone et dans le JSON.
+
+  Sous le seuil, mais corrigé : le gabarit de confirmation ne reçoit plus que le n° et le nom.
+- **Effet de bord d'une correction** : signaler les doublons sur une ligne fautive a cassé deux tests du plafond du rapport (unitaire et E2E d'I2), dont les fichiers répétaient le même numéro. J'avais corrigé le test unitaire sans chercher l'autre ; `make verify` l'a trouvé. Les deux utilisent désormais des numéros distincts : ils visent le plafond, pas les doublons.
+
+### Audit
+- **Un seul passage de `spec-auditor`**, sur 7cdd76c : **aucune réserve bloquante**. GRP-05, ETU-13, RES-05, MIG-01 et les exigences modifiées sont vérifiées ; VIS-04 est jugée faible, sans gravité. Son tableau compte 23 contre-épreuves (son résumé en annonce 20) : 21 font échouer un test. Plusieurs ne sont vues qu'en unitaire ou en intégration, ce que l'auditeur juge suffisant :
+  - n° « 0001 », doublon sur une ligne fautive ;
+  - contrainte d'unicité retirée, téléphone déjà identifié qui confirme un autre nom ;
+  - numérotation de la migration par `pk` au lieu de `position`.
+- **Deux mutations survivaient**, sur des points secondaires. Tests renforcés après l'audit, sans changer le code :
+  - **numéro étudiant caché dans la page** (attribut invisible) : les tests lisaient le texte affiché, pas le HTML. Ils lisent désormais le HTML du téléphone (liste, confirmation, attente) et du tableau, contrôlé une fois des étudiants connectés et non plus avant toute connexion, où il ne prouvait rien ;
+  - **message de la course perdue** au POST de « Oui, c'est moi » : seule la vérification préalable de la vue était exercée. Un test d'intégration force `enrol` à échouer et vérifie le message d'erreur.
+
+  J'ai rejoué ces deux contre-épreuves moi-même après le renfort : un attribut `data-sn` dans la confirmation fait échouer l'E2E d'ETU-13, et le message retiré fait échouer le nouveau test d'intégration.
+- **Incident pendant ces contre-épreuves** : la vérification des permissions de Claude Code n'a pas répondu à plusieurs commandes, dont le `git checkout` qui devait restaurer le code après la première mutation. La seconde mutation a donc été posée sur un code encore muté. Je m'en suis aperçu avant de lancer le test, j'ai retiré la première à la main, puis contrôlé par `git diff` qu'il ne restait que la seconde. Après restauration, `git status` ne montrait plus que les tests et le REX. Leçon : vérifier la restauration par `git status` après chaque mutation, avant d'en poser une autre.
+- La section I14 du REX manquait au commit audité : elle n'était pas encore commitée, ce qui est attendu à ce stade.
+- **Après le passage**, le dépôt principal n'avait pas bougé : même HEAD, aucune copie restante dans `git worktree list`, seul mon REX non commité modifié.
+
+Audit spec-auditor : 7cdd76c
+
+### Réserves ouvertes
+- **Contrainte d'unicité** : sa suppression n'est vue qu'en intégration ; aucun E2E ne fait confirmer le même nom par deux téléphones au même instant (audit). Le chemin testé, `Session.enrol`, est celui de la vue.
+- **Réponses JSON du téléphone** (`/etat/`, `/reponses/`) : l'absence du numéro étudiant n'y est pas testée par l'E2E. Elles ne portent par construction que la phase, le créneau et des indices.
+- **Usurpation** et **réservation par script** : risques acceptés (SPEC §5), recours par l'enseignant (SES-04).
+- **Ancien format** : un premier numéro sans chiffre est pris pour un en-tête, annoncé à la fin de l'import (voir les revues).
+
+### Ce qui a bien marché
+- **Les données à l'ancien schéma créées par `MigrationExecutor`**, déjà rodées en I12 : la migration a été testée sur ce qu'un enseignant a vraiment en base, puis essayée sur une vraie base créée sous `main`.
+- **Les tests rouges d'abord pour chaque constat de `/code-review`** : quatre défauts confirmés avant correction. Ils ont aussi évité de « corriger » ce qui n'était pas un défaut (la borne du n°).
+- **Le contrôle visuel** : il a révélé les messages d'erreur verts, défaut antérieur que les tests ne voyaient pas.
+
+### Ce que j'aurais dû savoir dès le départ
+- **Une identité portée par le seul cookie d'une réponse se perd avec cette réponse.** Créer la session côté serveur avant l'action décisive rend le second envoi idempotent.
+- **Une migration réversible se teste à rebours sur des données d'après la mise à jour**, pas seulement sur une base vide : c'est là que les nouvelles libertés (numéro vide) heurtent les anciennes contraintes.
+- **Vérifier l'absence d'une donnée dans le texte affiché ne dit rien du HTML** : un attribut ou un commentaire passent. Pour une donnée qui ne doit pas quitter le serveur, lire `page.content()`.
+- **Avant de changer un comportement, chercher tous les tests qui en dépendent** (`grep` sur la donnée de test), pas seulement celui qui échoue le premier.

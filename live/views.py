@@ -24,7 +24,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from config.join import join_url, qr_data_uri
-from live.forms import AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
+from live.forms import AnswerForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
 from live.results import csv_rows, decimal_fr, grade_20_text, max_total
 
@@ -35,7 +35,12 @@ SAVED = "Réponse enregistrée"
 CLEARED = "Réponse effacée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
 IDENTIFY_FIRST = "Identifiez-vous d'abord."
-RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."
+# Espace insécable avant « : », pour que le deux-points ne commence pas une ligne.
+TAKEN = (
+    "Ce nom est déjà connecté sur un autre appareil\u00a0: si c'est le vôtre,"
+    " prévenez l'enseignant."
+)
+RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."  # n° de liste
 SLOT_OVER = "Créneau terminé : aucun temps ajouté."
 
 
@@ -166,14 +171,15 @@ def session_add_time(request: HttpRequest, code: str) -> HttpResponse:
 
 @login_required
 def participants(request: HttpRequest, code: str) -> HttpResponse:
-    """Connectés avec leur numéro (page non projetée) : libération avant le démarrage."""
+    """Connectés avec leur n° et leur numéro étudiant (page non projetée) : libération avant
+    le démarrage."""
     session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
     return render(
         request,
         "live/participants.html",
         {
             "session": session,
-            "participants": session.participants.all(),
+            "participants": session.participants.order_by("list_number"),
             "can_release": session.started_at is None,
             "release_closed": RELEASE_CLOSED,
         },
@@ -183,12 +189,16 @@ def participants(request: HttpRequest, code: str) -> HttpResponse:
 @login_required
 @require_POST
 def participant_release(request: HttpRequest, code: str, pk: int) -> HttpResponse:
-    """SES-04 : avant le démarrage, libérer un numéro pris (par erreur ou par usurpation)."""
+    """SES-04 : avant le démarrage, libérer un nom pris (par erreur ou par usurpation)."""
     participant = get_object_or_404(Participant, pk=pk, session__code=code)
     # Suppression conditionnelle et atomique : rien ne part si « Démarrer » est passé entre-temps.
     released = Participant.objects.filter(pk=pk, session__started_at__isnull=True).delete()[0]
     if released:
-        messages.success(request, f"Numéro {participant.number} libéré.")
+        messages.success(
+            request,
+            f"N° {participant.list_number} libéré : {participant.name} peut de nouveau choisir"
+            " son nom.",
+        )
     else:
         messages.error(request, RELEASE_CLOSED)
     return redirect("participants", code=code)
@@ -257,14 +267,11 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
         "follow": participant is not None and state.phase != "ended",
     }
     if participant is None and state.phase != "ended":
-        form = IdentifyForm(request.POST or None, session=session)
-        if request.method == "POST" and form.is_valid() and (participant := form.save()):
-            request.session[IDENTITIES] = {
-                **request.session.get(IDENTITIES, {}),
-                session.code: participant.pk,
-            }
-            return redirect("student-session", code=code)
-        context["form"] = form
+        # ETU-13 : la liste du groupe figé, par n° ; un nom déjà pris ne se choisit pas.
+        taken = set(session.participants.values_list("list_number", flat=True))
+        context["students"] = [
+            (s["list_number"], s["name"], s["list_number"] in taken) for s in session.students
+        ]
     elif participant is not None and state.position is not None:
         # ETU-04, ETU-05 : couleur et propositions mélangées pour l'étudiant, jamais l'énoncé.
         slot = state.position.slot
@@ -285,6 +292,36 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
             "texts": {"saved": SAVED, "cleared": CLEARED, "too_late": TOO_LATE},
         }
     return render(request, "live/student.html", context)
+
+
+def student_confirm(request: HttpRequest, code: str, list_number: int) -> HttpResponse:
+    """ETU-13 : « Vous êtes … ? ». La confirmation identifie le téléphone ; un nom pris
+    entre-temps est refusé, et la liste revient avec le message."""
+    session = get_object_or_404(Session.objects.defer("content"), code=code)
+    student = session.student(list_number)
+    if student is None:
+        raise Http404("Étudiant inconnu")
+    if _identity(request, session) is not None or _is_over(session):
+        return redirect("student-session", code=code)
+    if session.participants.filter(list_number=list_number).exists():
+        messages.error(request, TAKEN)  # nom pris : adresse saisie, liste périmée
+        return redirect("student-session", code=code)
+    if request.method == "POST":
+        participant = session.enrol(student)
+        if participant is None:
+            messages.error(request, TAKEN)
+        else:
+            request.session[IDENTITIES] = {
+                **request.session.get(IDENTITIES, {}),
+                session.code: participant.pk,
+            }
+        return redirect("student-session", code=code)
+    # La session Django existe avant « Oui, c'est moi » : l'identité s'y écrit côté serveur,
+    # et un second envoi la retrouve même si la réponse au premier (son cookie) s'est perdue.
+    request.session.setdefault(IDENTITIES, {})
+    # Le n° et le nom seulement : le numéro étudiant n'atteint jamais le gabarit du téléphone.
+    shown = {"list_number": student["list_number"], "name": student["name"]}
+    return render(request, "live/student_confirm.html", {"session": session, "student": shown})
 
 
 def student_state(request: HttpRequest, code: str) -> JsonResponse:

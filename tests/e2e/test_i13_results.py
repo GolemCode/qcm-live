@@ -57,22 +57,24 @@ def test_grade_out_of_20_in_csv_and_results_page(teacher_page: Page, live_server
     _, content = download_csv(page)
     rows = csv_rows(content)
     # Juste après la note maximale, en virgule décimale ; vide pour un absent.
-    assert [row[:5] for row in rows] == [
-        ["numéro", "nom", "note", "note max", "note /20"],
-        ["00123", "DURAND Élise", "1", "3", "6,67"],  # 6,666… arrondi au centième
-        ["42", "MARTIN Léo", "-1", "3", "0"],  # bornée à 0
-        ["7", "Ng Anh", "Absent", "3", ""],
+    assert [row[:6] for row in rows] == [
+        ["n°", "numéro étudiant", "nom", "note", "note max", "note /20"],
+        ["1", "00123", "DURAND Élise", "1", "3", "6,67"],  # 6,666… arrondi au centième
+        ["2", "42", "MARTIN Léo", "-1", "3", "0"],  # bornée à 0
+        ["3", "7", "Ng Anh", "Absent", "3", ""],
     ]
-    assert rows[0][5:] == [f"Q{i} {kind}" for i in range(1, 4) for kind in ("réponse", "points")]
+    assert rows[0][6:] == [f"Q{i} {kind}" for i in range(1, 4) for kind in ("réponse", "points")]
 
     # La page des résultats porte la même colonne.
     show_grades(page)
     headers = results_table(page).get_by_role("columnheader")
-    expect(headers).to_have_text(["Numéro", "Nom", "Note", "Note maximale", "Note /20"])
+    expect(headers).to_have_text(
+        ["N°", "Numéro étudiant", "Nom", "Note", "Note maximale", "Note /20"]
+    )
     assert results_rows(page) == [
-        ["00123", "DURAND Élise", "1", "3", "6,67"],
-        ["42", "MARTIN Léo", "-1", "3", "0"],
-        ["7", "Ng Anh", "Absent", "3", ""],
+        ["1", "00123", "DURAND Élise", "1", "3", "6,67"],
+        ["2", "42", "MARTIN Léo", "-1", "3", "0"],
+        ["3", "7", "Ng Anh", "Absent", "3", ""],
     ]
 
 
@@ -91,7 +93,7 @@ def test_results_page_opens_with_grades_hidden(teacher_page: Page, live_server, 
     nothing_shown()
     # Le CSV se télécharge sans rien afficher.
     _, content = download_csv(page)
-    assert csv_rows(content)[1][:2] == ["00123", "DURAND Élise"]
+    assert csv_rows(content)[1][:3] == ["1", "00123", "DURAND Élise"]
     nothing_shown()
     # Rouverte, la page masque de nouveau les notes.
     show_grades(page)

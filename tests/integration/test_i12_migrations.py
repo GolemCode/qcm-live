@@ -8,10 +8,9 @@ applique les migrations.
 from decimal import Decimal as D
 
 import pytest
-from django.db import connection
-from django.db.migrations.executor import MigrationExecutor
 
 from live.results import grade, max_total
+from tests.migrations import leaves, migrate
 
 BEFORE = [("bank", "0001_initial"), ("live", "0004_extension")]
 AFTER = [("bank", "0002_question_scoring"), ("live", "0005_frozen_question_scoring")]
@@ -19,22 +18,11 @@ AFTER = [("bank", "0002_question_scoring"), ("live", "0005_frozen_question_scori
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-def migrate(targets):
-    executor = MigrationExecutor(connection)
-    executor.loader.build_graph()
-    executor.migrate(targets)
-    return executor.loader.project_state(targets).apps
-
-
 @pytest.fixture
 def old_apps():
     apps = migrate(BEFORE)
     yield apps
-    migrate(executor_leaves())
-
-
-def executor_leaves():
-    return MigrationExecutor(connection).loader.graph.leaf_nodes()
+    migrate(leaves())
 
 
 def old_question(apps, text, kind, choices):

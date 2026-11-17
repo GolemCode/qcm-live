@@ -19,19 +19,21 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from bank.importer import AlreadyImported, import_quiz
+from roster.csv_import import HEADER
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 
 DEMO_FILE = Path(settings.BASE_DIR) / "demo" / "qcm-demo.txt"
 USERNAME = "demo"
 GROUP_NAME = "Démo"
-STUDENTS = [  # fictifs
-    ("10001", "BERNARD Alice"),
-    ("10002", "DUPONT Basile"),
-    ("10003", "LEROY Chloé"),
-    ("10004", "MARTIN David"),
-    ("10005", "PETIT Emma"),
-    ("10006", "ROUX Félix"),
+# Fictifs, au format d'I14 (GRP-05) : n° de liste avec des trous, un numéro étudiant manquant.
+STUDENTS = [
+    (1, "10001", "BERNARD Alice"),
+    (2, "10002", "DUPONT Basile"),
+    (4, "10004", "LEROY Chloé"),
+    (5, "", "MARTIN David"),
+    (7, "10007", "PETIT Emma"),
+    (8, "10008", "ROUX Félix"),
 ]
 
 
@@ -68,7 +70,8 @@ class Command(BaseCommand):
         self.stdout.write("Nouveau mot de passe à chaque lancement de make demo.")
 
     def import_group(self) -> StudentGroup:
-        content = "".join(f"{number};{name}\n" for number, name in STUDENTS).encode()
+        lines = [f"{n};{number};{name}\n" for n, number, name in STUDENTS]
+        content = "".join([";".join(HEADER) + "\n", *lines]).encode()
         upload = SimpleUploadedFile("demo.csv", content, content_type="text/csv")
         form = GroupImportForm({"name": GROUP_NAME}, {"file": upload})
         if not form.is_valid():

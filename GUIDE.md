@@ -29,7 +29,10 @@ Lancez QCM Live (icône ou commande `qcm-live`) : le navigateur s'ouvre sur l'es
 
 1. **Le QCM.** « QCM », puis « Importer un fichier AMC » : choisissez le fichier `.txt` d'AMC, puis « Analyser ». Un récapitulatif liste les questions importées et celles qui sont écartées (avec la ligne et la raison). « Importer » crée le QCM, avec le barème du fichier.
    - Essayez d'abord un ancien QCM, et comparez quelques notes avec celles d'AMC.
-2. **Le groupe.** « Groupes », puis « Importer un groupe » : un fichier CSV avec une ligne `numéro;nom` par étudiant.
+2. **Le groupe.** « Groupes », puis « Importer un groupe » : un fichier CSV (70 étudiants au plus) qui commence par la ligne `n°;numéro étudiant;nom`, puis une ligne par étudiant, par exemple `12;21904567;DUPONT Jeanne`.
+   - Le **n°** est celui de votre liste d'appel : un entier de 1 à 999, chacun une fois ; des trous sont permis. C'est lui qui désigne l'étudiant sur son téléphone et dans les résultats.
+   - Le **numéro étudiant** peut rester vide (`13;;MARTIN Paul`). Il n'est jamais affiché sur les téléphones ni projeté.
+   - Un ancien fichier `numéro;nom` reste accepté : chaque étudiant reçoit alors pour n° son rang dans le fichier.
 
 ## 3. En classe
 
@@ -39,7 +42,7 @@ Lancez QCM Live (icône ou commande `qcm-live`) : le navigateur s'ouvre sur l'es
    - **Rien ne vient ?** Votre PC a peut-être plusieurs adresses (Wi-Fi, câble, partage de connexion, VPN). Au tableau, « Changer d'adresse » : choisissez celle du réseau où sont les téléphones, puis refaites l'essai. Pas besoin de relancer.
    - **Pare-feu.** S'il en détecte un, QCM Live l'affiche, avec la commande qui laisse passer les téléphones. Il ne la lance jamais : c'est à vous de juger.
    - **Wi-Fi de l'école.** Certains réseaux isolent les appareils entre eux : les téléphones ne joignent alors jamais le PC. Solution : le partage de connexion de votre PC, ou un petit routeur Wi-Fi à vous.
-4. **Faites passer.** Les étudiants ouvrent l'adresse (ou scannent le QR code) et donnent leur numéro. « Démarrer » quand tout le monde est là ; « +10 s » ajoute du temps à la question en cours.
+4. **Faites passer.** Les étudiants ouvrent l'adresse (ou scannent le QR code), choisissent leur nom dans la liste et confirment. Un nom déjà choisi apparaît grisé, « déjà connecté » : si ce n'est pas le bon étudiant, « Gérer les connectés » (en haut du tableau, page à ne pas projeter) permet de le libérer avant le départ. « Démarrer » quand tout le monde est là ; « +10 s » ajoute du temps à la question en cours.
 
 ## 4. Après
 

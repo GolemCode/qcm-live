@@ -43,9 +43,16 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[BAN-10]** (I12) Une question peut avoir un **ordre fixe** (AMC : `ordered`) : ses propositions ne sont pas mélangées sur les téléphones (ETU-05). Dans le formulaire, c'est une case « Ne pas mélanger les propositions ». *(décision du commanditaire)*
 
 ### Enseignant : groupes d'étudiants
-- **[GRP-01]** (I2) L'enseignant importe un groupe d'étudiants : il donne au groupe un nom unique et fournit un fichier CSV (numéro, nom). Le groupe et ses étudiants s'affichent. Les numéros gardent leurs éventuels zéros de tête.
-- **[GRP-02]** (I2) Un CSV invalide est refusé en entier, sans rien créer. Le message désigne chaque ligne fautive (les 20 premières, puis le nombre des autres) : format incorrect, numéro en double, numéro ou nom vide, numéro qui ne contient pas que des chiffres. Un fichier sans étudiant est refusé, de même qu'un nom de groupe vide ou déjà pris.
+- **[GRP-01]** (I2) L'enseignant importe un groupe d'étudiants : il donne au groupe un nom unique et fournit un fichier CSV (numéro, nom). Le groupe et ses étudiants s'affichent. Les numéros gardent leurs éventuels zéros de tête. *(modifié en I14 : fichier à en-tête `n°`, `numéro étudiant`, `nom`, l'ancien format restant accepté, GRP-05)*
+- **[GRP-02]** (I2) Un CSV invalide est refusé en entier, sans rien créer. Le message désigne chaque ligne fautive (les 20 premières, puis le nombre des autres) : format incorrect, numéro en double, numéro ou nom vide, numéro qui ne contient pas que des chiffres. Un fichier sans étudiant est refusé, de même qu'un nom de groupe vide ou déjà pris. *(modifié en I14 : le numéro étudiant n'est plus tapé sur le téléphone ; il peut être vide et contenir des lettres, GRP-05)*
 - **[GRP-03]** (I2) L'enseignant supprime un groupe après confirmation. Pour corriger une liste, il supprime le groupe puis le réimporte.
+- **[GRP-05]** (I14) **Fichier à en-tête : `n°`, `numéro étudiant`, `nom`.** Le n° de liste est l'identifiant de l'étudiant dans l'application : c'est lui qui le désigne sur le téléphone, au tableau des connectés et dans les résultats. Le format est décrit au §2 bis. *(décision du commanditaire)*
+  - **n°** : entier de 1 à 999, unique dans le groupe ; les n° peuvent ne pas se suivre (un étudiant parti de la liste laisse un trou). *(décision du commanditaire)*
+  - **Numéro étudiant** : facultatif, texte libre (chiffres ou lettres), 20 caractères au plus, unique dans le groupe quand il est rempli. *(décision du commanditaire)*
+  - **70 étudiants au plus** par groupe : un fichier qui en contient davantage est refusé. *(décision du commanditaire)*
+  - **L'ancien format** (deux colonnes, numéro puis nom, en-tête facultatif) reste accepté : le n° est alors le rang dans le fichier (1, 2, 3…), et la première colonne devient le numéro étudiant. *(décision du commanditaire ; rang : dérivé)*
+  - La page du groupe affiche le n°, le numéro étudiant et le nom, par n° croissant. *(dérivé)*
+- **[MIG-01]** (I14) **Groupes et sessions d'avant I14.** La mise à jour garde les groupes et les sessions existants, en attente, en cours ou terminées. Chaque étudiant reçoit pour n° son rang dans le fichier importé, et son ancien numéro devient son numéro étudiant. Les étudiants déjà connectés à une session le restent, avec leurs réponses ; les notes et le CSV d'une session terminée ne changent que par leurs nouvelles colonnes (RES-05). *(décision du commanditaire ; rang : dérivé)*
 
 ### Enseignant : import de questions AMC
 Les questions viennent de fichiers AMC d'anciens QCM. Aucun fichier réel n'est disponible : l'import suit la documentation d'AMC et son code source (lecteur AMC-TXT et calcul des notes), que j'ai lus. Le format reconnu est détaillé au §2 ter. *(décision du commanditaire : AMC-TXT d'abord, LaTeX ensuite ; un parcours complet passe avant un import exhaustif)*
@@ -112,16 +119,21 @@ Rien de ce qui suit n'est encore implémenté. Les exigences seront précisées 
   - les **noms** des étudiants connectés, sans leur numéro, avec le décompte « k / n connectés ». La liste se met à jour en direct, en 2 secondes au plus, sans recharger la page.
 
   L'enseignant clique sur « Démarrer ». *(dérivé)*
-- **[SES-05]** (I8) Avant le départ, le tableau affiche aussi un **QR code pour rejoindre la session**, pour que l'étudiant n'ait à taper ni l'adresse ni le code. Le lire ouvre directement l'écran de cette session sur le téléphone, où il ne reste à saisir que le numéro d'étudiant (ETU-01).
+- **[SES-05]** (I8) Avant le départ, le tableau affiche aussi un **QR code pour rejoindre la session**, pour que l'étudiant n'ait à taper ni l'adresse ni le code. Le lire ouvre directement l'écran de cette session sur le téléphone, où il ne reste à saisir que le numéro d'étudiant (ETU-01). *(modifié en I14 : il ne reste qu'à choisir son nom dans la liste, ETU-13)*
   - L'adresse et le code restent affichés en texte, pour un téléphone qui ne lit pas le QR code. *(dérivé)*
   - Le QR code disparaît au démarrage. *(décision I8)* Le tableau en déroulement n'affiche ni le QR code ni l'adresse, seulement le code de session dans son titre : un retardataire (ETU-08) doit obtenir l'adresse autrement, auprès d'un camarade ou de l'enseignant. *(conséquence acceptée, décision I8)*
   - En mode classe, il contient l'adresse du PC sur le réseau local (CLA-01), même si le tableau est ouvert en `localhost`. *(dérivé)*
   - Un téléphone déjà identifié qui le lit retrouve son écran, sans nouvelle saisie (ETU-03). *(dérivé)*
 - **[SES-03]** (I3) Le QCM et la liste du groupe sont **figés au lancement**. Modifier ou supprimer ensuite le QCM, ses questions ou le groupe ne change pas la session.
-- **[ETU-01]** (I3) L'étudiant ouvre l'application sur son téléphone, à l'adresse projetée. Il saisit l'identifiant de session, puis son numéro d'étudiant, sur le pavé numérique. Son téléphone affiche alors son nom, pour confirmer son identité.
-- **[ETU-02]** (I3) Un identifiant de session inconnu est refusé. Un numéro absent du groupe de la session est refusé. Un numéro déjà utilisé dans la session, depuis un autre appareil, est refusé : il reste lié à ce premier appareil, sauf si l'enseignant le libère avant le démarrage (SES-04).
-- **[SES-04]** (I4) Avant le démarrage, l'enseignant peut **libérer un numéro**. Il le fait depuis une page de gestion des connectés, ouverte depuis le tableau mais non projetée, qui montre les numéros et les noms. L'appareil qui occupait le numéro perd son identité, et le vrai étudiant peut alors le saisir. Après le démarrage, aucune libération n'est possible.
+- **[ETU-01]** (I3) L'étudiant ouvre l'application sur son téléphone, à l'adresse projetée. Il saisit l'identifiant de session, puis son numéro d'étudiant, sur le pavé numérique. Son téléphone affiche alors son nom, pour confirmer son identité. *(modifié en I14 : il choisit son nom dans la liste du groupe au lieu de taper un numéro, ETU-13)*
+- **[ETU-02]** (I3) Un identifiant de session inconnu est refusé. Un numéro absent du groupe de la session est refusé. Un numéro déjà utilisé dans la session, depuis un autre appareil, est refusé : il reste lié à ce premier appareil, sauf si l'enseignant le libère avant le démarrage (SES-04). *(modifié en I14 : c'est l'étudiant, désigné par son n°, qui est déjà pris ; ETU-13)*
+- **[SES-04]** (I4) Avant le démarrage, l'enseignant peut **libérer un numéro**. Il le fait depuis une page de gestion des connectés, ouverte depuis le tableau mais non projetée, qui montre les numéros et les noms. L'appareil qui occupait le numéro perd son identité, et le vrai étudiant peut alors le saisir. Après le démarrage, aucune libération n'est possible. *(modifié en I14 : la page montre le n° et le nom, plus le numéro étudiant ; on libère un étudiant, qui peut de nouveau choisir son nom)*
 - **[ETU-03]** (I3) Un téléphone rechargé ou sorti de veille retrouve l'identité de l'étudiant, sans nouvelle saisie. Ressaisir l'identifiant de la session mène aussi directement à son écran.
+- **[ETU-13]** (I14) **L'étudiant choisit son nom dans la liste du groupe.** Sans identité, l'écran de la session liste les étudiants du groupe figé (SES-03), chacun avec son n°, par n° croissant. Aucun numéro n'est à taper, et aucun n'est projeté. *(décision du commanditaire)*
+  - Un champ « Rechercher votre nom » filtre la liste pendant la saisie, sans tenir compte des majuscules ni des accents. Sans JavaScript, le champ n'apparaît pas et la liste entière reste utilisable. *(décision du commanditaire ; sans JavaScript : dérivé)*
+  - Toucher son nom ouvre une confirmation, « Vous êtes … ? », avec le nom et le n°, puis « Oui, c'est moi » ou « Non, revenir à la liste ». L'étudiant n'est identifié qu'après « Oui, c'est moi ». *(décision du commanditaire)*
+  - Un étudiant déjà identifié sur un autre appareil reste dans la liste, grisé, avec « déjà connecté », et ne se choisit pas. S'il est pris pendant la confirmation, « Oui, c'est moi » est refusé avec un message, et la liste revient. Il reste lié à ce premier appareil, sauf libération par l'enseignant avant le démarrage (SES-04). *(décision du commanditaire ; prise pendant la confirmation : dérivé)*
+  - Le téléphone affiche ensuite le nom et le n° de liste, jamais le numéro étudiant (VIS-04). *(décision du commanditaire)*
 
 ### Session : déroulement
 - **[DER-01]** (I4) Après le démarrage, les questions défilent **par groupes de N**, dans l'ordre du QCM ; le dernier groupe peut en compter moins. Au tableau, chaque question du groupe affiche, sur sa **couleur de fond** et avec son **numéro de couleur** (1 à N) et sa forme (AFF-03), son énoncé seul (AFF-01). Le contenu affiché est celui qui a été figé au lancement (SES-03). À la fin du dernier créneau, le tableau indique que la session est terminée.
@@ -174,15 +186,15 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
 
   Le téléphone suivra en I11, l'espace enseignant en I19. Un contrôle automatique ne trouve qu'une partie des défauts : il ne remplace pas un essai avec un lecteur d'écran, qui reste à faire. *(dérivé)*
 
-- **[VIS-04]** (I11) Le téléphone suit la direction « Signalétique » dans tous ses états : saisie du code et du numéro, attente, déroulement, envoi, perte de connexion, fin. *(validé par le commanditaire)*
+- **[VIS-04]** (I11) Le téléphone suit la direction « Signalétique » dans tous ses états : saisie du code et du numéro *(I14 : choix du nom, ETU-13)*, attente, déroulement, envoi, perte de connexion, fin. *(validé par le commanditaire)*
   - Un bandeau noir porte « QCM Live » et, dès que la session est connue, son code groupé par trois.
-  - En attente : « Vous êtes », le nom en grand, le numéro, puis « En attente du démarrage ».
+  - En attente : « Vous êtes », le nom en grand, le numéro, puis « En attente du démarrage ». *(I14 : le n° de liste)*
   - En déroulement :
     - en haut, le numéro et la forme de la couleur, avec « Couleur N » ;
     - le temps restant en minutes et secondes (VIS-02), avec une barre qui se vide jusqu'à l'échéance et tient compte du temps ajouté (TPS-01) ;
     - la proposition choisie passe en noir plein, texte blanc ;
     - l'état de l'envoi et « Effacer ma réponse » sont en bas de l'écran, à portée du pouce, et y restent visibles quand les propositions font défiler la page ;
-    - en pied, le nom et le numéro de l'étudiant.
+    - en pied, le nom et le numéro de l'étudiant. *(I14 : le n° de liste)*
   - Toute cible tactile (proposition, bouton, champ) mesure au moins 48 px de haut et de large. *(dérivé)*
   - Aucun défilement horizontal, en Pixel 7 comme sur un petit téléphone de 360 px de large. *(dérivé)*
 - **[ACC-02]** (I11) Les vérifications d'ACC-01 (axe-core, contraste, clavier) s'appliquent à tous les états du téléphone, sur un Pixel 7. *(dérivé)*
@@ -196,16 +208,16 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - Il ajoute « Vos réponses ont été transmises à l'enseignant. » seulement si toutes les réponses de l'étudiant ont été confirmées par le serveur. Sinon, il indique combien n'ont pas pu être transmises et invite l'étudiant à le signaler à l'enseignant. *(décision du commanditaire, I11)*
   - Une réponse compte une fois par créneau : c'est la dernière donnée qui doit avoir été enregistrée (ETU-07). *(dérivé)*
   - Un téléphone qui n'a donné aucune réponse, ou dont le navigateur a perdu la trace de ses envois (stockage effacé, navigation privée refermée), n'affiche que « Session terminée. » : il ne peut rien affirmer. Un téléphone non identifié non plus. *(dérivé)*
-- **[RES-01]** (I6) L'enseignant voit le tableau des résultats de la session : numéro, nom, note et note maximale. La note suit le barème AMC de chaque question (§3), figé au lancement. *(par question depuis I12)*
+- **[RES-01]** (I6) L'enseignant voit le tableau des résultats de la session : numéro, nom, note et note maximale. *(I14 : n°, numéro étudiant, nom, RES-05)* La note suit le barème AMC de chaque question (§3), figé au lancement. *(par question depuis I12)*
   - Les résultats sont sur une **page non projetée**, disponible une fois la session terminée. On l'ouvre depuis le tableau ou depuis la liste des sessions, qui indique l'état de chaque session (en attente, en cours, terminée). Avant la fin, la page n'affiche ni étudiant ni note. *(décision I6)*
   - Le lien « Résultats » n'apparaît, au tableau comme dans la liste des sessions, qu'une fois la session terminée. *(dérivé)*
-  - Tous les étudiants du groupe figé sont listés, dans l'ordre du fichier importé. Ceux qui ne se sont jamais connectés sont marqués **« Absent »**, sans note. Un étudiant connecté qui n'a rien répondu n'est pas absent : chaque question lui vaut v. *(décision I6)*
+  - Tous les étudiants du groupe figé sont listés, dans l'ordre du fichier importé *(I14 : par n°, RES-05)*. Ceux qui ne se sont jamais connectés sont marqués **« Absent »**, sans note. Un étudiant connecté qui n'a rien répondu n'est pas absent : chaque question lui vaut v. *(décision I6)*
   - Les nombres s'écrivent à la française, sans zéro inutile (1,75 ; 3 ; -0,5). *(dérivé)*
 - **[RES-02]** (I6) L'enseignant télécharge les résultats en CSV : une ligne par étudiant, avec la note et, pour chaque question, la réponse donnée et les points obtenus.
   - Format d'Excel en français : séparateur point-virgule, virgule décimale, UTF-8 avec BOM. Fichier `resultats-<code>.csv`. *(décision I6)*
   - Le CSV n'est téléchargeable qu'une fois la session terminée. *(dérivé)*
   - Le numéro est écrit tel quel. Excel, à l'ouverture, en retire les zéros de tête : on peut reformater la colonne en texte. *(décision I6)*
-  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres des propositions dans l'ordre de la banque au moment du lancement (A pour la première), `-` signifie aucune réponse. *(précisé en I9 : le tableau n'affiche plus ces lettres)* Tant que la question n'a pas été modifiée, ce sont les lettres de la liste des questions. Après une modification (BAN-05), plus aucune page ne montre l'ordre figé : voir §5 bis. *(constat I9 ; à résoudre en I15 par les versions, VER-01)* « Aucune de ces réponses n'est correcte » prend la lettre qui suit la dernière proposition, comme dans la banque. *(dérivé, I12)* Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)* *(I13 : colonne `note /20` après `note max`, RES-03)*
+  - Colonnes : `numéro`, `nom`, `note`, `note max`, puis, pour chaque question dans l'ordre du QCM, `Qn réponse` et `Qn points`. Une réponse s'écrit avec les lettres des propositions dans l'ordre de la banque au moment du lancement (A pour la première), `-` signifie aucune réponse. *(précisé en I9 : le tableau n'affiche plus ces lettres)* Tant que la question n'a pas été modifiée, ce sont les lettres de la liste des questions. Après une modification (BAN-05), plus aucune page ne montre l'ordre figé : voir §5 bis. *(constat I9 ; à résoudre en I15 par les versions, VER-01)* « Aucune de ces réponses n'est correcte » prend la lettre qui suit la dernière proposition, comme dans la banque. *(dérivé, I12)* Un absent a `Absent` pour note et des cellules de questions vides. *(dérivé)* *(I13 : colonne `note /20` après `note max`, RES-03)* *(I14 : `n°`, `numéro étudiant`, `nom` au lieu de `numéro`, `nom`, RES-05)*
   - Un nom ou un numéro qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot est précédé d'une apostrophe, pour qu'un tableur n'exécute aucune formule. Les nombres calculés (notes, points) ne le sont jamais. *(dérivé)*
 - **[RES-03]** (I13) **Note sur 20.** Le CSV porte une colonne `note /20` juste après `note max`, et la page des résultats une colonne « Note /20 » : total obtenu ÷ total maximal du QCM figé × 20. *(décision du commanditaire)*
   - Arrondie au centième le plus proche (un demi-centième est arrondi vers le haut), puis bornée entre 0 et 20, en virgule décimale. *(décision du commanditaire ; demi-centième : dérivé)*
@@ -213,6 +225,8 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - Cellule vide pour un absent, et aussi quand le total maximal est nul ou négatif. La colonne `note` reste inchangée. *(décision du commanditaire)*
 - **[RES-04]** (I13) L'écran du PC est dupliqué sur le projecteur : tout ce qui s'y ouvre est projeté. La page des résultats s'ouvre donc **notes masquées**, avec un bouton « Afficher les notes ». Le lien du CSV télécharge le fichier sans rien afficher. *(décision du commanditaire)*
   - Masqué : tout le tableau des résultats, noms compris. *(dérivé)*
+- **[RES-05]** (I14) **Le n° de liste dans les résultats.** La page des résultats et le CSV commencent par le n°, le numéro étudiant et le nom : colonnes `n°`, `numéro étudiant`, `nom`, puis `note`, `note max`, `note /20` et les questions (RES-02, RES-03). Une ligne par étudiant du groupe figé, par n° croissant. *(décision du commanditaire ; ordre : dérivé)*
+  - Un numéro étudiant vide laisse sa cellule vide. Comme le nom, le numéro étudiant est un texte venu de l'extérieur : il est neutralisé pour le tableur (RES-02). *(dérivé)*
 
 ### Mode classe
 - **[CLA-01]** (I7) L'application se lance en mode classe sur le PC de l'enseignant : serveur de production local, sans mode debug. Elle fonctionne de bout en bout depuis les téléphones du réseau local, et l'adresse à ouvrir s'affiche.
@@ -220,7 +234,7 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - L'adresse à ouvrir sur les téléphones est celle du PC sur le réseau local (par exemple `http://192.168.1.23:8000/`). Elle s'affiche dans le terminal, avec celle de l'espace enseignant, et le tableau la projette (SES-02) même s'il est ouvert en `localhost`. *(dérivé)*
   - Si la détection choisit la mauvaise interface réseau, l'enseignant impose l'adresse (`ADRESSE=…`). *(dérivé)* *(I13 : il la choisit aussi sans redémarrer, CLA-02)*
   - En mode classe, l'espace enseignant (connexion, notes, pilotage) ne s'ouvre que sur le PC de l'enseignant ; depuis un autre appareil, il est refusé. *(décision du commanditaire, définitive)* Les étudiants partagent le réseau du serveur, et la connexion passe en clair (HTTP). *(dérivé)*
-  - Toute une classe (40 téléphones) peut valider son numéro, puis répondre, au même instant, sans qu'aucune requête échoue. *(dérivé)*
+  - Toute une classe (40 téléphones) peut valider son numéro *(I14 : confirmer son nom)*, puis répondre, au même instant, sans qu'aucune requête échoue. *(dérivé)*
   - Hors mode debug, les pages d'erreur (page introuvable, requête refusée, formulaire expiré, erreur du serveur) sont en français, comme le reste de l'interface. *(dérivé)*
 - **[CLA-02]** (I13) **Adresses du PC.** Au démarrage, le terminal affiche l'adresse retenue pour les téléphones, puis les autres adresses du PC, chacune avec le nom de sa carte réseau. L'enseignant en choisit une autre **sans redémarrer** : au tableau en attente, le lien « Changer d'adresse » ouvre la page « Réseau », qui liste les adresses avec leur carte. Le tableau projette ensuite l'adresse choisie, dans le texte comme dans le QR code (SES-05). *(décision du commanditaire)*
   - Adresse retenue d'office : celle d'un partage de connexion ouvert par le PC lui-même (192.168.137.1 sous Windows, 10.42.0.1 sous Linux), puisque les téléphones y sont ; sinon celle de la route par défaut ; sinon une autre adresse privée. Les réseaux virtuels (Docker, machines virtuelles, VPN) passent en dernier. La boucle locale et les adresses automatiques (169.254.x.x) sont écartées. *(dérivé ; le PC peut être relié au partage d'un téléphone ou partager lui-même sa connexion, décision du commanditaire)*
@@ -237,7 +251,7 @@ Plateforme cible : Linux, sur le PC personnel de l'enseignant, avec droits admin
   - Elle demande si l'on veut l'exemple de démonstration (groupe et QCM fictifs, DEM-02), sans rien lancer. *(décision du commanditaire)*
   - Elle ajoute la commande `qcm-live` et une icône « QCM Live » au menu des applications. *(décision du commanditaire)*
   - Les données (base, clé secrète) quittent le dossier de l'application : elles sont dans `~/.local/share/qcm-live/`, lisible par l'utilisateur seul. *(décision du commanditaire ; emplacement et droits : dérivé)*
-  - Sous Windows, une commande PowerShell fait de même, avec un raccourci au menu Démarrer. *(dérivé ; vérifié seulement par l'essai du commanditaire, aucun Windows n'étant disponible pour les tests)*
+  - Sous Windows, une commande PowerShell fait de même, avec un raccourci au menu Démarrer. *(dérivé ; vérifié seulement par l'essai du commanditaire, aucun Windows n'étant disponible pour les tests : réussi après I13, PC relié au partage d'un téléphone)*
 - **[INS-02]** (I13) Relancée, la même commande **met à jour** l'application sans toucher aux données : la base et le compte restent, et la question de la démonstration n'est plus posée. *(décision du commanditaire)*
 - **[INS-03]** (I13) **Un seul lancement** : l'icône « QCM Live » ou la commande `qcm-live` lance toujours le mode classe (CLA-01) et ouvre le navigateur sur l'espace enseignant. Le terminal affiche l'adresse des téléphones et cite le guide de l'enseignant. `make run` ne sert plus qu'au développement. *(décision du commanditaire)*
   - Si le port est déjà pris, par exemple parce que QCM Live est déjà lancé, le message le dit. *(dérivé)*
@@ -247,13 +261,17 @@ Plateforme cible : Linux, sur le PC personnel de l'enseignant, avec droits admin
   - Les données remplacées sont d'abord sauvegardées, pour qu'une restauration se rattrape. *(dérivé)*
   - Une archive qui n'est pas une sauvegarde de QCM Live, qui est abîmée ou qui vient d'une version plus récente de l'application est refusée, sans rien changer. *(dérivé)*
 
-## 2 bis. Format du CSV d'un groupe (*dérivé*)
+## 2 bis. Format du CSV d'un groupe (*dérivé*, réécrit en I14)
 
-- Une ligne par étudiant : numéro, puis nom (par exemple « DUPONT Jeanne »).
+- **Nouveau format (I14, GRP-05).** Une ligne d'en-tête, `n°;numéro étudiant;nom`, puis une ligne par étudiant : n°, numéro étudiant, nom (par exemple `12;21904567;DUPONT Jeanne`, ou `13;;MARTIN Paul` sans numéro étudiant).
+  - L'en-tête est reconnu sans tenir compte des majuscules, des accents ni des espaces en trop ; `no` et `nº` valent `n°`. Un fichier à trois colonnes sans cet en-tête est refusé.
+  - **n°** : de 1 à 3 chiffres de 0 à 9, valeur de 1 à 999, unique dans le fichier.
+  - **Numéro étudiant** : vide, ou de 1 à 20 caractères sans caractère de contrôle, unique dans le fichier quand il est rempli. Il est gardé tel quel (zéros de tête compris).
+- **Ancien format (I2), toujours accepté.** Deux colonnes, numéro puis nom, sans en-tête obligatoire. Le n° est le rang de l'étudiant dans le fichier (1 pour le premier), et le numéro devient le numéro étudiant, avec les mêmes règles que ci-dessus *(I14 : il n'a plus à ne contenir que des chiffres ni à être rempli)*.
+  - **En-tête facultatif.** La première ligne non vide est un en-tête si elle a deux colonnes remplies et si sa première ne contient aucun chiffre (par exemple « numéro;nom »). Le message de confirmation de l'import cite la ligne ainsi ignorée.
+- **Nom.** De 1 à 200 caractères, sans caractère de contrôle. Deux étudiants peuvent porter le même nom : leur n° les distingue.
+- **70 étudiants au plus** (GRP-05).
 - **Séparateur.** Point-virgule, comme dans les exports d'Excel en français, ou virgule. On retient le point-virgule s'il apparaît dans la première ligne non vide.
-- **Numéro.** De 1 à 20 chiffres de 0 à 9.
-- **Nom.** De 1 à 200 caractères, sans caractère de contrôle.
-- **En-tête facultatif.** La première ligne non vide est un en-tête si elle a deux colonnes remplies et si sa première ne contient aucun chiffre (par exemple « numéro;nom »). Le message de confirmation de l'import cite la ligne ainsi ignorée.
 - **Tolérances.** Les lignes vides et les colonnes vides en fin de ligne sont ignorées.
 - **Encodage.** UTF-8, avec ou sans BOM, ou Windows-1252 pour les anciens exports d'Excel.
 - **Numéros de ligne.** Ceux des messages d'erreur sont ceux du fichier, en commençant à 1.
@@ -321,15 +339,15 @@ Calcul vérifié dans le code d'AMC (`AMC::Scoring`). Chaque question a son bar�
 - **Correction.** Il n'y a pas de correction en classe : le professeur corrige de son côté et envoie les résultats par mail à la promotion. Aucune correction ni page de résultats n'est affichée aux étudiants ; l'export CSV (RES-02) suffit. *(confirmé par le commanditaire en I9)*
 - **Retardataires.** Un étudiant arrivé après le démarrage passe sur copie AMC papier. Le QR code de jonction, affiché avant le démarrage seulement (SES-05), convient. *(confirmé en I9 ; l'application accepte toujours un retardataire qui a le code, ETU-08)*
 - **Comptes enseignants.** Un espace commun à tous les comptes, créés en ligne de commande (`createsuperuser`). Pas de gestion multi-enseignants.
-- **Identité de l'étudiant.** Elle est gardée par un cookie de session. Un autre appareil qui se présente avec le même numéro est refusé (ETU-02).
+- **Identité de l'étudiant.** Elle est gardée par un cookie de session. Un autre appareil qui se présente avec le même numéro est refusé (ETU-02). *(I14 : l'étudiant est désigné par son n° de liste ; un autre appareil ne peut plus choisir son nom, ETU-13)*
 - **Incident d'appareil.** Après le démarrage, il n'y a pas de recours dans l'application : par exemple, un téléphone tombé en panne ne peut pas être remplacé. L'enseignant garde à portée de main des copies papier d'Auto Multiple Choice. Avant le démarrage, il peut libérer un numéro (SES-04).
 
 ## 5. Points d'attention connus (non traités sauf décision contraire)
 
-- **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. La parade actuelle : l'enseignant voit au tableau la liste des noms connectés avant le départ (SES-02). En cas de doute, il passe aux copies papier.
-- **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants. Le recours retenu (SES-04) : l'enseignant voit la liste des connectés au tableau et libère les numéros usurpés avant le démarrage.
+- **Usurpation.** Un étudiant qui connaît le numéro d'un camarade peut se connecter à sa place. *(I14 : il lui suffit désormais de choisir le nom d'un camarade dans la liste, sans rien connaître ; la parade reste la même)* La parade actuelle : l'enseignant voit au tableau la liste des noms connectés avant le départ (SES-02). En cas de doute, il passe aux copies papier.
+- **Réservation de numéros par script.** Quelqu'un qui connaît le code de session peut essayer automatiquement les numéros du groupe et les réserver avant les vrais étudiants. *(I14 : la liste des noms et des n° est montrée à qui a le code ; un script peut donc réserver tout le groupe sans rien deviner)* Le recours retenu (SES-04) : l'enseignant voit la liste des connectés au tableau et libère les numéros usurpés avant le démarrage.
 - **Données personnelles (RGPD).** Les numéros, noms et notes ne sont jamais versionnés : `.gitignore` exclut la base et les CSV, et les données de test sont fictives. La durée de conservation reste à définir avec le professeur.
-- **Lecteurs de QR code à navigateur intégré.** L'identité de l'étudiant vit dans le cookie du navigateur qui a validé le numéro. Une application qui ouvre le lien dans son propre navigateur peut perdre ce cookie à la fermeture : le numéro reste alors lié à ce premier « appareil » (ETU-02) et, après le démarrage, il n'y a pas de recours (§4). Non observé : à vérifier avec de vrais téléphones, l'appareil photo du téléphone ouvrant en principe le navigateur habituel.
+- **Lecteurs de QR code à navigateur intégré.** L'identité de l'étudiant vit dans le cookie du navigateur qui a validé le numéro *(I14 : confirmé le nom)*. Une application qui ouvre le lien dans son propre navigateur peut perdre ce cookie à la fermeture : le numéro reste alors lié à ce premier « appareil » (ETU-02) et, après le démarrage, il n'y a pas de recours (§4). Non observé : à vérifier avec de vrais téléphones, l'appareil photo du téléphone ouvrant en principe le navigateur habituel.
 - **Wi-Fi d'école : le risque principal avant un premier cours.** En classe, le PC et tous les téléphones seront sur **eduroam**, en mode local : les téléphones joindront le PC par son adresse sur ce réseau (de la forme `172.x.x.x`). Rien de cela n'est encore testé :
   - on ne sait pas si eduroam isole les appareils entre eux à l'INSA, ce qui empêcherait les téléphones de joindre le PC ;
   - on ne sait pas si la détection automatique de l'adresse (CLA-01) choisit celle d'eduroam. Sinon, l'enseignant la choisit sur la page « Réseau » (CLA-02). Le test du téléphone (CLA-04) dit, avant le cours, si les téléphones joignent le PC.
@@ -337,6 +355,7 @@ Calcul vérifié dans le code d'AMC (`AMC::Scoring`). Chaque question a son bar�
   Le parcours complet a réussi avec un vrai téléphone sur un Wi-Fi domestique, serveur lancé depuis Windows (hors WSL). L'hébergement sur un serveur, qui lèverait le risque d'isolation, est reporté. *(précisions du commanditaire, I9)*
 - **Essai avec un vrai fichier du professeur : nécessaire avant un usage en classe.** L'import AMC a été construit sans aucun fichier réel, d'après la documentation d'AMC et son code source, et vérifié seulement sur des fichiers écrits pour les tests. Un vrai fichier peut employer des tournures non prévues : avant le premier cours, importer au moins un ancien fichier du professeur, relire le récapitulatif (questions écartées, textes ignorés) et comparer quelques notes avec celles d'AMC. *(demande du commanditaire)*
 - **Partage de connexion sous Windows (après I12).** Lors d'un essai du commanditaire, le mode classe a annoncé 127.0.0.1. La cause n'a pas été reproduite : aucun Windows n'est disponible ici. Depuis I13, toutes les adresses du PC sont listées, et l'enseignant choisit la bonne (CLA-02). *(constat du commanditaire)*
+  - Après I13, sur un PC Windows relié au partage de connexion d'un téléphone, l'adresse a été trouvée seule, et une session de démonstration a été jouée jusqu'au bout, installation par `install.ps1` et lancement par le raccourci compris. Le PC qui partage lui-même sa connexion reste à essayer sous Windows. *(constat du commanditaire, I13)*
 - **Horloge du PC.** Sous Windows, le compte à rebours est resté stable : le recul de l'horloge observé en développement venait de WSL (REX, section R). *(constat du commanditaire, I9, que je n'ai pas observé moi-même)*
 
 ## 5 bis. Questions ouvertes, en attente du professeur
@@ -429,6 +448,7 @@ Rien de ce qui suit n'est implémenté.
 | Écran dupliqué (après I12) | Résultats ouverts notes masquées (RES-04, I13) ; « Gérer les connectés » inchangée |
 | Terminer le créneau en cours (après I12, I16) | Le clic ramène le temps restant à 5 s ; clic en deux temps (« Confirmer » pendant 3 s) ; rattrapage par +10 s ; sur le dernier créneau, la session se termine ; « k / n ont répondu » au tableau (révision de DER-02 et DER-03) |
 | Identification (après I12, I14) | Numéro de liste du groupe, stable, comme identifiant interne ; l'étudiant choisit son nom dans la liste, avec une recherche, puis confirme ; aucun numéro à saisir ni projeté ; 70 étudiants au plus ; fichier à en-tête (`n°`, `numéro étudiant`, `nom`), ancien format accepté ; CSV : `n°`, `numéro étudiant`, `nom`, notes ; migrations des groupes et sessions existants validées |
+| Identification, précisions (I14) | Numéro étudiant facultatif, texte libre (≤ 20 caractères, unique s'il est rempli) ; n° entier de 1 à 999, unique, trous permis, n'importe quel ordre (ancien format : rang dans le fichier) ; sur le téléphone, noms pris grisés « déjà connecté », non sélectionnables ; le téléphone montre le n° de liste, jamais le numéro étudiant (GRP-05, ETU-13, RES-05, MIG-01) |
 | « Déjà posée » (après I12, I16) | Calculé par étudiant (numéro étudiant, sinon nom exact) : « posée à 12 étudiants sur 80 » |
 | Réimport d'un fichier AMC (après I12, I15) | Permis ; question reconnue par son origine (fichier, rang) ; modification de l'enseignant gardée ; questions manquantes recréées et remises ; récapitulatif « déjà là, ajoutée, écartée » ; fichier corrigé : nouveau QCM ; « retirer du QCM » distinct de « supprimer de la banque » *(remplacera le refus d'IMP-07)* |
 | Ordre et composition (après I12, I15) | Cases à cocher ; une question remise retrouve sa place dans le fichier, les autres à la suite ; plus de saisie de rang |

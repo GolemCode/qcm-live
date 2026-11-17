@@ -166,7 +166,9 @@ legend { font-weight: 700; padding: 0 0.25rem; }
 label.inline { display: flex; gap: 0.5rem; align-items: center; margin: 0.25rem 0; }
 input[type="radio"], input[type="checkbox"] { width: 1.25rem; height: 1.25rem; flex: none; accent-color: var(--ink); }
 
-.messages { background: var(--ok-bg); border: 2px solid var(--ok); border-radius: var(--radius); padding: 0.25rem 1rem; margin-bottom: 1rem; }
+/* Un encadré par message ; une erreur (.error, plus bas) n'a pas la couleur d'un succès. */
+.messages { margin-bottom: 1rem; }
+.message { background: var(--ok-bg); border: 2px solid var(--ok); border-radius: var(--radius); padding: 0.75rem 1rem; margin: 0 0 0.5rem; }
 .error { color: var(--error); font-weight: 700; background: var(--error-bg); border: 2px solid var(--error); border-radius: var(--radius); padding: 0.25rem 1rem; }
 
 .footer-link { margin-top: 2rem; }
@@ -330,6 +332,27 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
 .whoami .number { margin: 0 0 1.5rem; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .whoami .waiting-note { margin: 0; padding-top: 0.75rem; border-top: var(--rule) solid var(--ink); font-size: 1.25rem; }
 
+/* Identification (ETU-13) : la liste du groupe, par n° ; un nom pris est grisé, sans lien. */
+.pick-title { margin: 0.5rem 0 1rem; font-size: 1.25rem; }
+.pick .search { margin: 0 0 1rem; }
+.pick .search label { display: block; margin-bottom: 0.25rem; font-weight: 700; }
+.roster { margin: 0; padding: 0; list-style: none; border-top: var(--rule) solid var(--ink); }
+.roster li { border-bottom: 1px solid var(--soft-line); }
+.roster a, .roster .taken {
+  display: flex; align-items: baseline; gap: 0.75rem; min-height: 3rem; padding: 0.7rem 0.25rem;
+  overflow-wrap: anywhere;
+}
+.roster a { color: var(--ink); text-decoration: none; font-size: 1.125rem; font-weight: 700; }
+.roster a:hover .list-name { text-decoration: underline; }
+.roster .list-number { flex: none; min-width: 2.5rem; font-variant-numeric: tabular-nums; font-weight: 400; }
+.roster .taken { color: var(--muted); font-size: 1.125rem; }
+.roster .taken-note { margin-left: auto; flex: none; font-size: 0.875rem; font-style: italic; }
+.pick .no-match { margin: 1rem 0; font-weight: 700; }
+.confirm-question { margin: 0.5rem 0 0.25rem; font-size: 2rem; line-height: 1.15; overflow-wrap: anywhere; }
+.confirm-actions { display: grid; gap: 1rem; margin-top: 1rem; }
+.confirm-actions button, .confirm-actions a.button { width: 100%; min-height: 3rem; text-align: center; }
+a.button.secondary { background: transparent; color: var(--ink); }
+
 /* En déroulement : la couleur (numéro, forme, « Couleur N ») et le temps restant. */
 .phone-head {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -382,3 +405,4 @@ progress.timebar { --track: #3a3a38; --value: var(--signal); }
 .transmission { margin: 0; padding-top: 0.75rem; border-top: var(--rule) solid var(--ink); font-size: 1.25rem; }
 /* Réponses non transmises : un avertissement (.error), à signaler à l'enseignant. */
 .transmission.error { padding: 0.75rem 1rem; }
+.message.error { padding: 0.75rem 1rem; }

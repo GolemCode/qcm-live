@@ -1,4 +1,4 @@
-"""Lancement d'une session (enseignant) ; code puis numéro (étudiant)."""
+"""Lancement d'une session (enseignant) ; code puis nom dans la liste du groupe (étudiant)."""
 
 from __future__ import annotations
 
@@ -6,14 +6,13 @@ from typing import cast
 
 from django import forms
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count
 
 from bank.models import NONE_OF_THESE, Quiz
 from config.forms import PlainForm
-from live.models import CODE_LENGTH, Participant, Session, random_code
+from live.models import CODE_LENGTH, Session, random_code
 from live.results import none_index
 from live.snapshot import FrozenQuestion, freeze_group, freeze_quiz
-from roster.csv_import import MAX_NUMBER_LENGTH
 from roster.models import StudentGroup
 
 MAX_SHOWN = 6  # SES-01 : de 1 à 6 questions affichées en même temps
@@ -21,7 +20,6 @@ DEFAULT_SHOWN = 4  # SES-06
 MIN_SECONDS, MAX_SECONDS = 5, 600
 CODE_ATTEMPTS = 20  # un million de codes : une collision est rare, vingt d'affilée impossible
 INVALID_ANSWER = "Réponse invalide."
-RANK_ATTEMPTS = 10  # arrivées simultanées : une tentative par conflit de rang
 
 
 class LaunchSessionForm(PlainForm):
@@ -107,52 +105,6 @@ class JoinForm(PlainForm):
         if not Session.objects.filter(code=code).exists():
             raise forms.ValidationError("Aucune session ne porte ce code.")
         return code
-
-
-class IdentifyForm(PlainForm):
-    number = DigitsField(label="Numéro d'étudiant", max_length=MAX_NUMBER_LENGTH)
-
-    def __init__(self, *args, session: Session, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.session = session
-
-    def clean_number(self) -> str:
-        number = self.cleaned_data["number"]
-        name = self.session.student_name(number)
-        if name is None:
-            raise forms.ValidationError("Ce numéro ne fait pas partie du groupe de cette session.")
-        self.student_name = name
-        return number
-
-    def _next_rank(self) -> int:
-        """Rotation : rangs successifs 0, 1, 2… (un numéro libéré ne crée pas de doublon)."""
-        top = self.session.participants.aggregate(top=Max("rank"))["top"]
-        return 0 if top is None else top + 1
-
-    def save(self) -> Participant | None:
-        """Le participant, ou None si le numéro est déjà pris dans la session (erreur ajoutée).
-
-        Les contraintes d'unicité en base sont les seuls arbitres : deux téléphones qui
-        valident le même numéro au même instant ne passent pas tous les deux, et deux arrivées
-        simultanées n'obtiennent pas le même rang (le second retente avec le rang suivant).
-        """
-        number = self.cleaned_data["number"]
-        for _ in range(RANK_ATTEMPTS):
-            try:
-                with transaction.atomic():
-                    return Participant.objects.create(
-                        session=self.session,
-                        number=number,
-                        name=self.student_name,
-                        rank=self._next_rank(),
-                    )
-            except IntegrityError:
-                if self.session.participants.filter(number=number).exists():
-                    break
-        self.add_error(
-            "number", "Ce numéro est déjà utilisé dans cette session, depuis un autre appareil."
-        )
-        return None
 
 
 class AnswerForm(PlainForm):

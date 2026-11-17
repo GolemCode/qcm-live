@@ -19,7 +19,7 @@
   {% block after_header %}{% endblock %}
   <main class="page">
     {% if messages %}
-      <div class="messages" role="status">{% for message in messages %}<p>{{ message }}</p>{% endfor %}</div>
+      <div class="messages" role="status">{% for message in messages %}<p class="message {{ message.level_tag }}">{{ message }}</p>{% endfor %}</div>
     {% endif %}
     {% block content %}{% endblock %}
   </main>

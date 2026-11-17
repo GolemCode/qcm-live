@@ -17,8 +17,9 @@ from django.utils import timezone
 
 from bank.forms import LETTERS, QuestionForm, QuizForm
 from bank.models import Question, Quiz
-from live.forms import IdentifyForm, LaunchSessionForm
+from live.forms import LaunchSessionForm
 from live.models import Participant, Session
+from roster.csv_import import HEADER
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 
@@ -62,9 +63,16 @@ def make_quiz(title: str, questions: Sequence[Question]) -> Quiz:
     return _saved(QuizForm(data))
 
 
-def make_group(name: str, students: Sequence[tuple[str, str]]) -> StudentGroup:
-    """Groupe importé par le formulaire d'import, à partir d'un CSV construit ici."""
-    content = "".join(f"{number};{student}\n" for number, student in students).encode()
+def make_group(
+    name: str, students: Sequence[tuple[str, str]] | Sequence[tuple[int, str, str]]
+) -> StudentGroup:
+    """Groupe importé par le formulaire d'import, à partir d'un CSV construit ici : à l'ancien
+    format pour des couples (numéro étudiant, nom), dont le n° est alors le rang ; au format
+    d'I14 pour des triplets (n°, numéro étudiant, nom) (GRP-05)."""
+    lines = [";".join(map(str, student)) + "\n" for student in students]
+    if students and len(students[0]) == 3:
+        lines.insert(0, ";".join(HEADER) + "\n")
+    content = "".join(lines).encode()
     upload = SimpleUploadedFile("groupe.csv", content, content_type="text/csv")
     return _saved(GroupImportForm({"name": name}, {"file": upload}))
 
@@ -75,12 +83,14 @@ def make_session(quiz: Quiz, group: StudentGroup, *, shown: int = 1, seconds: in
     return _saved(LaunchSessionForm(data))
 
 
-def make_participant(session: Session, number: str) -> Participant:
-    """Étudiant identifié dans la session, comme s'il avait saisi son numéro sur un téléphone :
-    pour remplir une salle sans ouvrir un navigateur par étudiant."""
-    form = IdentifyForm({"number": number}, session=session)
-    participant = _saved(form)
-    assert participant is not None, form.errors
+def make_participant(session: Session, list_number: int) -> Participant:
+    """Étudiant identifié dans la session, par le même chemin que la confirmation de son nom
+    sur un téléphone (`Session.enrol`) : pour remplir une salle sans ouvrir un navigateur par
+    étudiant."""
+    student = session.student(list_number)
+    assert student is not None, f"n° {list_number} hors de la liste"
+    participant = session.enrol(student)
+    assert participant is not None, f"n° {list_number} déjà pris"
     return participant
 
 

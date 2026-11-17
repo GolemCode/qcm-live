@@ -10,13 +10,14 @@ from datetime import datetime
 from functools import cached_property
 from typing import TYPE_CHECKING, Literal
 
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
+from django.db.models import Max
 from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
 from live.results import StudentResult, none_index, results
 from live.schedule import Position, Schedule, Slot, shuffled
-from roster.csv_import import MAX_NAME_LENGTH, MAX_NUMBER_LENGTH
+from roster.csv_import import MAX_NAME_LENGTH, MAX_STUDENT_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 
 CODE_LENGTH = 6
 EXTRA_SECONDS = 10  # TPS-01 : temps ajouté par un clic de l'enseignant
+RANK_ATTEMPTS = 10  # arrivées simultanées : une tentative par conflit de rang
 
 Phase = Literal["waiting", "running", "ended"]
 PHASE_LABELS: dict[Phase, str] = {
@@ -80,6 +82,7 @@ class Session(models.Model):
 
     @property
     def students(self) -> list[FrozenStudent]:
+        """Liste figée du groupe, par n° de liste (`freeze_group`)."""
         return self.roster
 
     @cached_property
@@ -148,20 +151,50 @@ class Session(models.Model):
 
     def results(self) -> list[StudentResult]:
         """RES-01 : un résultat par étudiant du groupe figé ; les absents n'ont pas de note."""
-        present = {p.number: p.answer_map() for p in self.participants.prefetch_related("answers")}
+        participants = self.participants.prefetch_related("answers")
+        present = {p.list_number: p.answer_map() for p in participants}
         return results(self.content, self.students, present)
 
-    def student_name(self, number: str) -> str | None:
-        """Nom de l'étudiant de ce numéro dans la liste figée, ou None s'il n'en fait pas partie."""
-        return next((s["name"] for s in self.students if s["number"] == number), None)
+    def student(self, list_number: int) -> FrozenStudent | None:
+        """Étudiant de ce n° dans la liste figée, ou None s'il n'en fait pas partie."""
+        return next((s for s in self.students if s["list_number"] == list_number), None)
+
+    def _next_rank(self) -> int:
+        """Rotation : rangs successifs 0, 1, 2… (un n° libéré ne crée pas de doublon)."""
+        top = self.participants.aggregate(top=Max("rank"))["top"]
+        return 0 if top is None else top + 1
+
+    def enrol(self, student: FrozenStudent) -> Participant | None:
+        """ETU-13 : le participant de cet étudiant de la liste figée, ou None s'il est déjà pris.
+
+        Les contraintes d'unicité en base sont les seuls arbitres : deux téléphones qui
+        confirment le même nom au même instant ne passent pas tous les deux, et deux arrivées
+        simultanées n'obtiennent pas le même rang (le second retente avec le rang suivant).
+        """
+        list_number = student["list_number"]
+        for _ in range(RANK_ATTEMPTS):
+            try:
+                with transaction.atomic():
+                    return Participant.objects.create(
+                        session=self,
+                        list_number=list_number,
+                        student_number=student["student_number"],
+                        name=student["name"],
+                        rank=self._next_rank(),
+                    )
+            except IntegrityError:
+                if self.participants.filter(list_number=list_number).exists():
+                    break
+        return None
 
 
 class Participant(models.Model):
-    """Un étudiant identifié dans une session. Numéro et nom sont copiés : supprimer le groupe
-    n'efface rien (CLAUDE.md, architecture)."""
+    """Un étudiant identifié dans une session, par son n° de liste (ETU-13). N°, numéro étudiant
+    et nom sont copiés : supprimer le groupe n'efface rien (CLAUDE.md, architecture)."""
 
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="participants")
-    number = models.CharField(max_length=MAX_NUMBER_LENGTH)
+    list_number = models.PositiveSmallIntegerField()
+    student_number = models.CharField(max_length=MAX_STUDENT_NUMBER_LENGTH, blank=True)
     name = models.CharField(max_length=MAX_NAME_LENGTH)
     rank = models.PositiveIntegerField(default=0)  # place dans la rotation (live.schedule)
     joined_at = models.DateTimeField(auto_now_add=True)
@@ -172,12 +205,14 @@ class Participant(models.Model):
     class Meta:
         ordering = ["joined_at", "pk"]
         constraints = [
-            models.UniqueConstraint(fields=["session", "number"], name="unique_participant_number"),
+            models.UniqueConstraint(
+                fields=["session", "list_number"], name="unique_participant_list_number"
+            ),
             models.UniqueConstraint(fields=["session", "rank"], name="unique_participant_rank"),
         ]
 
     def __str__(self) -> str:
-        return f"{self.session} {self.number}"
+        return f"{self.session} n° {self.list_number}"
 
     def question_at(self, slot: Slot) -> tuple[int, FrozenQuestion]:
         """Indice et contenu figé de la question de ce participant pendant ce créneau."""
