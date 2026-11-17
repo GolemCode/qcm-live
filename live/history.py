@@ -41,10 +41,23 @@ def posed_counts(
 ) -> dict[int, int]:
     """{famille de questions : nombre d'étudiants de `students` à qui elle a été posée}, d'après
     `played`, les couples (famille, participant) des sessions passées du groupe."""
-    students = list(set(students))
-    reached: dict[int, set[Person]] = defaultdict(set)
+    # Index de same_student : chaque participant ne parcourt que ses candidats.
+    by_number: dict[str, set[int]] = defaultdict(set)
+    by_name: dict[str, set[int]] = defaultdict(set)  # tous les étudiants de ce nom
+    unnumbered: dict[str, set[int]] = defaultdict(set)  # ceux de ce nom sans numéro
+    for i, student in enumerate(students):  # indices : deux homonymes restent deux
+        by_name[student.name].add(i)
+        if student.student_number:
+            by_number[student.student_number].add(i)
+        else:
+            unnumbered[student.name].add(i)
+    reached: dict[int, set[int]] = defaultdict(set)
     for family, participant in played:
-        reached[family].update(s for s in students if same_student(s, participant))
+        if participant.student_number:
+            found = by_number[participant.student_number] | unnumbered[participant.name]
+        else:
+            found = by_name[participant.name]
+        reached[family] |= found
     return {family: len(found) for family, found in reached.items() if found}
 
 
