@@ -82,11 +82,11 @@ def test_demo_file_imports_without_skipped_question_and_runs_a_session(
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     open_results(page)
     (row,) = results_rows(page)
-    assert row[:2] == ["00123", "DURAND Élise"]
+    assert row[:3] == ["1", "00123", "DURAND Élise"]
     _, content = download_csv(page)
     rows = csv_rows(content)
     assert len(rows) == 2
-    assert "-" not in rows[1][5::2]  # une lettre par question : chacune a reçu une réponse
+    assert "-" not in rows[1][6::2]  # une lettre par question : chacune a reçu une réponse
 
 
 # --- DEM-02 : make demo ---------------------------------------------------------------------

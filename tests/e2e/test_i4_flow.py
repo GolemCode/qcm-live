@@ -24,7 +24,11 @@ from tests.e2e.live_ui import (
     connected_count,
     connected_names,
     enter_code,
+    group_list,
+    identify,
+    identity,
     join,
+    list_entry,
     manage_participants,
     phone_choices,
     phone_color,
@@ -237,14 +241,14 @@ def test_late_student_joins_and_missed_slots_are_unanswered(
     started(page, live_server.url, new_phone, session, ["00123"])
     rewind(session, 30)  # le second créneau est en cours
 
-    (late,) = phones_joined(new_phone, live_server.url, session.code, ["42"])
+    (late,) = phones_joined(new_phone, live_server.url, session.code, ["MARTIN Léo"])
     expect(late.get_by_role("group", name="Propositions")).to_be_visible()
     question = question_of(phone_choices(late))
     assert question in list(QUESTIONS)[:2]  # une question du groupe en cours
     choose(late, phone_choices(late)[0])
     expect(save_status(late)).to_have_text("Réponse enregistrée")
 
-    participant = session.participants.get(number="42")
+    participant = session.participants.get(student_number="42")
     # Le créneau manqué n'a aucune réponse : il comptera comme non-réponse (v).
     assert participant.answers.count() == 1
     expect(connected_count(page)).to_have_count(0)  # le tableau est passé aux questions
@@ -288,30 +292,31 @@ def test_board_shows_neither_correction_nor_statistics(teacher_page: Page, live_
 
 
 @pytest.mark.spec("SES-04")
-def test_teacher_releases_a_taken_number_before_start(teacher_page: Page, live_server, new_phone):
+def test_teacher_releases_a_taken_student_before_start(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_live(1, shown=1)
     impostor = new_phone()
-    join(impostor, live_server.url, session.code, "00123")
-    expect(impostor.get_by_text("Vous êtes DURAND Élise")).to_be_visible()
+    join(impostor, live_server.url, session.code, "DURAND Élise")
+    expect(identity(impostor)).to_have_text("Vous êtes DURAND Élise")
     real = new_phone()
-    join(real, live_server.url, session.code, "00123")
-    expect(real.get_by_role("alert")).to_contain_text("déjà utilisé")
+    enter_code(real, live_server.url, session.code)
+    expect(list_entry(real, "DURAND Élise")).to_contain_text("déjà connecté")
 
     open_board(page, live_server.url, session)
     expect(connected_names(page)).to_have_text(["DURAND Élise"])
     manage_participants(page)
-    row = page.get_by_role("row", name=re.compile("00123"))
-    expect(row).to_contain_text("DURAND Élise")
+    # La page montre le n°, le numéro étudiant et le nom (I14).
+    row = page.get_by_role("row", name=re.compile("DURAND Élise"))
+    expect(row.get_by_role("cell")).to_have_text(["1", "00123", "DURAND Élise", "Libérer"])
     row.get_by_role("button", name="Libérer").click()
-    expect(page.get_by_role("status")).to_contain_text("Numéro 00123 libéré")
-    expect(page.get_by_role("row", name=re.compile("00123"))).to_have_count(0)
+    expect(page.get_by_role("status")).to_contain_text("N° 1 libéré")
+    expect(page.get_by_role("row", name=re.compile("DURAND Élise"))).to_have_count(0)
 
-    impostor.reload()  # l'appareil qui occupait le numéro perd son identité
-    expect(impostor.get_by_label("Numéro d'étudiant")).to_be_visible()
-    real.get_by_label("Numéro d'étudiant").fill("00123")
-    real.get_by_role("button", name="Valider").click()
-    expect(real.get_by_text("Vous êtes DURAND Élise")).to_be_visible()
+    impostor.reload()  # l'appareil qui occupait l'étudiant perd son identité
+    expect(group_list(impostor)).to_be_visible()
+    real.reload()  # le vrai étudiant peut de nouveau choisir son nom
+    identify(real, "DURAND Élise")
+    expect(identity(real)).to_have_text("Vous êtes DURAND Élise")
 
     # Après le démarrage, plus aucune libération.
     open_board(page, live_server.url, session)

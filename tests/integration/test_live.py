@@ -22,6 +22,24 @@ from tests.factories import jump_to, make_group, make_question, make_quiz, make_
 pytestmark = pytest.mark.django_db
 
 
+def confirm(client, session, list_number: int):
+    """Le téléphone `client` confirme être l'étudiant de n° `list_number` (ETU-13)."""
+    return client.post(reverse("student-confirm", args=[session.code, list_number]))
+
+
+def participant(session, list_number: int, **fields) -> Participant:
+    """Participant créé directement en base, avec le n°, le numéro et le nom de la liste."""
+    student = session.student(list_number)
+    assert student is not None
+    return Participant.objects.create(
+        session=session,
+        list_number=list_number,
+        student_number=student["student_number"],
+        name=student["name"],
+        **fields,
+    )
+
+
 @pytest.fixture
 def session():
     q1 = make_question("Q1", [("a", False), ("b", True)])
@@ -65,8 +83,8 @@ def test_start_requires_post_and_is_idempotent(admin_client, session):
 
 
 def test_board_state_lists_names_in_join_order(admin_client, session):
-    Participant.objects.create(session=session, number="2", name="B", rank=0)
-    Participant.objects.create(session=session, number="1", name="A", rank=1)
+    participant(session, 2, rank=0)
+    participant(session, 1, rank=1)
     state = json.loads(admin_client.get(reverse("board-state", args=[session.code])).content)
     assert state == {
         "page": "waiting",
@@ -89,7 +107,10 @@ def test_snapshot_keeps_quiz_order_choices_and_scoring(session):
     ]
     assert (questions[0]["scoring"], questions[1]["scoring"]) == ("p=-1", "")
     assert "scales" not in session.content
-    assert session.roster == [{"number": "1", "name": "A"}, {"number": "2", "name": "B"}]
+    assert session.roster == [
+        {"list_number": 1, "student_number": "1", "name": "A"},
+        {"list_number": 2, "student_number": "2", "name": "B"},
+    ]
 
 
 def test_code_collision_draws_a_new_code(session, monkeypatch):
@@ -99,13 +120,44 @@ def test_code_collision_draws_a_new_code(session, monkeypatch):
     assert other.code == "123456"
 
 
-def test_number_taken_concurrently_is_a_form_error(session, monkeypatch):
-    form = IdentifyForm({"number": "1"}, session=session)
+def test_student_taken_concurrently_is_a_form_error(session, monkeypatch):
+    form = IdentifyForm({}, session=session, list_number=1)
     assert form.is_valid()
-    Participant.objects.create(session=session, number="1", name="A")  # l'autre téléphone
+    participant(session, 1)  # l'autre téléphone
     assert form.save() is None
-    assert "déjà utilisé" in form.errors["number"][0]
+    assert "déjà connecté" in form.non_field_errors()[0]
     assert session.participants.count() == 1
+
+
+def test_student_not_in_the_list_is_404(client, session):
+    assert confirm(client, session, 3).status_code == 404
+    url = reverse("student-confirm", args=[session.code, 3])
+    assert client.get(url).status_code == 404
+    assert not session.participants.exists()
+
+
+def test_confirmation_page_identifies_nobody(client, session):
+    """Ouvrir la confirmation n'identifie personne : seul « Oui, c'est moi » (POST) le fait."""
+    url = reverse("student-confirm", args=[session.code, 1])
+    assert "Vous êtes A ?" in client.get(url).content.decode()
+    assert not session.participants.exists()
+
+
+def test_taken_student_is_refused_and_listed_as_taken(client, session):
+    participant(session, 1)
+    response = confirm(client, session, 1)
+    assert response.status_code == 302
+    assert not session.participants.filter(rank__gt=0).exists()
+    html = client.get(response["Location"]).content.decode()
+    assert "déjà connecté" in html
+    assert reverse("student-confirm", args=[session.code, 1]) not in html  # pas de lien
+    assert reverse("student-confirm", args=[session.code, 2]) in html
+
+
+def test_no_identification_once_the_session_is_over(client, session):
+    jump_to(session, session.schedule.duration + 1)
+    confirm(client, session, 1)
+    assert not session.participants.exists()
 
 
 def test_unknown_session_page_is_404(client):
@@ -113,10 +165,9 @@ def test_unknown_session_page_is_404(client):
 
 
 def test_one_device_keeps_one_identity_per_session(client, session):
-    url = reverse("student-session", args=[session.code])
-    client.post(url, {"number": "1"})
-    client.post(url, {"number": "2"})  # le formulaire n'est plus proposé : rien ne change
-    assert list(session.participants.values_list("number", flat=True)) == ["1"]
+    confirm(client, session, 1)
+    confirm(client, session, 2)  # déjà identifié : rien ne change
+    assert list(session.participants.values_list("list_number", flat=True)) == [1]
     assert Session.objects.count() == 1
 
 
@@ -170,7 +221,7 @@ def test_board_polls_until_the_session_ends(admin_client, session):
 @pytest.fixture
 def running(client, admin_client, session):
     """Session démarrée, l'appareil `client` identifié comme l'étudiant n°1 (rang 0)."""
-    client.post(reverse("student-session", args=[session.code]), {"number": "1"})
+    confirm(client, session, 1)
     admin_client.post(reverse("session-start", args=[session.code]))
     session.refresh_from_db()
     return session
@@ -228,8 +279,8 @@ def test_recorded_answers_are_given_by_slot(client, running):
     de propositions seulement (AFF-01). Rang 1 : la rotation lui donne Q1 au créneau 0 et Q2
     au créneau 1, à l'inverse du rang 0."""
     other = Client()
-    other.post(reverse("student-session", args=[running.code]), {"number": "2"})
-    Participant.objects.filter(number="2").update(rank=1)
+    confirm(other, running, 2)
+    Participant.objects.filter(list_number=2).update(rank=1)
     assert answers_by_slot(other, running).json() == {"answers": {}}
 
     assert answer(other, running, 1).status_code == 200  # créneau 0 : Q1, simple
@@ -252,54 +303,55 @@ def test_answer_for_another_slot_is_too_late(client, running):
 
 
 def test_release_only_before_start(admin_client, session):
-    participant = Participant.objects.create(session=session, number="1", name="A")
-    url = reverse("participant-release", args=[session.code, participant.pk])
+    taken = participant(session, 1)
+    url = reverse("participant-release", args=[session.code, taken.pk])
     assert admin_client.get(url).status_code == 405
     admin_client.post(reverse("session-start", args=[session.code]))
     admin_client.post(url)
-    assert Participant.objects.filter(pk=participant.pk).exists()
+    assert Participant.objects.filter(pk=taken.pk).exists()
     session.started_at = None
     session.save()
     admin_client.post(url)
-    assert not Participant.objects.filter(pk=participant.pk).exists()
+    assert not Participant.objects.filter(pk=taken.pk).exists()
 
 
 def test_release_requires_login(client, session):
-    participant = Participant.objects.create(session=session, number="1", name="A")
-    url = reverse("participant-release", args=[session.code, participant.pk])
+    taken = participant(session, 1)
+    url = reverse("participant-release", args=[session.code, taken.pk])
     assert client.post(url)["Location"].startswith(reverse("login"))
     assert client.get(reverse("participants", args=[session.code]))["Location"].startswith(
         reverse("login")
     )
-    assert Participant.objects.filter(pk=participant.pk).exists()
+    assert Participant.objects.filter(pk=taken.pk).exists()
 
 
 def test_ranks_stay_distinct_after_a_release(admin_client, session):
     from django.test import Client
 
-    for number in ("1", "2"):
-        Client().post(reverse("student-session", args=[session.code]), {"number": number})
-    first = session.participants.get(number="1")
+    for list_number in (1, 2):
+        confirm(Client(), session, list_number)
+    first = session.participants.get(list_number=1)
     admin_client.post(reverse("participant-release", args=[session.code, first.pk]))
-    Client().post(reverse("student-session", args=[session.code]), {"number": "1"})
+    confirm(Client(), session, 1)
     assert sorted(session.participants.values_list("rank", flat=True)) == [1, 2]
 
 
 def test_rank_conflict_retries_with_the_next_rank(session, monkeypatch):
-    Participant.objects.create(session=session, number="1", name="A", rank=0)
-    form = IdentifyForm({"number": "2"}, session=session)
+    participant(session, 1, rank=0)
+    form = IdentifyForm({}, session=session, list_number=2)
     assert form.is_valid()
     ranks = iter([0, 1])  # arrivée simultanée : le premier rang lu est déjà pris
     monkeypatch.setattr(IdentifyForm, "_next_rank", lambda self: next(ranks))
-    participant = form.save()
-    assert participant is not None and participant.rank == 1
+    joined = form.save()
+    assert joined is not None and joined.rank == 1
 
 
 def test_start_renumbers_ranks_in_arrival_order(admin_client, session):
-    for rank, number in ((0, "1"), (3, "2")):  # un trou laissé par une libération
-        Participant.objects.create(session=session, number=number, name=number, rank=rank)
+    for rank, list_number in ((0, 1), (3, 2)):  # un trou laissé par une libération
+        participant(session, list_number, rank=rank)
     admin_client.post(reverse("session-start", args=[session.code]))
-    assert list(session.participants.values_list("number", "rank")) == [("1", 0), ("2", 1)]
+    ranks = session.participants.values_list("list_number", "rank")
+    assert list(ranks) == [(1, 0), (2, 1)]
 
 
 def test_simultaneous_first_answers_keep_the_last(client, running, monkeypatch):
@@ -446,21 +498,21 @@ def test_added_time_keeps_the_rotation(admin_client):
     questions = [make_question(f"Q{i}", [("a", True), ("b", False)]) for i in range(3)]
     group = make_group("TD", [("1", "A"), ("2", "B")])
     session = make_session(make_quiz("QCM", questions), group, shown=3, seconds=20)
-    for number in ("1", "2"):
-        Client().post(reverse("student-session", args=[session.code]), {"number": number})
+    for list_number in (1, 2):
+        confirm(Client(), session, list_number)
     admin_client.post(reverse("session-start", args=[session.code]))
 
-    def rotation() -> dict[str, list[int]]:
+    def rotation() -> dict[int, list[int]]:
         fresh = Session.objects.get(pk=session.pk)
         return {
-            p.number: [p.question_at(slot)[0] for slot in fresh.schedule.slots]
+            p.list_number: [p.question_at(slot)[0] for slot in fresh.schedule.slots]
             for p in fresh.participants.all()
         }
 
-    assert rotation() == {"1": [0, 1, 2], "2": [1, 2, 0]}
+    assert rotation() == {1: [0, 1, 2], 2: [1, 2, 0]}
     Extension.objects.create(session=session, slot=0)
     Extension.objects.create(session=session, slot=1)
-    assert rotation() == {"1": [0, 1, 2], "2": [1, 2, 0]}
+    assert rotation() == {1: [0, 1, 2], 2: [1, 2, 0]}
 
 
 def test_board_projects_the_join_url_of_class_mode(admin_client, session, settings):
@@ -502,7 +554,7 @@ def test_error_pages_are_in_french(client, session):
     missing = client.get("/page-inexistante/")
     assert missing.status_code == 404 and "<h1>Page introuvable</h1>" in missing.content.decode()
     csrf_client = Client(enforce_csrf_checks=True)
-    expired = csrf_client.post(reverse("student-session", args=[session.code]), {"number": "1"})
+    expired = csrf_client.post(reverse("student-confirm", args=[session.code, 1]))
     assert expired.status_code == 403 and "<h1>Formulaire expiré</h1>" in expired.content.decode()
     assert "<h1>Erreur du serveur</h1>" in render_to_string("500.html")
     unknown_host = client.get("/", headers={"host": "inconnu.example"})

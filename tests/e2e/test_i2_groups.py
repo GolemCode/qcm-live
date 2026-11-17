@@ -22,12 +22,17 @@ def test_import_group_from_csv(teacher_page: Page):
     expect(page.get_by_role("status")).to_contain_text("Groupe importé : 3 étudiants")
     expect(page.get_by_role("status")).to_contain_text("Ligne 1 ignorée comme en-tête")
     expect(student_rows(page)).to_have_count(3)
-    expect(student_rows(page).nth(0).get_by_role("cell")).to_have_text(["00123", "DURAND Élise"])
-    expect(student_rows(page).nth(1).get_by_role("cell")).to_have_text(["42", "MARTIN Léo"])
-    expect(student_rows(page).nth(2).get_by_role("cell")).to_have_text(["7", "Ng Anh"])
+    # Ancien format : le n° est le rang dans le fichier (I14, GRP-05).
+    expect(student_rows(page).nth(0).get_by_role("cell")).to_have_text(
+        ["1", "00123", "DURAND Élise"]
+    )
+    expect(student_rows(page).nth(1).get_by_role("cell")).to_have_text(["2", "42", "MARTIN Léo"])
+    expect(student_rows(page).nth(2).get_by_role("cell")).to_have_text(["3", "7", "Ng Anh"])
 
     import_group(page, "TD2", TD2_CSV)
-    expect(student_rows(page).nth(0).get_by_role("cell")).to_have_text(["9001", "DUPONT, Jeanne"])
+    expect(student_rows(page).nth(0).get_by_role("cell")).to_have_text(
+        ["1", "9001", "DUPONT, Jeanne"]
+    )
     expect(student_rows(page)).to_have_count(2)
 
     open_groups(page)
@@ -39,12 +44,11 @@ INVALID_FILES = [
     # (contenu, extraits attendus du message)
     (b"1;A\n2\n", ["Ligne 2", "format incorrect"]),
     (b"1;A;B\n", ["Ligne 1", "format incorrect"]),
-    (b"numero;nom\n1;A\n2;B\n1;C\n", ["Ligne 4", "numéro 1 en double", "ligne 2"]),
-    (b"1;A\n;B\n", ["Ligne 2", "numéro vide"]),
+    (b"numero;nom\n1;A\n2;B\n1;C\n", ["Ligne 4", "numéro étudiant « 1 » en double", "ligne 2"]),
     (b"1;A\n2;\n", ["Ligne 2", "nom vide"]),
-    (b"1;A\n12a;B\n", ["Ligne 2", "chiffres"]),
+    (b"1;A\n" + b"9" * 21 + b";B\n", ["Ligne 2", "trop long"]),
     (b"1;A\n2\n3;\n", ["Ligne 2", "Ligne 3"]),  # toutes les lignes fautives sont désignées
-    (b"1;A\n\n;B\n", ["Ligne 3", "numéro vide"]),  # les lignes vides comptent
+    (b"1;A\n\n3;\n", ["Ligne 3", "nom vide"]),  # les lignes vides comptent
     (b"numero;nom\n\n", ["aucun étudiant"]),
 ]
 
@@ -61,7 +65,7 @@ def test_invalid_csv_is_refused_entirely(teacher_page: Page):
         for fragment in fragments:
             expect(page.get_by_role("alert")).to_contain_text(fragment)
     # Au-delà de 20 lignes fautives : les 20 premières, puis le nombre des autres.
-    submit_group(page, "TD3", b"".join(b"1x;A\n" for _ in range(25)))
+    submit_group(page, "TD3", b"".join(b"1x;\n" for _ in range(25)))
     expect(page.get_by_role("alert")).to_contain_text("Ligne 20 :")
     expect(page.get_by_role("alert")).not_to_contain_text("Ligne 21 :")
     expect(page.get_by_role("alert")).to_contain_text("… et 5 autres erreurs.")

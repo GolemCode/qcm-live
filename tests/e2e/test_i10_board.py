@@ -250,8 +250,8 @@ def test_waiting_board_holds_a_class_of_forty(teacher_page: Page, live_server):
     page = teacher_page
     quiz = make_quiz("Algorithmique — Partiel 2", [make_question(f"Q{i} ?") for i in range(1, 25)])
     session = make_session(quiz, make_group("TC-3A G2", CLASS), shown=4, seconds=30)
-    for number, _ in CLASS[:10]:
-        make_participant(session, number)
+    for list_number in range(1, 11):
+        make_participant(session, list_number)
     open_board(page, live_server.url, session)
 
     # L'adresse, puis le code en deux groupes de trois chiffres, bien séparés.
@@ -268,8 +268,8 @@ def test_waiting_board_holds_a_class_of_forty(teacher_page: Page, live_server):
     # Le décompte et sa barre, mis à jour en direct.
     expect(connected_count(page)).to_have_text("10 / 40")
     expect_fill(people_bar(page), INK, 10 / 40)
-    for number, _ in CLASS[10:]:
-        make_participant(session, number)
+    for list_number in range(11, len(CLASS) + 1):
+        make_participant(session, list_number)
     expect(connected_names(page)).to_have_count(40, timeout=LIVE_MS)
     expect(connected_count(page)).to_have_text("40 / 40")
     expect_fill(people_bar(page), INK, 1.0)
@@ -362,7 +362,7 @@ def test_shared_pages_and_board_are_accessible(
     session = make_session(
         make_quiz("Six", questions), make_group("TD6", STUDENTS), shown=6, seconds=30
     )
-    make_participant(session, STUDENTS[0][0])
+    make_participant(session, 1)
     open_board(page, base, session)
     expect(connected_names(page)).to_have_count(1)
     assert_accessible(page, "tableau en attente")

@@ -93,7 +93,7 @@ def test_countdown_ignores_a_step_of_the_wall_clock(teacher_page: Page, live_ser
 def test_added_time_accumulates_and_shifts_next_slots(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_live(2, shown=1)  # deux créneaux de 30 s
-    phones = phones_joined(new_phone, live_server.url, session.code, ["00123", "42"])
+    phones = phones_joined(new_phone, live_server.url, session.code, ["DURAND Élise", "MARTIN Léo"])
     open_board(page, live_server.url, session)
     expect(add_time_button(page)).to_have_count(0)  # pas avant le démarrage
     start(page)

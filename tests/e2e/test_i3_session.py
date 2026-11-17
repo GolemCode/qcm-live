@@ -11,10 +11,12 @@ from tests.e2e.live_ui import (
     connected_names,
     enter_code,
     fill_launch,
+    group_list,
     identity,
     join,
     launch_session,
     leave_board,
+    list_entry,
     open_sessions,
     timer,
 )
@@ -86,10 +88,10 @@ def test_board_waiting_room(teacher_page: Page, live_server, new_phone, quiz_and
     expect(connected_names(page)).to_have_count(0)
 
     # Mise à jour en direct (2 s au plus), sans recharger le tableau.
-    join(new_phone(), live_server.url, code, "00123")
+    join(new_phone(), live_server.url, code, "DURAND Élise")
     expect(connected_names(page)).to_have_text(["DURAND Élise"], timeout=LIVE_MS)
     expect(connected_count(page)).to_have_text("1 / 3", timeout=LIVE_MS)
-    join(new_phone(), live_server.url, code, "42")
+    join(new_phone(), live_server.url, code, "MARTIN Léo")
     expect(connected_names(page)).to_have_text(["DURAND Élise", "MARTIN Léo"], timeout=LIVE_MS)
     expect(connected_count(page)).to_have_text("2 / 3", timeout=LIVE_MS)
     expect(board).not_to_contain_text("00123")  # noms seulement, pas les numéros
@@ -104,7 +106,7 @@ def test_board_shows_names_as_text(teacher_page: Page, live_server, new_phone, q
     """Un nom venu du fichier importé s'affiche tel quel, jamais interprété comme du HTML."""
     make_group("TD balises", [("1", "<b>Gras</b> <img src=x>")])
     code = launch_session(teacher_page, "Contrôle 1", "TD balises")
-    join(new_phone(), live_server.url, code, "1")
+    join(new_phone(), live_server.url, code, "<b>Gras</b> <img src=x>")
     expect(connected_names(teacher_page)).to_have_text(["<b>Gras</b> <img src=x>"])
     expect(teacher_page.locator("#connected b, #connected img")).to_have_count(0)
 
@@ -123,14 +125,16 @@ def test_session_frozen_at_launch(teacher_page: Page, live_server, new_phone, qu
     expect(page.get_by_role("main")).to_contain_text("TD1")
     expect(connected_count(page)).to_have_text("0 / 3")
     phone = new_phone()
-    join(phone, live_server.url, code, "7")
+    join(phone, live_server.url, code, "Ng Anh")
     expect(identity(phone)).to_have_text("Vous êtes Ng Anh")
 
 
 @pytest.mark.spec("ETU-01")
-def test_student_joins_with_code_then_number(
+def test_student_joins_with_code_then_name(
     teacher_page: Page, live_server, new_phone, quiz_and_group
 ):
+    """Depuis I14, l'étudiant choisit son nom dans la liste au lieu de taper un numéro
+    (ETU-13)."""
     code = launch_session(teacher_page, "Contrôle 1", "TD1")
     phone = new_phone()
     phone.goto(f"{live_server.url}/")
@@ -138,36 +142,40 @@ def test_student_joins_with_code_then_number(
     expect(code_input).to_have_attribute("inputmode", "numeric")
     code_input.fill(code)
     phone.get_by_role("button", name="Rejoindre").click()
-    number_input = phone.get_by_label("Numéro d'étudiant")
-    expect(number_input).to_have_attribute("inputmode", "numeric")
-    number_input.fill("00123")
-    phone.get_by_role("button", name="Valider").click()
+    expect(phone.get_by_role("textbox", name="Numéro d'étudiant")).to_have_count(0)
+    list_entry(phone, "DURAND Élise").get_by_role("link").click()
+    phone.get_by_role("button", name="Oui, c'est moi").click()
     expect(identity(phone)).to_have_text("Vous êtes DURAND Élise")
     expect(phone.get_by_role("main")).to_contain_text("En attente du démarrage")
 
 
 @pytest.mark.spec("ETU-02")
-def test_refused_codes_and_numbers(teacher_page: Page, live_server, new_phone, quiz_and_group):
+def test_refused_codes_and_students(teacher_page: Page, live_server, new_phone, quiz_and_group):
     code = launch_session(teacher_page, "Contrôle 1", "TD1")
     phone = new_phone()
     unknown = "000000" if code != "000000" else "111111"
     enter_code(phone, live_server.url, unknown)
     expect(phone.get_by_role("alert")).to_contain_text("Aucune session")
 
+    # Seuls les étudiants du groupe de la session sont proposés ; un n° hors de la liste,
+    # demandé directement, n'existe pas.
     enter_code(phone, live_server.url, code)
-    for number in ("999", "55", "123"):  # inconnu, autre groupe, sans les zéros de tête
-        phone.get_by_label("Numéro d'étudiant").fill(number)
-        phone.get_by_role("button", name="Valider").click()
-        expect(phone.get_by_role("alert")).to_contain_text("ne fait pas partie du groupe")
+    expect(group_list(phone).get_by_role("listitem")).to_have_count(3)
+    expect(list_entry(phone, "ROUX Paul")).to_have_count(0)  # groupe TD2
+    missing = phone.request.get(f"{live_server.url}/s/{code}/moi/4/")
+    assert missing.status == 404
     expect(identity(phone)).to_have_count(0)
 
-    # Numéro déjà pris par un autre appareil : refusé, le premier appareil garde son identité.
+    # Étudiant déjà pris par un autre appareil : grisé, et refusé s'il est confirmé quand
+    # même ; le premier appareil garde son identité.
+    list_entry(phone, "DURAND Élise").get_by_role("link").click()
     first = new_phone()
-    join(first, live_server.url, code, "00123")
+    join(first, live_server.url, code, "DURAND Élise")
     expect(identity(first)).to_have_text("Vous êtes DURAND Élise")
-    phone.get_by_label("Numéro d'étudiant").fill("00123")
-    phone.get_by_role("button", name="Valider").click()
-    expect(phone.get_by_role("alert")).to_contain_text("déjà utilisé")
+    phone.get_by_role("button", name="Oui, c'est moi").click()
+    expect(phone.get_by_role("status")).to_contain_text("déjà connecté")
+    expect(list_entry(phone, "DURAND Élise")).to_contain_text("déjà connecté")
+    expect(list_entry(phone, "DURAND Élise").get_by_role("link")).to_have_count(0)
     first.reload()
     expect(identity(first)).to_have_text("Vous êtes DURAND Élise")
     expect(connected_count(teacher_page)).to_have_text("1 / 3")
@@ -177,12 +185,12 @@ def test_refused_codes_and_numbers(teacher_page: Page, live_server, new_phone, q
 def test_identity_survives_reload(teacher_page: Page, live_server, new_phone, quiz_and_group):
     code = launch_session(teacher_page, "Contrôle 1", "TD1")
     phone = new_phone()
-    join(phone, live_server.url, code, "42")
+    join(phone, live_server.url, code, "MARTIN Léo")
     expect(identity(phone)).to_have_text("Vous êtes MARTIN Léo")
 
     phone.reload()
     expect(identity(phone)).to_have_text("Vous êtes MARTIN Léo")
-    expect(phone.get_by_label("Numéro d'étudiant")).to_have_count(0)
+    expect(group_list(phone)).to_have_count(0)
     enter_code(phone, live_server.url, code)  # ressaisir le code mène à son écran
     expect(identity(phone)).to_have_text("Vous êtes MARTIN Léo")
 
@@ -191,12 +199,12 @@ def test_identity_survives_reload(teacher_page: Page, live_server, new_phone, qu
     leave_board(teacher_page)
     second = launch_session(teacher_page, "Contrôle 1", "TD2")
     enter_code(phone, live_server.url, second)
-    expect(phone.get_by_label("Numéro d'étudiant")).to_be_visible()
+    expect(group_list(phone)).to_be_visible()
     expect(identity(phone)).to_have_count(0)
     enter_code(phone, live_server.url, code)  # la première identité est intacte
     expect(identity(phone)).to_have_text("Vous êtes MARTIN Léo")
 
     other = new_phone()  # un autre appareil n'hérite de rien
     enter_code(other, live_server.url, code)
-    expect(other.get_by_label("Numéro d'étudiant")).to_be_visible()
+    expect(group_list(other)).to_be_visible()
     expect(identity(other)).to_have_count(0)

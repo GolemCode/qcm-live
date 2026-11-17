@@ -62,9 +62,16 @@ def make_quiz(title: str, questions: Sequence[Question]) -> Quiz:
     return _saved(QuizForm(data))
 
 
-def make_group(name: str, students: Sequence[tuple[str, str]]) -> StudentGroup:
-    """Groupe importé par le formulaire d'import, à partir d'un CSV construit ici."""
-    content = "".join(f"{number};{student}\n" for number, student in students).encode()
+def make_group(
+    name: str, students: Sequence[tuple[str, str]] | Sequence[tuple[int, str, str]]
+) -> StudentGroup:
+    """Groupe importé par le formulaire d'import, à partir d'un CSV construit ici : à l'ancien
+    format pour des couples (numéro étudiant, nom), dont le n° est alors le rang ; au format
+    d'I14 pour des triplets (n°, numéro étudiant, nom) (GRP-05)."""
+    lines = [";".join(map(str, student)) + "\n" for student in students]
+    if students and len(students[0]) == 3:
+        lines.insert(0, "n°;numéro étudiant;nom\n")
+    content = "".join(lines).encode()
     upload = SimpleUploadedFile("groupe.csv", content, content_type="text/csv")
     return _saved(GroupImportForm({"name": name}, {"file": upload}))
 
@@ -75,10 +82,10 @@ def make_session(quiz: Quiz, group: StudentGroup, *, shown: int = 1, seconds: in
     return _saved(LaunchSessionForm(data))
 
 
-def make_participant(session: Session, number: str) -> Participant:
-    """Étudiant identifié dans la session, comme s'il avait saisi son numéro sur un téléphone :
+def make_participant(session: Session, list_number: int) -> Participant:
+    """Étudiant identifié dans la session, comme s'il avait confirmé son nom sur un téléphone :
     pour remplir une salle sans ouvrir un navigateur par étudiant."""
-    form = IdentifyForm({"number": number}, session=session)
+    form = IdentifyForm({}, session=session, list_number=list_number)
     participant = _saved(form)
     assert participant is not None, form.errors
     return participant

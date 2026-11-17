@@ -91,7 +91,7 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     assert scanned == f"{classroom.phone_url}s/{session.code}/"
     reader = new_phone()
     reader.goto(scanned)
-    expect(reader.get_by_label("Numéro d'étudiant")).to_be_visible()
+    expect(reader.get_by_role("list", name="Liste du groupe")).to_be_visible()
 
     # Serveur de production local, sans mode debug.
     response = page.request.get(classroom.local_url + "/")
@@ -106,7 +106,7 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     # Un téléphone ouvre l'adresse projetée, telle qu'affichée.
     phone = new_phone()
     base = classroom.phone_url.rstrip("/")
-    join(phone, base, session.code, "00123")
+    join(phone, base, session.code, "DURAND Élise")
     expect(identity(phone)).to_have_text("Vous êtes DURAND Élise")
     stylesheet = phone.locator("link[rel=stylesheet]").first.get_attribute("href")
     assert stylesheet
@@ -142,14 +142,14 @@ def test_class_mode_end_to_end_from_phones_on_local_network(
     expect_slot(phone, 0)
     choose(phone, "Paris")
     expect(save_status(phone)).to_have_text("Réponse enregistrée")
-    assert Answer.objects.filter(participant__number="00123").count() == 1
+    assert Answer.objects.filter(participant__student_number="00123").count() == 1
 
     # Fin : le téléphone l'indique, la note est sur le PC de l'enseignant.
     jump_to(session, 61)
     expect(phone.get_by_role("main")).to_contain_text("Session terminée")
     page.reload()
     open_results(page)
-    assert results_rows(page)[0][:3] == ["00123", "DURAND Élise", "1"]
+    assert results_rows(page)[0][:4] == ["1", "00123", "DURAND Élise", "1"]
 
 
 class _Phone:
@@ -170,8 +170,8 @@ class _Phone:
         except urllib.error.HTTPError as error:
             return error.code, error.read().decode(errors="replace")
 
-    def form(self) -> dict[str, str]:
-        status, html = self.send(self.page_url)
+    def form(self, url: str | None = None) -> dict[str, str]:
+        status, html = self.send(url or self.page_url)
         assert status == 200, html[:500]
         fields = {"csrfmiddlewaretoken": self.TOKEN_RE.search(html).group(1)}  # type: ignore[union-attr]
         if slot := self.SLOT_RE.search(html):
@@ -193,18 +193,23 @@ def _all_at_once[T](actions: list[Callable[[], T]]) -> list[T]:
 
 @pytest.mark.spec("CLA-01")
 def test_class_mode_serves_a_whole_class_answering_at_the_same_instant(classroom: Classroom):
-    """Toute la classe valide son numéro au même instant, puis répond au même instant : aucune
-    requête n'échoue (SQLite et le serveur tiennent la charge d'une classe)."""
+    """Toute la classe confirme son nom au même instant (I14), puis répond au même instant :
+    aucune requête n'échoue (SQLite et le serveur tiennent la charge d'une classe)."""
     students = [(str(1000 + i), f"ÉTUDIANT{i:02d} Test") for i in range(CLASS_SIZE)]
     session = make_live(1, shown=1, seconds=60, students=students)
     base = classroom.phone_url.rstrip("/")
     phones = [_Phone(base, session.code) for _ in students]
-    tokens = _all_at_once([phone.form for phone in phones])
+    lists = _all_at_once([lambda p=p: p.send(p.page_url) for p in phones])  # liste du groupe
+    assert all(status == 200 and "ÉTUDIANT39 Test" in html for status, html in lists)
+    confirm = [f"{phone.page_url}moi/{n}/" for n, phone in enumerate(phones, start=1)]
+    tokens = _all_at_once(
+        [lambda p=p, url=url: p.form(url) for p, url in zip(phones, confirm, strict=True)]
+    )
 
     joined = _all_at_once(
         [
-            lambda p=p, t=t, n=n: p.send(p.page_url, {**t, "number": n})
-            for p, t, (n, _) in zip(phones, tokens, students, strict=True)
+            lambda p=p, t=t, url=url: p.send(url, t)
+            for p, t, url in zip(phones, tokens, confirm, strict=True)
         ]
     )
     assert [status for status, _ in joined] == [200] * CLASS_SIZE

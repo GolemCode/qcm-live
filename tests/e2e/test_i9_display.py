@@ -77,7 +77,7 @@ def test_board_has_only_statements_and_phone_only_choices(
     page = teacher_page
     session = make_marked_session()
     code = session.code
-    phones = phones_joined(new_phone, live_server.url, code, ["00123", "42"])
+    phones = phones_joined(new_phone, live_server.url, code, ["DURAND Élise", "MARTIN Léo"])
     board_state = f"{live_server.url}/prof/sessions/{code}/etat/"
     phone_state = f"{live_server.url}/s/{code}/etat/"
     everything = (*STATEMENTS, *ALL_CHOICES)
@@ -155,7 +155,7 @@ def test_four_questions_at_once_by_default(teacher_page: Page, live_server, new_
     code = board_code(page)
     expect(page.get_by_role("main")).to_contain_text("4 questions à la fois")
 
-    (phone,) = phones_joined(new_phone, live_server.url, code, ["00123"])
+    (phone,) = phones_joined(new_phone, live_server.url, code, ["DURAND Élise"])
     start(page)
     for color in range(1, 5):
         expect(card(page, color).get_by_role("heading")).to_contain_text(f"{color} : ")
@@ -352,10 +352,10 @@ def test_marks_do_not_depend_on_displayed_order(teacher_page: Page, live_server,
     jump_to(session, 61)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     open_results(page)
-    marks = {row[0]: row[2] for row in results_rows(page)}
+    marks = {row[1]: row[3] for row in results_rows(page)}
     assert marks == {"00123": "1", "42": "0", "7": "1"}
     _, content = download_csv(page)
-    answers = {row[0]: (row[5], row[6]) for row in csv_rows(content)[1:]}
+    answers = {row[1]: (row[6], row[7]) for row in csv_rows(content)[1:]}
     assert answers == {
         "00123": ("A", "1"),
         "42": (LETTERS[labels.index(picked["42"])], "0"),

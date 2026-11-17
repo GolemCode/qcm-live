@@ -26,6 +26,10 @@ def test_demo_creates_then_reuses_and_changes_the_password():
     assert authenticate(username="demo", password=first)
     quiz, group = Quiz.objects.get(), StudentGroup.objects.get()
     assert (group.name, group.students.count()) == ("Démo", 6)
+    # Au format d'I14 (GRP-05) : des n° qui ne se suivent pas, un numéro étudiant vide.
+    list_numbers = list(group.students.values_list("list_number", flat=True))
+    assert list_numbers != list(range(1, 7))
+    assert group.students.filter(student_number="").count() == 1
     second = demo()
     assert second != first
     assert authenticate(username="demo", password=first) is None

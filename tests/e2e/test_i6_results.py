@@ -123,10 +123,10 @@ def play_session(page: Page, base_url: str, new_phone) -> Session:
     answer_slot(phones, 0, session)
     answer_slot(phones, 1, session)
     jump_to(session, 61)
-    (phones["7"],) = phones_joined(new_phone, base_url, session.code, ["7"])
+    (phones["7"],) = phones_joined(new_phone, base_url, session.code, ["Ng Anh"])
     answer_slot(phones, 2, session)
     answer_slot(phones, 3, session)
-    phones_joined(new_phone, base_url, session.code, ["555"])
+    phones_joined(new_phone, base_url, session.code, ["SILENCIEUX Paul"])
     jump_to(session, 121)
     return session
 
@@ -151,13 +151,16 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     expect(page.get_by_role("main")).to_contain_text("TD1")
     show_grades(page)  # masquées à l'ouverture (RES-04)
     headers = results_table(page).get_by_role("columnheader")
-    expect(headers).to_have_text(["Numéro", "Nom", "Note", "Note maximale", "Note /20"])
-    assert results_rows(page) == [  # ordre du fichier du groupe, pas celui d'arrivée
-        ["7", "Ng Anh", "1", MAX_TOTAL, "2,22"],  # -0,25 - 0,25 + 2 - 0,5
-        ["00123", "DURAND Élise", "1,25", MAX_TOTAL, "2,78"],  # -0,5 - 0,25 + 2 + 0
-        ["0999", "ABSENT Zoé", "Absent", MAX_TOTAL, ""],
-        ["42", "MARTIN Léo", "2,25", MAX_TOTAL, "5"],  # -0,5 + 2 + 1 - 0,25
-        ["555", "SILENCIEUX Paul", "-1,25", MAX_TOTAL, "0"],  # 3 x -0,25 - 0,5, bornée à 0
+    expect(headers).to_have_text(
+        ["N°", "Numéro étudiant", "Nom", "Note", "Note maximale", "Note /20"]
+    )
+    # Par n°, ici le rang dans le fichier du groupe (ancien format) : pas l'ordre d'arrivée.
+    assert results_rows(page) == [
+        ["1", "7", "Ng Anh", "1", MAX_TOTAL, "2,22"],  # -0,25 - 0,25 + 2 - 0,5
+        ["2", "00123", "DURAND Élise", "1,25", MAX_TOTAL, "2,78"],  # -0,5 - 0,25 + 2 + 0
+        ["3", "0999", "ABSENT Zoé", "Absent", MAX_TOTAL, ""],
+        ["4", "42", "MARTIN Léo", "2,25", MAX_TOTAL, "5"],  # -0,5 + 2 + 1 - 0,25
+        ["5", "555", "SILENCIEUX Paul", "-1,25", MAX_TOTAL, "0"],  # 3 x -0,25 - 0,5, bornée à 0
     ]
 
     # Les résultats sont aussi accessibles depuis la liste des sessions.
@@ -166,14 +169,14 @@ def test_teacher_sees_results_with_amc_scale(teacher_page: Page, live_server, ne
     expect(row).to_contain_text("Terminée")
     row.get_by_role("link", name="Résultats").click()
     expect(page.get_by_role("heading", name="Résultats", level=1)).to_be_visible()
-    assert results_rows(page)[1] == ["00123", "DURAND Élise", "1,25", MAX_TOTAL, "2,78"]
+    assert results_rows(page)[1] == ["2", "00123", "DURAND Élise", "1,25", MAX_TOTAL, "2,78"]
 
 
 @pytest.mark.spec("RES-01")
 def test_no_results_before_the_end(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     session = make_results_session()
-    (phone,) = phones_joined(new_phone, live_server.url, session.code, ["00123"])
+    (phone,) = phones_joined(new_phone, live_server.url, session.code, ["DURAND Élise"])
     page.goto(f"{live_server.url}/prof/sessions/")
     row = page.get_by_role("row").filter(has_text=session.code)
     expect(row).to_contain_text("En attente")
@@ -210,11 +213,12 @@ def test_results_csv(teacher_page: Page, live_server, new_phone):
     rows = csv_rows(content)
     questions = [f"Q{i} {kind}" for i in range(1, 5) for kind in ("réponse", "points")]
     assert rows == [
-        ["numéro", "nom", "note", "note max", "note /20", *questions],
+        ["n°", "numéro étudiant", "nom", "note", "note max", "note /20", *questions],
         # Une colonne par question, dans l'ordre du QCM ; `-` : pas de réponse.
         # Les nombres ne sont pas neutralisés, même négatifs.
-        ["7", "Ng Anh", "1", "9", "2,22", "-", "-0,25", "-", "-0,25", "A", "2", "-", "-0,5"],
+        ["1", "7", "Ng Anh", "1", "9", "2,22", "-", "-0,25", "-", "-0,25", "A", "2", "-", "-0,5"],
         [
+            "2",
             "00123",
             "DURAND Élise",
             "1,25",
@@ -229,9 +233,9 @@ def test_results_csv(teacher_page: Page, live_server, new_phone):
             "AC",
             "0",
         ],
-        ["0999", "ABSENT Zoé", "Absent", "9", "", "", "", "", "", "", "", "", ""],
-        ["42", "MARTIN Léo", "2,25", "9", "5", "A", "2", "C", "-0,5", "-", "-0,25", "B", "1"],
-        ["555", "SILENCIEUX Paul", "-1,25", "9", "0", *["-", "-0,25"] * 3, "-", "-0,5"],
+        ["3", "0999", "ABSENT Zoé", "Absent", "9", "", "", "", "", "", "", "", "", ""],
+        ["4", "42", "MARTIN Léo", "2,25", "9", "5", "A", "2", "C", "-0,5", "-", "-0,25", "B", "1"],
+        ["5", "555", "SILENCIEUX Paul", "-1,25", "9", "0", *["-", "-0,25"] * 3, "-", "-0,5"],
     ]
 
 
@@ -249,6 +253,6 @@ def test_results_csv_neutralises_formulas(teacher_page: Page, live_server, new_p
     open_results(page)
     _, content = download_csv(page)
     rows = csv_rows(content)
-    assert [row[1] for row in rows[1:]] == ["'=1+1", "'+33 6", "'-2", "'@SOMME(A1)", "Nom=normal"]
+    assert [row[2] for row in rows[1:]] == ["'=1+1", "'+33 6", "'-2", "'@SOMME(A1)", "Nom=normal"]
     # Le tableau de la page, lui, affiche les noms tels quels.
-    assert [row[1] for row in results_rows(page)] == names
+    assert [row[2] for row in results_rows(page)] == names

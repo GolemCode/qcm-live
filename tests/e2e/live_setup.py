@@ -59,10 +59,10 @@ def make_live(
 
 
 def wait_answer(screen: Page, session: Session, number: str, question: int, choices) -> None:
-    """La réponse de `number` à la question figée `question` est enregistrée : les propositions
-    d'indices `choices`, dans l'ordre de la banque."""
+    """La réponse du numéro étudiant `number` à la question figée `question` est enregistrée :
+    les propositions d'indices `choices`, dans l'ordre de la banque."""
     answers = Answer.objects.filter(
-        participant__session=session, participant__number=number, question=question
+        participant__session=session, participant__student_number=number, question=question
     )
     for _ in range(40):
         if sorted(answers.values_list("choices", flat=True).first() or []) == sorted(choices):
@@ -75,9 +75,17 @@ def open_board(page: Page, base_url: str, session: Session) -> None:
     page.goto(f"{base_url}/prof/sessions/{session.code}/")
 
 
+def names_of(session: Session, numbers) -> list[str]:
+    """Noms des numéros étudiants `numbers`, d'après la liste figée de la session : sur son
+    téléphone, l'étudiant touche son nom (ETU-13)."""
+    names = {student["student_number"]: student["name"] for student in session.students}
+    return [names[number] for number in numbers]
+
+
 def started(page: Page, base_url: str, new_phone, session: Session, numbers=()) -> list[Page]:
-    """Les téléphones `numbers` rejoignent la session, puis l'enseignant la démarre."""
-    phones = phones_joined(new_phone, base_url, session.code, numbers)
+    """Les étudiants de numéros `numbers` rejoignent la session, chacun sur son téléphone, puis
+    l'enseignant la démarre."""
+    phones = phones_joined(new_phone, base_url, session.code, names_of(session, numbers))
     open_board(page, base_url, session)
     start(page)
     return phones

@@ -42,12 +42,13 @@ from tests.e2e.live_ui import (
     clear_answer,
     enter_code,
     expect_time_bar,
-    identify,
     identity,
+    list_entry,
     phone_choices,
     phone_color,
     phones_joined,
     save_status,
+    search,
     start,
     time_bar,
     timer,
@@ -144,11 +145,14 @@ def networks() -> Iterator[Callable[[Page, re.Pattern[str]], Network]]:
 
 
 def recorded(session: Session, number: str) -> dict[str, list[str]]:
-    """Réponses enregistrées par le serveur pour l'étudiant `number` : texte des propositions
-    choisies, par énoncé."""
+    """Réponses enregistrées par le serveur pour l'étudiant de numéro `number` : texte des
+    propositions choisies, par énoncé."""
     questions = Session.objects.get(pk=session.pk).questions
     found = {}
-    for answer in Answer.objects.filter(participant__session=session, participant__number=number):
+    answers = Answer.objects.filter(
+        participant__session=session, participant__student_number=number
+    )
+    for answer in answers:
         question = questions[answer.question]
         found[question["text"]] = sorted(question["choices"][i]["text"] for i in answer.choices)
     return found
@@ -502,7 +506,7 @@ def test_reloaded_phone_resumes_a_pending_answer(
 @pytest.mark.spec("ETU-11")
 def test_connection_lost_after_three_seconds(teacher_page: Page, live_server, new_phone, networks):
     session = make_live(1, shown=1)
-    (phone,) = phones_joined(new_phone, live_server.url, session.code, ["00123"])
+    (phone,) = phones_joined(new_phone, live_server.url, session.code, ["DURAND Élise"])
     phone.wait_for_timeout(1_500)  # le téléphone suit le direct
     expect(offline_alert(phone)).to_have_count(0)
 
@@ -694,20 +698,28 @@ def test_phone_band_and_waiting_screen(live_server, new_phone):
 
     enter_code(phone, live_server.url, session.code)
     expect_band_code(phone, session.code)
-    assert_phone_layout(phone, "saisie du numéro")
-    identify(phone, "123")  # absent du groupe : refusé
-    expect(phone.get_by_role("alert")).to_be_visible()
-    assert_phone_layout(phone, "numéro refusé")
+    assert_phone_layout(phone, "liste du groupe")
+    search(phone).fill("zzz")  # aucun nom ne correspond
+    expect(phone.get_by_text("Aucun nom ne correspond.")).to_be_visible()
+    assert_phone_layout(phone, "recherche sans résultat")
+    search(phone).fill("")
+    list_entry(phone, LONG_NAME[1]).get_by_role("link").click()
+    expect(phone.get_by_role("button", name="Oui, c'est moi")).to_be_visible()
+    expect_band_code(phone, session.code)
+    assert_phone_layout(phone, "confirmation")
 
-    identify(phone, LONG_NAME[0])
+    phone.get_by_role("button", name="Oui, c'est moi").click()
     expect_band_code(phone, session.code)
     main = phone.get_by_role("main")
+    # Le n° de liste (4 : le nom long est le quatrième du fichier), jamais le numéro
+    # étudiant (I14).
     parts = [
         main.get_by_text("Vous êtes", exact=True),
         main.get_by_text(LONG_NAME[1], exact=True),
-        main.get_by_text(LONG_NAME[0]),
+        main.get_by_text("N° 4", exact=True),
         main.get_by_text("En attente du démarrage"),
     ]
+    expect(phone.locator("body")).not_to_contain_text(LONG_NAME[0])
     tops = [box(part)["y"] for part in parts]
     assert tops == sorted(tops), tops  # dans cet ordre, de haut en bas
     name = parts[1]
@@ -782,10 +794,11 @@ def test_running_phone_layout(teacher_page: Page, live_server, new_phone, networ
     expect(last).to_be_in_viewport(ratio=1)
     assert box(last)["y"] + box(last)["height"] <= box(status)["y"] + 1
 
-    # En pied : le nom et le numéro de l'étudiant.
+    # En pied : le nom et le n° de liste de l'étudiant, pas son numéro étudiant (I14).
     footer = phone.get_by_role("contentinfo")
     expect(footer).to_contain_text(LONG_NAME[1])
-    expect(footer).to_contain_text(LONG_NAME[0])
+    expect(footer).to_contain_text("N° 4")
+    expect(phone.locator("body")).not_to_contain_text(LONG_NAME[0])
 
     assert_phone_layout(phone, "déroulement")
     network = networks(phone, ANSWERS)
@@ -847,15 +860,18 @@ def test_every_phone_state_is_accessible(teacher_page: Page, live_server, new_ph
     expect(phone.get_by_role("alert")).to_be_visible()
     assert_accessible(phone, "code refusé")
     enter_code(phone, base, session.code)
-    assert_accessible(phone, "saisie du numéro")
-    identify(phone, "999")
-    expect(phone.get_by_role("alert")).to_be_visible()
-    assert_accessible(phone, "numéro refusé")
-    identify(phone, students[0][0])
+    assert_accessible(phone, "liste du groupe")
+    search(phone).fill("zzz")
+    expect(phone.get_by_text("Aucun nom ne correspond.")).to_be_visible()
+    assert_accessible(phone, "recherche sans résultat")
+    search(phone).fill("")
+    list_entry(phone, students[0][1]).get_by_role("link").click()
+    assert_accessible(phone, "confirmation")
+    phone.get_by_role("button", name="Oui, c'est moi").click()
     expect(identity(phone)).to_be_visible()
     assert_accessible(phone, "attente")
 
-    others = phones_joined(new_phone, base, session.code, [n for n, _ in students[1:]])
+    others = phones_joined(new_phone, base, session.code, [n for _, n in students[1:]])
     open_board(teacher_page, base, session)
     start(teacher_page)
     phones = [phone, *others]
