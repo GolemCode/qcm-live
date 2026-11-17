@@ -176,3 +176,45 @@ def test_waiting_and_running_sessions_keep_their_connected_students(old_apps):
     # fois.
     with pytest.raises(IntegrityError), transaction.atomic():
         Participant.objects.create(session=session, list_number=1, name="X", rank=5)
+
+
+def test_migrations_go_back_with_empty_student_numbers(old_apps):
+    """Retour à l'état d'avant I14 (MIG-01, migrations réversibles) avec des données d'après :
+    l'ancien numéro, obligatoire et unique, est inventé pour qui n'en a pas (code-review I14)."""
+    migrate(leaves())
+    group = StudentGroup.objects.create(name="TD")
+    for list_number, student_number, name in [(1, "", "A"), (2, "n°1", "B"), (3, "", "C")]:
+        Student.objects.create(
+            group=group, list_number=list_number, student_number=student_number, name=name
+        )
+    roster = [
+        {"list_number": 2, "student_number": "", "name": "B"},
+        {"list_number": 5, "student_number": "", "name": "E"},
+    ]
+    session = Session.objects.create(
+        code="444444",
+        quiz_title="Q",
+        group_name="TD",
+        content=CONTENT,
+        roster=roster,
+        n_questions=2,
+        shown=1,
+        seconds=10,
+    )
+    for rank, student in enumerate(roster):
+        Participant.objects.create(
+            session=session, list_number=student["list_number"], name=student["name"], rank=rank
+        )
+
+    apps = migrate(BEFORE)
+
+    OldStudent = apps.get_model("roster", "Student")
+    rows = OldStudent.objects.order_by("position").values_list("position", "number", "name")
+    assert list(rows) == [(0, "n°1-1", "A"), (1, "n°1", "B"), (2, "n°3", "C")]
+    old = apps.get_model("live", "Session").objects.get(code="444444")
+    assert old.roster == [{"number": "n°2", "name": "B"}, {"number": "n°5", "name": "E"}]
+    OldParticipant = apps.get_model("live", "Participant")
+    assert list(OldParticipant.objects.order_by("rank").values_list("number", "name")) == [
+        ("n°2", "B"),
+        ("n°5", "E"),
+    ]

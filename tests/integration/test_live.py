@@ -2,6 +2,7 @@
 
 import json
 from datetime import timedelta
+from http.cookies import SimpleCookie
 from typing import cast
 
 import pytest
@@ -149,6 +150,31 @@ def test_taken_student_is_refused_and_listed_as_taken(client, session):
     assert "déjà connecté" in html
     assert reverse("student-confirm", args=[session.code, 1]) not in html  # pas de lien
     assert reverse("student-confirm", args=[session.code, 2]) in html
+
+
+def test_taken_student_is_not_offered_for_confirmation(client, session):
+    """Un nom pris ne se choisit pas (ETU-13), même par l'adresse ou une liste périmée."""
+    participant(session, 1)
+    response = client.get(reverse("student-confirm", args=[session.code, 1]))
+    assert response.status_code == 302
+    assert response["Location"] == reverse("student-session", args=[session.code])
+    html = client.get(response["Location"]).content.decode()
+    assert "déjà connecté" in html
+    assert "message error" in html
+
+
+def test_lost_confirmation_response_keeps_the_identity(client, session):
+    """Double appui, ou réponse de « Oui, c'est moi » perdue : le téléphone n'a pas reçu le
+    cookie de cette réponse, mais son identité l'attend sur le serveur (code-review I14)."""
+    client.get(reverse("student-confirm", args=[session.code, 1]))
+    kept = SimpleCookie({name: morsel.value for name, morsel in client.cookies.items()})
+    confirm(client, session, 1)
+    client.cookies = kept  # la réponse du premier envoi n'est jamais arrivée
+    response = confirm(client, session, 1)
+    html = client.get(response["Location"]).content.decode()
+    assert "déjà connecté" not in html
+    assert '<span class="name">A</span>' in html
+    assert session.participants.count() == 1
 
 
 def test_no_identification_once_the_session_is_over(client, session):

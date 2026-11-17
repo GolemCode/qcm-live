@@ -88,6 +88,19 @@ def test_new_format_line_errors(line, expected):
     assert errors_of(new(line)) == [expected]
 
 
+def test_duplicates_are_found_on_lines_with_other_errors():
+    """GRP-02 : toutes les erreurs en une fois, même quand la première occurrence a une autre
+    faute (code-review I14)."""
+    assert errors_of(new("12;111;", "12;222;DUPONT")) == [
+        "Ligne 2 : nom vide.",
+        "Ligne 3 : n° 12 en double (déjà ligne 2).",
+    ]
+    assert errors_of(new("1;111;", "2;111;B")) == [
+        "Ligne 2 : nom vide.",
+        "Ligne 3 : numéro étudiant « 111 » en double (déjà ligne 2).",
+    ]
+
+
 def test_new_format_duplicates():
     assert errors_of(new("12;A1;A", "5;B2;B", "12;C3;C")) == [
         "Ligne 4 : n° 12 en double (déjà ligne 2)."
