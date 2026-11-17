@@ -16,7 +16,5 @@ def arrange(
     """
     wanted = set(chosen)
     from_file = sorted((q for q in chosen if q in file_ranks), key=file_ranks.__getitem__)
-    kept = [q for q in current if q in wanted and q not in file_ranks]
-    known = set(current)
-    added = [q for q in chosen if q not in known and q not in file_ranks]
-    return from_file + kept + added
+    rest = [q for q in dict.fromkeys([*current, *chosen]) if q in wanted and q not in file_ranks]
+    return from_file + rest

@@ -44,10 +44,14 @@ class Preview:
     def added(self) -> int:
         return len(self.parsed.questions) - self.already_there
 
-    def rows(self) -> list[tuple[ParsedQuestion, bool]]:
-        """(question, partagée) ; pour un réimport, (question, déjà dans le QCM)."""
-        flags = self.present if self.target else [m is not None for m in self.matches]
-        return list(zip(self.parsed.questions, flags, strict=True))
+    def rows(self) -> list[tuple[ParsedQuestion, str]]:
+        """(question, mention du récapitulatif) : déjà là ou ajoutée pour un réimport,
+        déjà dans la banque sinon."""
+        if self.target:
+            notes = ["déjà là" if present else "ajoutée" for present in self.present]
+        else:
+            notes = ["déjà dans la banque" if m else "" for m in self.matches]
+        return list(zip(self.parsed.questions, notes, strict=True))
 
 
 def sha256(data: bytes) -> str:
@@ -157,7 +161,12 @@ def create_question(question: ParsedQuestion) -> Question:
 def import_quiz(data: bytes, filename: str) -> Quiz:
     """Crée le QCM, ou complète celui du même fichier (IMP-10) : questions nouvelles créées,
     celles déjà dans la banque partagées, chacune à son rang du fichier (CMP-04)."""
-    found = preview(data, filename)
+    return save_import(preview(data, filename), filename)
+
+
+@transaction.atomic
+def save_import(found: Preview, filename: str) -> Quiz:
+    """Import d'un fichier déjà analysé (`preview`)."""
     if not found.parsed.questions:
         raise ValueError(NOTHING_TO_IMPORT)
     quiz = found.target or Quiz.objects.create(
@@ -167,10 +176,15 @@ def import_quiz(data: bytes, filename: str) -> Quiz:
     )
     rows = zip(found.parsed.questions, found.matches, strict=True)
     questions = [match or create_question(q) for q, match in rows]
-    for rank, question in enumerate(questions, start=1):
-        QuestionOrigin.objects.update_or_create(
-            sha256=found.sha256, rank=rank, defaults={"question": question}
-        )
+    QuestionOrigin.objects.bulk_create(
+        [
+            QuestionOrigin(sha256=found.sha256, rank=rank, question=question)
+            for rank, question in enumerate(questions, start=1)
+        ],
+        update_conflicts=True,
+        unique_fields=["sha256", "rank"],
+        update_fields=["question"],
+    )
     current = list(quiz.ordered_questions().values_list("pk", flat=True))
     chosen = current + [q.pk for q in questions if q.pk not in current]
     quiz.set_questions(arrange(current, chosen, quiz.file_ranks()))

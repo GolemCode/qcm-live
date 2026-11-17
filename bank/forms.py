@@ -138,9 +138,8 @@ class QuestionForm(TeacherForm):
     def content(self) -> tuple[object, ...]:
         """Contenu saisi, comparable à `Question.content` (VER-01)."""
         data = self.cleaned_data
-        text = data["text"].replace("\r\n", "\n")  # le navigateur renvoie des CRLF
         fields = (data["kind"], data["scoring"], data["none_of_these"], data["ordered"])
-        return (text, *fields, tuple(data["choices"]))
+        return Question.comparable(data["text"], *fields, tuple(data["choices"]))
 
     @transaction.atomic
     def save_version(self, only: Quiz | None = None) -> Question:
@@ -198,9 +197,7 @@ class QuizForm(TeacherForm):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.current = (
-            list(
-                self.instance.questions.values_list("pk", flat=True).order_by("quizitem__position")
-            )
+            list(self.instance.ordered_questions().values_list("pk", flat=True))
             if self.instance.pk
             else []
         )

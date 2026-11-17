@@ -11,13 +11,13 @@ from django.template.defaultfilters import pluralize
 
 from bank.amc_txt import MAX_BYTES, AmcSyntaxError
 from bank.forms import AmcUploadForm, QuestionForm, QuizCopyForm, QuizForm, VersionScopeForm
-from bank.importer import Preview, import_quiz, preview, same_file, sha256
+from bank.importer import Preview, preview, save_import
 from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz
 
 
 @login_required
 def question_list(request: HttpRequest) -> HttpResponse:
-    questions = Question.current().prefetch_related("choices", "quizzes", "previous")
+    questions = Question.current().prefetch_related("choices", "quizzes", "previous__choices")
     return render(
         request,
         "bank/question_list.html",
@@ -56,10 +56,9 @@ def question_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         if quiz is not None:
             return redirect("quiz-detail", pk=quiz.pk)
         return redirect("question-list")
+    touched = Quiz.objects.filter(questions=question) if used else None
     context = {"form": form, "question": question, "quiz": quiz, "used": used, "scope": scope}
-    if used:
-        context["touched"] = Quiz.objects.filter(questions=question)
-    return render(request, "bank/question_form.html", context)
+    return render(request, "bank/question_form.html", context | {"touched": touched})
 
 
 @login_required
@@ -177,18 +176,17 @@ def quiz_import_recap(request: HttpRequest, token: str) -> HttpResponse:
         if request.POST.get("action") != "import":
             messages.success(request, "Import annulé.")
             return redirect("quiz-list")
-        target = same_file(sha256(data))
-        before = target.questions.count() if target else 0
         try:
-            quiz = import_quiz(data, name)
+            found = preview(data, name)
+            quiz = save_import(found, name)
         except ValueError as error:  # refus de l'analyse
             messages.error(request, str(error))
             return redirect("quiz-import")
-        n = quiz.questions.count()
-        if target is None:
+        if found.target is None:
+            n = quiz.questions.count()
             messages.success(request, f"QCM importé : {n} question{pluralize(n)}.")
         else:  # réimport (IMP-10)
-            added = n - before
+            added = found.added
             ajoutee = f"{added} question{pluralize(added)} ajoutée{pluralize(added)}"
             messages.success(request, f"QCM complété : {ajoutee if added else 'rien à ajouter'}.")
         return redirect("quiz-detail", pk=quiz.pk)

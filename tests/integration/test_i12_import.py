@@ -62,7 +62,7 @@ def test_identical_question_of_the_bank_is_shared():
         "Nombres pairs ?", [("2", False), ("3", True)], multiple=True, scoring="haut=2"
     )
     found = preview(FILE, "controle.txt")
-    assert [shared for _, shared in found.rows()] == [True, False, False]
+    assert [note for _, note in found.rows()] == ["déjà dans la banque", "", ""]
     assert found.existing == 1
     quiz = import_quiz(FILE, "controle.txt")
     assert existing in quiz.questions.all()
@@ -76,7 +76,7 @@ def test_options_are_part_of_the_identity():
     make_question("Capitale ?", [("Rome", True), ("Milan", False)])
     data = b"** Lesquels ?\n+ A\n- B\n\n*[ordered] Capitale ?\n+ Rome\n- Milan\n"
     found = preview(data, "options.txt")
-    assert [shared for _, shared in found.rows()] == [False, False]
+    assert [note for _, note in found.rows()] == ["", ""]
     assert [(q.none_of_these, q.ordered) for q in found.parsed.questions] == [
         (True, False),
         (False, True),

@@ -2,7 +2,7 @@
 {% block title %}Reprendre dans un nouveau QCM — QCM Live{% endblock %}
 {% block content %}
   <h1>Reprendre dans un nouveau QCM</h1>
-  <p>Le nouveau QCM reprend toutes les questions de « {{ source.title }} », dans le même ordre ({{ source.questions.count }} question{{ source.questions.count|pluralize }}).</p>
+  <p>Le nouveau QCM reprend toutes les questions de « {{ source.title }} », dans le même ordre ({% with n=source.questions.count %}{{ n }} question{{ n|pluralize }}{% endwith %}).</p>
   <form method="post" class="form" novalidate>
     {% csrf_token %}
     {% include "form_errors.html" %}

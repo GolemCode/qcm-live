@@ -71,17 +71,22 @@ class Question(models.Model):
             current = current.previous
         return versions
 
+    @staticmethod
+    def comparable(text: str, *fields: object) -> tuple[object, ...]:
+        """Contenu comparable d'une question (VER-01) ; le navigateur renvoie des CRLF."""
+        return (text.replace("\r\n", "\n"), *fields)
+
     def content(self) -> tuple[object, ...]:
         """Ce qu'une modification change : une version n'est créée que s'il diffère (VER-01)."""
         choices = tuple((c.text, c.correct, c.points) for c in self.choices.all())
-        text = self.text.replace("\r\n", "\n")
-        return (text, self.kind, self.scoring, self.none_of_these, self.ordered, choices)
+        fields = (self.kind, self.scoring, self.none_of_these, self.ordered, choices)
+        return self.comparable(self.text, *fields)
 
     @classmethod
     def current(cls) -> models.QuerySet[Question]:
         """Questions de la banque : sans version plus récente, ou encore dans un QCM (VER-03)."""
         kept = models.Q(next_versions__isnull=True) | models.Q(quizzes__isnull=False)
-        return cls.objects.filter(pk__in=cls.objects.filter(kept).values("pk"))
+        return cls.objects.filter(kept).distinct()
 
 
 class Choice(models.Model):

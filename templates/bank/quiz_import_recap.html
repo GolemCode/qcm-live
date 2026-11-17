@@ -36,8 +36,8 @@
     <section aria-labelledby="recap-questions">
       <h2 id="recap-questions">{% if found.target %}Questions du fichier{% else %}Questions à importer{% endif %}</h2>
       <ol>
-        {% for question, flag in found.rows %}
-          <li><span class="text">{{ question.text }}</span> <span class="muted">(ligne {{ question.line }} · {% if question.multiple %}choix multiple{% else %}choix simple{% endif %} · barème : {{ question.scoring|default:"b=1, m=0, v=0" }}{% if question.label %} · étiquette {{ question.label }}{% endif %}{% if found.target %} · {% if flag %}déjà là{% else %}ajoutée{% endif %}{% elif flag %} · déjà dans la banque{% endif %})</span></li>
+        {% for question, note in found.rows %}
+          <li><span class="text">{{ question.text }}</span> <span class="muted">(ligne {{ question.line }} · {% if question.multiple %}choix multiple{% else %}choix simple{% endif %} · barème : {{ question.scoring|default:"b=1, m=0, v=0" }}{% if question.label %} · étiquette {{ question.label }}{% endif %}{% if note %} · {{ note }}{% endif %})</span></li>
         {% endfor %}
       </ol>
     </section>
