@@ -18,7 +18,7 @@ from live.results import StudentResult, none_index, results
 from live.schedule import Position, Schedule, Slot, seconds_to_remove, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_STUDENT_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
-from roster.years import YEAR_LENGTH
+from roster.years import YEAR_LENGTH, group_label
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
@@ -83,7 +83,7 @@ class Session(models.Model):
     @property
     def group_label(self) -> str:
         """Le groupe figé, avec son année (GRP-04) : « ITI4 — 2025-2026 »."""
-        return f"{self.group_name} — {self.group_year}"
+        return group_label(self.group_name, self.group_year)
 
     @property
     def questions(self) -> list[FrozenQuestion]:
@@ -184,12 +184,14 @@ class Session(models.Model):
     def answered(self, slot: Slot) -> tuple[int, int]:
         """DER-04 : (k, n) au créneau `slot`. n : les connectés ; k : ceux dont une réponse est
         enregistrée pour leur question de ce créneau (une réponse effacée n'a plus de ligne)."""
-        participants = list(self.participants.values_list("pk", "rank"))
-        given = set(
-            Answer.objects.filter(participant__session=self).values_list("participant", "question")
-        )
-        k = sum((pk, self.schedule.question_for(slot, rank)) in given for pk, rank in participants)
-        return k, len(participants)
+        expected = {
+            (pk, self.schedule.question_for(slot, rank))
+            for pk, rank in self.participants.values_list("pk", "rank")
+        }
+        questions = {question for _, question in expected}
+        given = Answer.objects.filter(participant__session=self, question__in=questions)
+        k = len(expected & set(given.values_list("participant", "question")))
+        return k, len(expected)
 
     def results(self) -> list[StudentResult]:
         """RES-01 : un résultat par étudiant du groupe figé ; les absents n'ont pas de note."""

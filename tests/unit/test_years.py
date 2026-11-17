@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from roster.years import academic_year, valid_year
+from roster.years import academic_year, group_label, valid_year
 
 
 @pytest.mark.parametrize(
@@ -44,3 +44,7 @@ def test_two_consecutive_years_are_valid(text):
 )
 def test_anything_else_is_refused(text):
     assert not valid_year(text)
+
+
+def test_group_label_names_the_group_with_its_year():
+    assert group_label("ITI4", "2025-2026") == "ITI4 — 2025-2026"

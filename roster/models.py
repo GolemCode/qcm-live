@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from roster.csv_import import MAX_NAME_LENGTH, MAX_STUDENT_NUMBER_LENGTH
-from roster.years import YEAR_ERROR, YEAR_LENGTH, valid_year
+from roster.years import YEAR_ERROR, YEAR_LENGTH, group_label, valid_year
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
@@ -43,7 +43,7 @@ class StudentGroup(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.name} — {self.year}"  # GRP-04 : au choix du groupe, au lancement
+        return group_label(self.name, self.year)  # GRP-04 : au choix du groupe, au lancement
 
 
 class Student(models.Model):

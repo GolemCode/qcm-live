@@ -17,6 +17,11 @@ def academic_year(day: date) -> str:
     return f"{first}-{first + 1}"
 
 
+def group_label(name: str, year: str) -> str:
+    """Un groupe et son année, partout où il est nommé : « ITI4 — 2025-2026 »."""
+    return f"{name} — {year}"
+
+
 def valid_year(text: str) -> bool:
     """« AAAA-AAAA », deux années qui se suivent."""
     match = _YEAR.fullmatch(text)
