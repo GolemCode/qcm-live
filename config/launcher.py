@@ -48,7 +48,8 @@ def default_data_dir() -> Path:
 
 
 def data_dir() -> Path:
-    return Path(os.environ.get("QCM_DATA_DIR") or default_data_dir())
+    """Chemin absolu : il est écrit dans la commande qcm-live et l'icône, lancées d'ailleurs."""
+    return Path(os.environ.get("QCM_DATA_DIR") or default_data_dir()).absolute()
 
 
 def read_settings(text: str) -> dict[str, str]:
@@ -81,7 +82,10 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     classroom.add_server_arguments(parser)
     parser.add_argument(
-        "--sans-navigateur", action="store_true", help="ne pas ouvrir le navigateur"
+        "--sans-navigateur",
+        dest="no_browser",
+        action="store_true",
+        help="ne pas ouvrir le navigateur",
     )
     commands = parser.add_subparsers(dest="command", metavar="commande")
     commands.add_parser("sauvegarder", help="sauvegarder les données maintenant")
@@ -238,11 +242,11 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — test
     if args.command is None:
 
         def open_browser(url: str) -> None:
-            if not args.sans_navigateur:
+            if not args.no_browser:
                 threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
 
         return classroom.serve(
-            args.adresse, args.port, before_migrate=save_now, on_ready=open_browser
+            args.address, args.port, before_migrate=save_now, on_ready=open_browser
         )
     setup_django()
     if args.command == "sauvegarder":

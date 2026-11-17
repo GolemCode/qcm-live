@@ -152,7 +152,13 @@ def ioctl_addresses() -> list[tuple[str, str]]:  # pragma: no cover — repli sa
 
 def _run(command: list[str]) -> str:
     return subprocess.run(  # noqa: S603 — commandes fixes, en lecture seule
-        command, capture_output=True, text=True, encoding="utf-8", timeout=TIMEOUT_S, check=True
+        # utf-8-sig : Windows PowerShell 5.1 en UTF-8 peut écrire une marque d'ordre en tête.
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8-sig",
+        timeout=TIMEOUT_S,
+        check=True,
     ).stdout
 
 

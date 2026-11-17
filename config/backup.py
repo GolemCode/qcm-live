@@ -22,6 +22,7 @@ import tempfile
 import time
 import zipfile
 from collections.abc import Iterable
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -50,13 +51,11 @@ def archives(folder: Path) -> list[Path]:
 
 def _copy(source: Path, target: Path) -> None:
     """Copie de base à base par l'API de sauvegarde de SQLite."""
-    with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True) as src:
-        dst = sqlite3.connect(target)
-        try:
-            src.backup(dst)
-        finally:
-            dst.close()
-    src.close()
+    with (
+        closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)) as src,
+        closing(sqlite3.connect(target)) as dst,
+    ):
+        src.backup(dst)
 
 
 def _new_name(folder: Path, now: datetime | None) -> Path:
@@ -109,12 +108,13 @@ def extract(archive: Path, folder: Path, known: Iterable[tuple[str, str]]) -> Pa
     database = folder / MEMBER
     database.write_bytes(data)
     try:
-        with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as db:
+        # Fermée même en cas de refus : sous Windows, une connexion ouverte verrouille le
+        # fichier, et le dossier de travail ne se supprimerait plus.
+        with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
             (check,) = db.execute("PRAGMA integrity_check").fetchone()
             if check != "ok":
                 raise _refuse(archive, "base abîmée")
             applied = set(db.execute("SELECT app, name FROM django_migrations").fetchall())
-        db.close()
     except sqlite3.DatabaseError as error:
         raise _refuse(archive, "base illisible") from error
     if unknown := applied - set(known):

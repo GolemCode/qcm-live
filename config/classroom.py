@@ -32,10 +32,10 @@ THREADS = 16
 HOST_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?")
 
 
-def projected(adresse: str | None, addresses: Sequence[LanAddress]) -> str:
+def projected(address: str | None, addresses: Sequence[LanAddress]) -> str:
     """Adresse annoncée : celle imposée, sinon la plus probable du PC ; 127.0.0.1 sans réseau."""
-    if adresse:
-        return adresse
+    if address:
+        return address
     return addresses[0]["address"] if addresses else "127.0.0.1"
 
 
@@ -106,7 +106,7 @@ def _host(value: str) -> str:
 
 def add_server_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port d'écoute")
-    parser.add_argument("--adresse", type=_host, help="adresse du PC à annoncer")
+    parser.add_argument("--adresse", dest="address", type=_host, help="adresse du PC à annoncer")
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -116,7 +116,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 
 
 def serve(
-    adresse: str | None,
+    address: str | None,
     port: int,
     *,
     before_migrate: Callable[[], object] | None = None,
@@ -129,7 +129,7 @@ def serve(
         print(port_taken(port), file=sys.stderr)
         return 1
     addresses = network.lan_addresses()
-    host = projected(adresse, addresses)
+    host = projected(address, addresses)
     environ = classroom_environ(host, port, addresses)
     os.environ.update(environ)
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
@@ -165,7 +165,7 @@ def serve(
 
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — testé de bout en bout
     args = parse_args(argv)
-    return serve(args.adresse, args.port)
+    return serve(args.address, args.port)
 
 
 if __name__ == "__main__":  # pragma: no cover

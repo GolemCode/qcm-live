@@ -69,6 +69,21 @@ def test_parse_powershell_json_with_a_single_address_or_states_as_text():
     assert parse_powershell_json("") == []
 
 
+def test_powershell_output_with_a_byte_order_mark(monkeypatch):
+    """Windows PowerShell 5.1 en UTF-8 peut écrire une marque d'ordre en tête de sa sortie."""
+    out = "\ufeff" + json.dumps([{"IPAddress": "192.168.1.20", "InterfaceAlias": "Wi-Fi"}])
+
+    def run(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command, 0, out.encode("utf-8").decode(kwargs["encoding"])
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    assert network.powershell_items(network._run(["powershell"])) == [
+        {"IPAddress": "192.168.1.20", "InterfaceAlias": "Wi-Fi"}
+    ]
+
+
 @pytest.mark.parametrize(
     ("address", "ok"),
     [

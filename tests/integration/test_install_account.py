@@ -88,3 +88,20 @@ def test_prompt_account_with_an_empty_username_creates_nothing():
     read, _ = keyboard("  ")
     assert launcher.prompt_account(read, keyboard()[0]) is None
     assert not User.objects.exists()
+
+
+def test_an_interrupted_first_install_still_asks_for_the_account(monkeypatch, capsys):
+    """Relancée après une première installation interrompue (base créée, aucun compte), la
+    mise à jour demande encore le compte, sans proposer la démonstration."""
+    monkeypatch.setenv("DJANGO_SUPERUSER_USERNAME", "prof")
+    monkeypatch.setenv("DJANGO_SUPERUSER_PASSWORD", "mot-de-passe-de-test")
+    monkeypatch.setattr(install, "wants_demo", lambda interactive: pytest.fail("démo proposée"))
+    install.first_steps(first=False, interactive=False)
+    assert User.objects.get(username="prof").is_superuser
+
+
+def test_an_update_with_an_account_asks_nothing(monkeypatch):
+    User.objects.create_superuser("prof", password="mot-de-passe-de-test")
+    monkeypatch.setattr(install, "create_account", lambda interactive: pytest.fail("compte"))
+    monkeypatch.setattr(install, "wants_demo", lambda interactive: pytest.fail("démo"))
+    install.first_steps(first=False, interactive=True)

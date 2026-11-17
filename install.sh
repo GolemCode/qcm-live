@@ -65,13 +65,14 @@ main() {
     fi
 
     # Nouvelle version à côté de l'ancienne, environnement Python mis à jour, puis échange :
-    # en cas d'échec avant l'échange, l'ancienne version reste en place.
+    # en cas d'échec avant l'échange, l'ancien code reste en place. L'environnement Python,
+    # lui, est mis à jour sur place : relancer l'installation le remet d'aplomb.
     rm -rf "$data/app.new" "$data/app.old"
     mkdir "$data/app.new"
     tar -xzf "$work/app.tar.gz" -C "$data/app.new" --strip-components=1
     say "Préparation de l'environnement Python…"
     UV_PROJECT_ENVIRONMENT="$data/venv" "$uv" sync --quiet --locked --no-dev --project "$data/app.new" \
-        || fail "l'installation des dépendances a échoué (rien n'a été remplacé)."
+        || fail "l'installation des dépendances a échoué : relancez l'installation."
     if [ -d "$data/app" ]; then
         mv "$data/app" "$data/app.old"
     fi

@@ -43,16 +43,23 @@ def test_data_dir(monkeypatch, tmp_path):
     assert launcher.data_dir() == tmp_path / ".local" / "share" / "qcm-live"
 
 
+def test_data_dir_is_absolute(monkeypatch, tmp_path):
+    """Il est écrit dans la commande qcm-live et l'icône, lancées depuis un autre dossier."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("QCM_DATA_DIR", "donnees")
+    assert launcher.data_dir() == tmp_path / "donnees"
+
+
 def test_parse_args():
     args = launcher.parse_args([])
-    assert (args.command, args.port, args.adresse, args.sans_navigateur) == (
+    assert (args.command, args.port, args.address, args.no_browser) == (
         None,
         8000,
         None,
         False,
     )
     args = launcher.parse_args(["--port", "8080", "--sans-navigateur"])
-    assert (args.port, args.sans_navigateur) == (8080, True)
+    assert (args.port, args.no_browser) == (8080, True)
     assert launcher.parse_args(["sauvegarder"]).command == "sauvegarder"
     args = launcher.parse_args(["restaurer"])
     assert (args.command, args.archive) == ("restaurer", None)

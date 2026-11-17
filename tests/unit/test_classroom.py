@@ -72,20 +72,20 @@ def test_non_numeric_port_is_refused():
 
 
 @pytest.mark.parametrize(
-    "adresse", ["http://192.168.1.23", "192.168.1.23:8000", "fe80::1", "192.168.1.23/", ""]
+    "address", ["http://192.168.1.23", "192.168.1.23:8000", "fe80::1", "192.168.1.23/", ""]
 )
-def test_address_must_be_a_bare_host(adresse):
+def test_address_must_be_a_bare_host(address):
     with pytest.raises(SystemExit):
-        classroom.parse_args(["--adresse", adresse])
+        classroom.parse_args(["--adresse", address])
 
 
-@pytest.mark.parametrize("adresse", ["192.168.1.23", "pc-prof.local", "PC-PROF"])
-def test_address_accepts_an_ipv4_address_or_a_host_name(adresse):
-    assert classroom.parse_args(["--adresse", adresse]).adresse == adresse
+@pytest.mark.parametrize("address", ["192.168.1.23", "pc-prof.local", "PC-PROF"])
+def test_address_accepts_an_ipv4_address_or_a_host_name(address):
+    assert classroom.parse_args(["--adresse", address]).address == address
 
 
 def test_default_port_and_detected_address():
     args = classroom.parse_args([])
     assert args.port == 8000
-    assert args.adresse is None
-    assert classroom.parse_args(["--port", "8123", "--adresse", "10.1.2.3"]).adresse == "10.1.2.3"
+    assert args.address is None
+    assert classroom.parse_args(["--port", "8123", "--adresse", "10.1.2.3"]).address == "10.1.2.3"

@@ -137,6 +137,18 @@ def create_account(interactive: bool) -> None:
     print("Créez votre compte enseignant plus tard, dans un terminal : qcm-live compte")
 
 
+def first_steps(first: bool, interactive: bool) -> None:
+    """Compte de l'enseignant tant qu'il n'y en a aucun, même après une première installation
+    interrompue ; démonstration proposée à la première installation seulement."""
+    from django.contrib.auth import get_user_model
+    from django.core.management import call_command
+
+    if not get_user_model().objects.exists():
+        create_account(interactive)
+    if first and wants_demo(interactive):
+        call_command("demo", "--sans-compte")
+
+
 def main() -> int:  # pragma: no cover — testé de bout en bout (INS-01, INS-02)
     data = data_dir()
     data.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -144,16 +156,12 @@ def main() -> int:  # pragma: no cover — testé de bout en bout (INS-01, INS-0
     write_settings(data)
     load_settings(data)
     setup_django()
-    from django.contrib.auth import get_user_model
     from django.core.management import call_command
 
     first = not database().exists()
     interactive = sys.stdin.isatty()
     call_command("migrate", interactive=False, verbosity=0)
-    if first and not get_user_model().objects.exists():
-        create_account(interactive)
-    if first and wants_demo(interactive):
-        call_command("demo", "--sans-compte")
+    first_steps(first, interactive)
     command = write_launchers(data)
 
     print()

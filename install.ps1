@@ -49,6 +49,7 @@
         $Root = Get-ChildItem $Unpacked -Directory | Select-Object -First 1
 
         # Nouvelle version a cote de l'ancienne, environnement Python mis a jour, puis echange.
+        # L'environnement est mis a jour sur place : relancer l'installation le remet d'aplomb.
         $App = Join-Path $Data "app"
         $New = Join-Path $Data "app.new"
         if (Test-Path $New) { Remove-Item -Recurse -Force $New }
@@ -56,7 +57,7 @@
         $env:UV_PROJECT_ENVIRONMENT = Join-Path $Data "venv"
         Write-Host "Preparation de l'environnement Python..."
         & $Uv sync --quiet --locked --no-dev --project $New
-        if ($LASTEXITCODE -ne 0) { throw "Echec de l'installation des dependances (rien n'a ete remplace)." }
+        if ($LASTEXITCODE -ne 0) { throw "Echec de l'installation des dependances : relancez l'installation." }
         if (Test-Path $App) { Remove-Item -Recurse -Force $App }
         Move-Item $New $App
 

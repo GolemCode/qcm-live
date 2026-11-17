@@ -144,6 +144,29 @@ def test_extract_refuses_a_sqlite_base_that_is_not_qcm_live(tmp_path):
         backup.extract(archive, tmp_path / "work", KNOWN)
 
 
+@pytest.mark.parametrize(
+    "data", [b"pas une base", b""], ids=["pas une base", "sans table des migrations"]
+)
+def test_extract_closes_the_database_it_refuses(tmp_path, monkeypatch, data):
+    """Sous Windows, une connexion restée ouverte verrouille le fichier : le dossier de
+    travail ne se supprime plus, et une trace remplace le message de refus."""
+    opened = []
+    real = sqlite3.connect
+
+    def spy(*args, **kwargs):
+        opened.append(real(*args, **kwargs))
+        return opened[-1]
+
+    monkeypatch.setattr(sqlite3, "connect", spy)
+    (tmp_path / "work").mkdir()
+    with pytest.raises(backup.BackupError, match=backup.NOT_A_BACKUP):
+        backup.extract(archive_with(tmp_path, {"db.sqlite3": data}), tmp_path / "work", KNOWN)
+    assert opened
+    for connection in opened:
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            connection.execute("SELECT 1")
+
+
 def test_extract_refuses_a_backup_from_a_newer_version(tmp_path):
     newer = KNOWN | {("roster", "9999_future")}
     saved = backup.save(make_db(tmp_path / "db.sqlite3", migrations=newer), tmp_path / "s")
