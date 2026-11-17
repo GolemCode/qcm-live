@@ -70,12 +70,14 @@ def make_question(text: str, choices=YES_NO, **options) -> Question:
     return _saved(QuestionForm(_question_data(text, choices, **options)))
 
 
-def new_version(question: Question, text: str, choices=YES_NO, **options) -> Question:
+def new_version(
+    question: Question, text: str, choices=YES_NO, *, only: Quiz | None = None, **options
+) -> Question:
     """Nouvelle version d'une question déjà utilisée, comme l'enregistre sa modification depuis
-    la banque (VER-01) : elle prend sa place dans tous ses QCM."""
+    la banque (VER-01) : elle prend sa place dans tous ses QCM, ou dans le seul `only` (VER-02)."""
     form = QuestionForm(_question_data(text, choices, **options), instance=question)
     assert form.is_valid(), form.errors
-    return form.save_version()
+    return form.save_version(only)
 
 
 def make_quiz(title: str, questions: Sequence[Question]) -> Quiz:
