@@ -170,7 +170,7 @@ def test_imported_formulas_are_kept(teacher_page: Page):
 
     import_amc(page, LATEX_FILE, name="indices.txt")
     open_bank(page)
-    indices = article(page, "si")
+    indices = article(page, "de 4")  # « si » serait aussi dans « Choix simple »
     expect(indices.get_by_role("heading").locator(".katex-html .msupsub")).to_have_count(2)
     assert "%" in rendered_text(indices.get_by_role("heading"))
 
