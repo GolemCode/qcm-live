@@ -12,7 +12,8 @@ processeur aux tests E2E à faible marge de temps, et contrôlerait du code en c
 La langue est vérifiée par une autre entrée Stop (`language.py`).
 
 Procédure : sur une branche d'incrément, ou sur main juste après une fusion, les étapes
-qui se lisent dans git, dans REX.md et sur GitHub doivent être faites.
+qui se lisent dans git, dans le REX de l'incrément (`rex/I<n>.md`) et sur GitHub doivent
+être faites.
 
 En cas d'échec, Claude est renvoyé au travail (code 2), une seule fois par arrêt
 (`stop_hook_active`). C'est donc un rappel, pas un blocage : s'arrêter reste possible pour
@@ -63,27 +64,25 @@ def marker_path(project: Path) -> Path:
     return Path(git_dir or project / ".git") / "claude-last-green"
 
 
-def rex_section(rex: str, increment: str) -> str:
-    """La section de REX.md d'un incrément (`## I6 …`, `## R …`), vide si elle manque."""
-    match = re.search(
-        rf"^## I?{increment}\b.*?(?=^## |\Z)", rex, re.MULTILINE | re.DOTALL | re.IGNORECASE
-    )
-    return match.group(0) if match else ""
+def rex_name(increment: str) -> str:
+    """Fichier du REX d'un incrément : `rex/I6.md`, `rex/R.md` (un fichier par incrément)."""
+    return f"rex/I{increment}.md" if increment.isdigit() else f"rex/{increment.upper()}.md"
 
 
 def increment_gaps(increment: str, rex: str, pr_state: str | None) -> list[str]:
     """Ce qu'il reste à faire sur une branche d'incrément, d'après ce que l'on peut constater.
 
-    Revues et contrôle visuel ne laissent pas de trace vérifiable : l'audit n'est contrôlé que
-    par la ligne déclarée dans le REX. Le reste de la procédure dépend du skill `increment`.
+    `rex` est le contenu du fichier du REX de l'incrément, vide s'il manque. Revues et contrôle
+    visuel ne laissent pas de trace vérifiable : l'audit n'est contrôlé que par la ligne
+    déclarée dans le REX. Le reste de la procédure dépend du skill `increment`.
     """
     gaps: list[str] = []
-    section = rex_section(rex, increment)
-    if not section:
-        gaps.append("REX.md n'a pas de section pour cet incrément.")
-    if not AUDIT_LINE.search(section):
+    name = rex_name(increment)
+    if not rex.strip():
+        gaps.append(f"{name} manque : écrire le REX de cet incrément.")
+    if not AUDIT_LINE.search(rex):
         gaps.append(
-            "L'audit n'est pas consigné : lancer l'agent spec-auditor, puis écrire dans le REX "
+            f"L'audit n'est pas consigné : lancer l'agent spec-auditor, puis écrire dans {name} "
             "la ligne « Audit spec-auditor : <commit> »."
         )
     if pr_state is None:
@@ -129,7 +128,7 @@ def project_gaps(project: Path) -> list[str]:
     match = INC_BRANCH.match(branch)
     if not match:
         return []
-    rex_file = project / "REX.md"
+    rex_file = project / rex_name(match.group(1))
     rex = rex_file.read_text(encoding="utf-8") if rex_file.exists() else ""
     return increment_gaps(match.group(1), rex, pull_request_state(project))
 

@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -275,7 +276,7 @@ def test_guard_does_not_mistake_a_double_chevron_for_a_heredoc(command):
     ],
 )
 def test_guard_is_not_a_security_boundary(command):
-    """Limite assumée, écrite dans REX.md (section R) : un filtre de texte ne peut pas voir
+    """Limite assumée, écrite dans le REX (rex/R.md) : un filtre de texte ne peut pas voir
     ce que fait un programme. Si ce test tombe, relire ce que le REX promet."""
     assert guard.decide(command, branch="inc/1-x") is None
 
@@ -319,25 +320,20 @@ def test_class_mode_uses_the_real_env_unless_told_otherwise():
 
 # --- Audit externe (R), constat 3 : le hook Stop vérifie que la procédure est allée au bout.
 
-I6_REX = "## I5 — x\ntexte\n\n---\n\n## I6 — y\nAudit spec-auditor : abc1234, 3 survivantes.\n"
+I6_REX = "# I6 — y\nAudit spec-auditor : abc1234, 3 survivantes.\n"
 
 
 def test_gaps_reproduce_the_i6_stop_right_after_security_review():
     """L'arrêt réel de I6 : branche de travail, ni REX, ni audit, ni PR."""
-    joined = " ".join(stop.increment_gaps("6", "## I5 — x\n", None))
-    assert "REX.md" in joined
+    joined = " ".join(stop.increment_gaps("6", "", None))
+    assert "rex/I6.md" in joined
     assert "spec-auditor" in joined
     assert "PR" in joined
 
 
-def test_gaps_audit_of_another_increment_does_not_count():
-    rex = "## I5 — x\nAudit spec-auditor : abc1234\n\n## I6 — y\nRien sur l'audit.\n"
-    assert "spec-auditor" in " ".join(stop.increment_gaps("6", rex, "OPEN"))
-
-
 def test_gaps_mere_mention_of_the_auditor_does_not_count():
     """La section R citait l'agent dans un constat, sans qu'aucun audit ait eu lieu."""
-    rex = "## R — x\n**6. Agent `spec-auditor` « en lecture seule » : exact.**\n"
+    rex = "# R — x\n**6. Agent `spec-auditor` « en lecture seule » : exact.**\n"
     assert "spec-auditor" in " ".join(stop.increment_gaps("r", rex, "OPEN"))
 
 
@@ -350,14 +346,23 @@ def test_gaps_mere_mention_of_the_auditor_does_not_count():
     ],
 )
 def test_gaps_audit_line_must_start_the_line_and_name_a_commit(line):
-    rex = f"## R — x\n{line}\n"
+    rex = f"# R — x\n{line}\n"
     assert "spec-auditor" in " ".join(stop.increment_gaps("r", rex, "OPEN"))
 
 
-def test_rex_section_does_not_confuse_i1_with_i10():
-    rex = "## I10 — dix\nAudit spec-auditor : abc1234\n"
-    assert stop.rex_section(rex, "1") == ""
-    assert stop.rex_section(rex, "10") != ""
+@pytest.mark.parametrize(
+    ("increment", "name"),
+    [
+        ("6", "rex/I6.md"),
+        ("1", "rex/I1.md"),
+        ("10", "rex/I10.md"),
+        ("r", "rex/R.md"),
+        ("m", "rex/M.md"),
+    ],
+)
+def test_rex_file_of_an_increment(increment, name):
+    """Un fichier par incrément (I15) : I1 n'est pas I10, R et M gardent leur lettre."""
+    assert stop.rex_name(increment) == name
 
 
 def test_gaps_open_pull_request_must_still_be_merged():
@@ -378,12 +383,6 @@ def test_gaps_merged_pull_request_leaves_the_tag():
     assert "inc-6" in gaps[0]
 
 
-def test_gaps_correction_increment_uses_section_r():
-    rex = "## I7 — x\nAudit spec-auditor : abc1234\n\n## R — Audit\nAudit spec-auditor : def5678\n"
-    assert len(stop.increment_gaps("r", rex, "OPEN")) == 1  # seule la fusion manque
-    assert "REX.md" in " ".join(stop.increment_gaps("r", "## I7\n", "OPEN"))
-
-
 @pytest.mark.parametrize(
     ("last_merge", "tags", "expected"),
     [
@@ -401,13 +400,17 @@ def test_gaps_on_main_only_the_tag_can_be_missing(last_merge, tags, expected):
 def _project(
     path: Path,
     branch: str,
-    rex: str = "## I5 — x\n",
+    rex: str = "",
     merge: str = "Incrément 5 : x (#6)",
     tag: str = "inc-5",
 ) -> Path:
     repo = _repo(path / "repo")
     (repo / "Makefile").write_text("check:\n\t@true\n")
-    (repo / "REX.md").write_text(rex)
+    (repo / "rex").mkdir()
+    (repo / "rex" / "I5.md").write_text("# I5 — x\n")
+    match = re.match(r"inc/(\w+?)-", branch)
+    if rex and match:
+        (repo / stop.rex_name(match.group(1))).write_text(rex)
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", merge)
     _git(repo, "tag", tag)
@@ -439,7 +442,7 @@ def test_stop_hook_sends_back_to_work_when_the_procedure_is_unfinished(tmp_path)
     repo = _project(tmp_path, "inc/6-resultats")
     first = _run_stop(repo)
     assert first.returncode == 2
-    assert "REX.md" in first.stderr
+    assert "rex/I6.md" in first.stderr
     # `make check` est déjà mémorisé comme vert : la procédure reste vérifiée.
     assert _run_stop(repo).returncode == 2
     # Une seule relance par arrêt : s'arrêter reste possible, pour poser une question.
@@ -449,17 +452,17 @@ def test_stop_hook_sends_back_to_work_when_the_procedure_is_unfinished(tmp_path)
 def test_stop_hook_recognises_the_correction_branch(tmp_path):
     result = _run_stop(_project(tmp_path, "inc/r-audit"))
     assert result.returncode == 2
-    assert "REX.md" in result.stderr
+    assert "rex/R.md" in result.stderr
 
 
 def test_stop_hook_reads_the_rex_and_the_pull_request(tmp_path):
     """Section et ligne d'audit présentes : seul l'état réel de la PR reste signalé."""
-    rex = "## I6 — y\nAudit spec-auditor : abc1234\n"
+    rex = "# I6 — y\nAudit spec-auditor : abc1234\n"
     repo = _project(tmp_path, "inc/6-resultats", rex=rex)
     result = _run_stop(repo, gh_folder=_fake_gh(tmp_path, "OPEN"))
     assert result.returncode == 2
     assert "fusionn" in result.stderr
-    assert "REX.md" not in result.stderr
+    assert "rex/I6.md" not in result.stderr
     assert "L'audit" not in result.stderr
 
 
@@ -601,7 +604,7 @@ def test_session_start_recalls_the_conversation_language():
 def test_stop_hook_recognises_a_method_increment(tmp_path):
     result = _run_stop(_project(tmp_path, "inc/m-methode"))
     assert result.returncode == 2
-    assert "REX.md" in result.stderr
+    assert "rex/M.md" in result.stderr
 
 
 def test_gaps_on_main_after_a_method_increment():

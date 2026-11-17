@@ -54,9 +54,10 @@ check: lint test ## Vérification rapide (utilisée par le hook Stop)
 
 verify: lint verify-tests ## Vérification complète, identique à la CI
 
+# Sans PYTEST_ARGS (session complète), le résultat d'une session verte est enregistré pour accept.
 verify-tests: ## Tous les tests + couverture de la spec + couverture du code
-	$(PYTEST) --spec-check --cov --cov-report=term-missing $(PYTEST_ARGS)
+	$(PYTEST) --spec-check --cov --cov-report=term-missing $(if $(PYTEST_ARGS),$(PYTEST_ARGS),--spec-record=.verify-result.json)
 
-accept: ## Couverture des exigences d'un incrément : make accept INC=n
+accept: ## Exigences d'un incrément (reprend le dernier verify vert si rien n'a changé) : make accept INC=n
 	@test -n "$(INC)" || (echo "Usage : make accept INC=n" && exit 2)
-	$(PYTEST) --spec-check --spec-inc=$(INC) -q
+	$(CHECK_RUN) python -m tests.accept $(INC)

@@ -1,7 +1,7 @@
 """Hooks PostToolUse et Stop : un message de Claude écrit en anglais.
 
 La conversation avec le commanditaire se tient en français (CLAUDE.md, règle 7). La consigne
-n'a pas suffi : en I11, 71 messages sur 75 étaient en anglais (REX, section M).
+n'a pas suffi : en I11, 71 messages sur 75 étaient en anglais (rex/M.md).
 
 - PostToolUse : le texte écrit juste avant l'appel d'outil est en anglais ? Claude en est
   averti aussitôt (`additionalContext`), au milieu du tour. Ce hook n'arrête rien.

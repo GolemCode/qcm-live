@@ -5,7 +5,8 @@ Application web de QCM d'évaluation en direct. Les questions sont projetées au
 > **Enseignant : lisez [GUIDE.md](GUIDE.md).** Il donne l'installation en une commande, le lancement en classe, les sauvegardes et la mise à jour. La suite de ce fichier s'adresse au développement.
 
 - Spécification fonctionnelle : [SPEC.md](SPEC.md)
-- Retour d'expérience, incrément par incrément : [REX.md](REX.md)
+- Retour d'expérience, un fichier par incrément : index [REX.md](REX.md), fichiers dans `rex/`
+- Conception par module : [ARCHITECTURE.md](ARCHITECTURE.md)
 - Cadre de travail de l'agent de développement (Claude Code) : [CLAUDE.md](CLAUDE.md) et [.claude/](.claude/)
 
 > État : en développement par incréments. `git log --first-parent main` donne une ligne par incrément livré.
@@ -78,7 +79,7 @@ Le parcours de l'enseignant (préparer, en classe, après) est dans [GUIDE.md](G
 | `make check` | lint (ruff), format, types (pyright), checks Django, migrations à jour, tests unitaires et d'intégration |
 | `make e2e` | tests de bout en bout dans un vrai navigateur (Chromium), PC du tableau et téléphones émulés |
 | `make verify` | tout, comme la CI : y compris la couverture de la spec et celle du code (≥ 90 %) |
-| `make accept INC=n` | les exigences de l'incrément n et les tests qui les vérifient |
+| `make accept INC=n` | les exigences de l'incrément n et les tests qui les vérifient (reprend le dernier `make verify` vert si rien n'a changé depuis, REX exclu) |
 
 Chaque exigence de [SPEC.md](SPEC.md) porte un identifiant, par exemple `[ETU-04]`. `make verify` échoue si une exigence déjà livrée n'est vérifiée par aucun test de bout en bout réussi.
 
@@ -97,7 +98,8 @@ live/       sessions en direct : QR code de jonction, déroulement, réponses, r
 templates/  gabarits HTML          static/  CSS et JS, sans script ni style inline
 tests/      unit/ · integration/ · e2e/ (Playwright) · spec_trace.py (traçabilité SPEC.md)
             factories.py (données de test fictives, créées via les formulaires)
-scripts/    gen_env.py (création du .env local)
+scripts/    gen_env.py (création du .env local), usage.py (consommation de Claude Code)
+rex/        retour d'expérience, un fichier par incrément (index : REX.md)
 demo/       qcm-demo.txt (fichier AMC-TXT fictif de démonstration)
 install.sh  install.ps1   installation de l'enseignant (Linux, Windows) ; GUIDE.md, son guide
 .claude/    environnement de l'agent : réglages, hooks, procédure d'incrément, auditeur de spec
