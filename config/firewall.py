@@ -4,8 +4,9 @@ QCM Live ne modifie jamais le pare-feu : la détection ne fait que lire (un fich
 d'un service, le profil du réseau sous Windows), et les commandes proposées sont à copier par
 l'enseignant, qui juge s'il veut les lancer. Rien ne l'impose techniquement : cela tient au
 code ci-dessous, qui ne lance que les sondes de `PROBES`. Un test d'intégration le vérifie pour
-`detect`, `advices` et la page « Réseau », sur les lancements par `subprocess`, `os.system` et
-`os.posix_spawn` (tests/integration/test_network.py).
+`detect`, `advices` et la page « Réseau », sur les lancements par `subprocess.Popen` (appelé
+par le module, comme le font `subprocess.run` et ses voisins), `os.system` et `os.posix_spawn`
+(tests/integration/test_network.py). Un `Popen` importé sous un autre nom y échapperait.
 
 Chaque détection est un identifiant : `ufw`, `firewalld`, `windows-public` (Windows, réseau
 en profil « Public », qui bloque les connexions entrantes).
