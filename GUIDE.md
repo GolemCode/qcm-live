@@ -29,6 +29,8 @@ Lancez QCM Live (icône ou commande `qcm-live`) : le navigateur s'ouvre sur l'es
 
 1. **Le QCM.** « QCM », puis « Importer un fichier AMC » : choisissez le fichier `.txt` d'AMC, puis « Analyser ». Un récapitulatif liste les questions importées et celles qui sont écartées (avec la ligne et la raison). « Importer » crée le QCM, avec le barème du fichier.
    - Essayez d'abord un ancien QCM, et comparez quelques notes avec celles d'AMC.
+   - Réimporter le même fichier complète son QCM : les questions retirées ou supprimées reviennent à leur place, vos modifications restent.
+   - Pour composer un QCM, cochez ses questions (« Modifier le QCM ») ; « Reprendre dans un nouveau QCM » en fait une copie à retoucher. Modifier une question qui a déjà servi en crée une nouvelle version : les résultats passés ne changent pas.
 2. **Le groupe.** « Groupes », puis « Importer un groupe » : un fichier CSV (70 étudiants au plus) qui commence par la ligne `n°;numéro étudiant;nom`, puis une ligne par étudiant, par exemple `12;21904567;DUPONT Jeanne`.
    - Le **n°** est celui de votre liste d'appel : un entier de 1 à 999, chacun une fois ; des trous sont permis. C'est lui qui désigne l'étudiant sur son téléphone et dans les résultats.
    - Le **numéro étudiant** peut rester vide (`13;;MARTIN Paul`). Il n'est jamais affiché sur les téléphones ni projeté.
