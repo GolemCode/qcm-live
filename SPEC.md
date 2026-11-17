@@ -103,6 +103,7 @@ I15 livre CMP-01, CMP-02, CMP-04, CMP-05, VER-01 à VER-03 et le réimport (IMP-
   - L'année s'écrit « AAAA-AAAA », deux années qui se suivent ; toute autre saisie est refusée : « Année au format 2025-2026 : deux années qui se suivent. » Le champ « Année » de l'import est prérempli avec l'année universitaire en cours (de septembre à août). *(format : décision du commanditaire ; message et préremplissage : dérivé)*
   - Un même nom la même année est refusé : « Un groupe porte déjà ce nom cette année-là. » *(dérivé)*
   - L'année s'affiche à côté du nom : liste et fiche des groupes, choix du groupe au lancement (« ITI4 — 2025-2026 »), tableau en attente, liste des sessions, résultats. *(dérivé)*
+  - Dans la liste des groupes et au lancement, les homonymes se suivent, l'année la plus récente d'abord : c'est elle que le lancement présélectionne. *(dérivé)*
 - **[CMP-03]** (I16) **Une question déjà posée à un groupe est signalée**, et l'enseignant décide. « Déjà posée » : présente dans une session **démarrée** de ce groupe, cette année-là ; une nouvelle version (VER-01) compte comme la même question. *(décision du commanditaire)*
   - Au lancement d'une session : une page de confirmation liste les questions déjà posées, avec « Lancer quand même » ou « Revenir ».
   - À la composition d'un QCM : l'enseignant choisit un groupe, et les questions déjà posées à ce groupe sont marquées.

@@ -33,7 +33,7 @@ class StudentGroup(models.Model):
         students: RelatedManager[Student]
 
     class Meta:
-        ordering = ["name", "year"]
+        ordering = ["name", "-year"]  # homonymes : l'année la plus récente d'abord
         constraints = [
             models.UniqueConstraint(
                 fields=["name", "year"],

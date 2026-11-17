@@ -5,7 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from roster.models import SAME_YEAR, StudentGroup
-from tests.factories import make_group
+from tests.factories import make_group, make_question, make_quiz
 
 pytestmark = pytest.mark.django_db
 
@@ -57,13 +57,25 @@ def test_concurrent_duplicate_name_is_a_form_error_not_a_crash(admin_client, gro
 
 
 def test_group_list_is_sorted_by_name_then_year(admin_client):
-    """Homonymes côte à côte (GRP-04) : Meta.ordering ne s'applique pas à une requête agrégée."""
+    """Homonymes côte à côte, le plus récent d'abord (GRP-04) ; Meta.ordering ne s'applique pas
+    à une requête agrégée."""
     make_group("ITI4", [("1", "A")], year="2025-2026")
     make_group("ITI5", [("1", "A")], year="2025-2026")
     make_group("ITI4", [("1", "A")], year="2024-2025")
     groups = admin_client.get(reverse("group-list")).context["groups"]
     assert [(g.name, g.year) for g in groups] == [
-        ("ITI4", "2024-2025"),
         ("ITI4", "2025-2026"),
+        ("ITI4", "2024-2025"),
         ("ITI5", "2025-2026"),
     ]
+
+
+def test_launch_preselects_the_latest_year_of_a_name(admin_client):
+    """La liste du lancement n'a pas de choix vide : son premier homonyme est présélectionné,
+    et ce doit être le groupe de l'année la plus récente, non celui de l'an dernier."""
+    make_quiz("Contrôle", [make_question("Q1")])
+    make_group("ITI4", [("1", "A")], year="2024-2025")
+    make_group("ITI4", [("1", "A")], year="2025-2026")
+    page = admin_client.get(reverse("session-launch")).content.decode()
+    first, second = page.index("ITI4 — 2025-2026"), page.index("ITI4 — 2024-2025")
+    assert first < second

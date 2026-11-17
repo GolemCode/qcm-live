@@ -74,9 +74,11 @@ def test_year_follows_the_group_into_its_sessions(teacher_page: Page, live_serve
 
     open_sessions(page)
     page.get_by_role("link", name="Lancer une session").click()
-    expect(page.get_by_label("Groupe", exact=True).locator("option")).to_have_text(
-        ["ITI4 — 2025-2026", "ITI4 — 2026-2027"]
-    )
+    group_choice = page.get_by_label("Groupe", exact=True)
+    expect(group_choice.locator("option")).to_have_text(["ITI4 — 2026-2027", "ITI4 — 2025-2026"])
+    expect(group_choice.locator("option:checked")).to_have_text(
+        "ITI4 — 2026-2027"
+    )  # le plus récent
     fill_launch(page, "Contrôle", "ITI4 — 2025-2026", 1, 30)
     code = board_code(page)
     expect(page.get_by_role("main")).to_contain_text("Groupe ITI4 — 2025-2026")

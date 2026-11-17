@@ -15,7 +15,7 @@ from roster.models import SAME_YEAR, StudentGroup
 @login_required
 def group_list(request: HttpRequest) -> HttpResponse:
     # Explicite : Meta.ordering ne s'applique pas à une requête agrégée.
-    groups = StudentGroup.objects.annotate(n_students=Count("students")).order_by("name", "year")
+    groups = StudentGroup.objects.annotate(n_students=Count("students")).order_by("name", "-year")
     return render(request, "roster/group_list.html", {"groups": groups})
 
 

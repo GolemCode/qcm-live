@@ -55,7 +55,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterModelOptions(
             name="studentgroup",
-            options={"ordering": ["name", "year"]},
+            options={"ordering": ["name", "-year"]},
         ),
         migrations.AddConstraint(
             model_name="studentgroup",
