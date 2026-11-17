@@ -9,7 +9,9 @@ déjà son propre compte.
 
 from __future__ import annotations
 
+import io
 import secrets
+import zipfile
 from pathlib import Path
 
 from django.conf import settings
@@ -25,7 +27,7 @@ from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 from roster.years import academic_year
 
-DEMO_FILE = Path(settings.BASE_DIR) / "demo" / "qcm-demo.txt"
+DEMO_DIR = Path(settings.BASE_DIR) / "demo"  # qcm-demo.txt et ses images (DEM-01)
 USERNAME = "demo"
 GROUP_NAME = "Démo"
 # Fictifs, au format d'I14 (GRP-05) : n° de liste avec des trous, un numéro étudiant manquant.
@@ -54,7 +56,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         group = StudentGroup.objects.filter(name=GROUP_NAME).first() or self.import_group()
         # Relancée, elle complète le même QCM au lieu d'en créer un autre (IMP-10).
-        quiz = import_quiz(DEMO_FILE.read_bytes(), DEMO_FILE.name)
+        quiz = import_quiz(demo_archive(), "qcm-demo.zip")
 
         self.stdout.write(f"QCM : {quiz.title} ({quiz.questions.count()} questions)")
         self.stdout.write(f"Groupe : {group.name} ({group.students.count()} étudiants)")
@@ -78,3 +80,13 @@ class Command(BaseCommand):
         if not form.is_valid():
             raise CommandError(f"Groupe de démonstration refusé : {form.errors.as_text()}")
         return form.save()
+
+
+def demo_archive() -> bytes:
+    """Le dossier `demo/` en archive ZIP (IMP-08) : le fichier AMC-TXT et son image."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        for path in sorted(DEMO_DIR.rglob("*")):
+            if path.is_file():
+                zf.write(path, path.relative_to(DEMO_DIR).as_posix())
+    return buffer.getvalue()
