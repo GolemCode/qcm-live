@@ -159,7 +159,7 @@ def test_none_of_these_has_the_letter_after_the_last_choice():
     quiz: FrozenQuiz = {"questions": [question(True, False, False, True, none=True)]}
     assert grade(quiz, {0: [2]}) == [Mark("C", D(2))]  # A et B non cochées, justes : 1 + 1
     assert grade(quiz, {0: [0, 2]}) == [Mark("AC", D(0))]  # « Aucune » combinée : e
-    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {"00123": {0: [2]}}))[1][5:] == ["C", "2"]
+    assert csv_rows(quiz, results(quiz, STUDENTS[:1], {3: {0: [2]}}))[1][6:] == ["C", "2"]
 
 
 @pytest.mark.parametrize(

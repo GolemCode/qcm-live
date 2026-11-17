@@ -31,6 +31,7 @@ from tests.e2e.live_ui import (
     identity,
     join,
     launch_session,
+    leave_board,
     list_entry,
     open_results,
     phones_joined,
@@ -394,6 +395,7 @@ def test_groups_and_sessions_from_before_i14(teacher_page: Page, live_server, ne
 
     # Une nouvelle session sur le groupe repris : la liste porte les n°.
     make_quiz("Nouveau", [make_question("Q1")])
+    leave_board(page)
     code = launch_session(page, "Nouveau", "TD ancien")
     phone = new_phone()
     join(phone, live_server.url, code, "Ng Anh")

@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from live.models import Participant, Session
 from live.results import ABSENT, csv_rows, grade
+from live.snapshot import FrozenChoice, FrozenQuiz
 from roster.models import Student, StudentGroup
 
 BEFORE = [("roster", "0001_initial"), ("live", "0005_frozen_question_scoring")]
@@ -39,11 +40,11 @@ def old_apps():
     migrate(leaves())
 
 
-def choice(text, correct):
+def choice(text, correct) -> FrozenChoice:
     return {"text": text, "correct": correct, "points": None, "none": False}
 
 
-CONTENT = {
+CONTENT: FrozenQuiz = {
     "questions": [
         {
             "text": "S",

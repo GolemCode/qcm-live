@@ -104,4 +104,6 @@ def test_delete_group_after_confirmation(teacher_page: Page):
     # Correction d'une liste : le groupe supprimé se réimporte sous le même nom.
     import_group(page, "TD jetable", b"1;A\n2;B corrige\n3;C\n")
     expect(student_rows(page)).to_have_count(3)
-    expect(student_rows(page).nth(1).get_by_role("cell")).to_have_text(["2", "B corrige"])
+    expect(student_rows(page).nth(1).get_by_role("cell")).to_have_text(
+        ["2", "2", "B corrige"]
+    )  # n°, numéro étudiant, nom
