@@ -13,7 +13,7 @@ une option avec le contenu d'un message de commit. Le corps d'un heredoc n'est p
 c'est du texte, sauf s'il est donné à un shell.
 
 Ce garde évite les accidents : ce n'est pas une frontière de sécurité. Un filtre de texte ne voit
-pas ce que fait un programme (voir REX.md, section R, et test_guard_is_not_a_security_boundary).
+pas ce que fait un programme (voir rex/R.md et test_guard_is_not_a_security_boundary).
 """
 
 from __future__ import annotations

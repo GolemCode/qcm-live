@@ -10,14 +10,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
 
 from bank.amc_txt import MAX_BYTES, AmcSyntaxError
-from bank.forms import AmcUploadForm, QuestionForm, QuizForm
-from bank.importer import AlreadyImported, Preview, import_quiz, preview
+from bank.forms import AmcUploadForm, QuestionForm, QuizCopyForm, QuizForm, VersionScopeForm
+from bank.importer import Preview, preview, save_import
 from bank.models import NONE_OF_THESE, PendingImport, Question, Quiz
 
 
 @login_required
 def question_list(request: HttpRequest) -> HttpResponse:
-    questions = Question.objects.prefetch_related("choices", "quizzes")
+    questions = Question.current().prefetch_related("choices", "quizzes", "previous__choices")
     return render(
         request,
         "bank/question_list.html",
@@ -25,15 +25,40 @@ def question_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _from_quiz(request: HttpRequest, question: Question) -> Quiz | None:
+    """Le QCM depuis lequel la question est modifiée (`?qcm=`), s'il la contient (VER-02)."""
+    pk = request.GET.get("qcm", "")
+    if not pk.isdigit() or question.pk is None:
+        return None
+    return Quiz.objects.filter(pk=pk, questions=question).first()
+
+
 @login_required
 def question_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     question = get_object_or_404(Question, pk=pk) if pk is not None else Question()
+    quiz = _from_quiz(request, question)
+    # Déjà servie dans une session lancée : la modifier crée une nouvelle version (VER-01).
+    used = question.pk is not None and question.sessions.exists()
+    before = question.content() if used else None
     form = QuestionForm(request.POST or None, instance=question)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Question enregistrée.")
+    scope = VersionScopeForm(request.POST or None, quiz=quiz) if used and quiz else None
+    valid = form.is_valid() and (scope is None or scope.is_valid())
+    if request.method == "POST" and valid:
+        if not used:
+            form.save()
+            messages.success(request, "Question enregistrée.")
+        elif form.content() == before:
+            messages.info(request, "Aucun changement : rien n'est enregistré.")
+        else:
+            only = quiz if scope and scope.cleaned_data["scope"] == scope.ONLY else None
+            form.save_version(only)
+            messages.success(request, "Nouvelle version enregistrée.")
+        if quiz is not None:
+            return redirect("quiz-detail", pk=quiz.pk)
         return redirect("question-list")
-    return render(request, "bank/question_form.html", {"form": form, "question": question})
+    touched = Quiz.objects.filter(questions=question) if used else None
+    context = {"form": form, "question": question, "quiz": quiz, "used": used, "scope": scope}
+    return render(request, "bank/question_form.html", context | {"touched": touched})
 
 
 @login_required
@@ -58,6 +83,29 @@ def quiz_detail(request: HttpRequest, pk: int) -> HttpResponse:
     return render(
         request, "bank/quiz_detail.html", {"quiz": quiz, "questions": quiz.ordered_questions()}
     )
+
+
+@login_required
+def quiz_remove(request: HttpRequest, pk: int, question: int) -> HttpResponse:
+    """Retire une question de ce seul QCM ; elle reste dans la banque (CMP-05)."""
+    quiz = get_object_or_404(Quiz, pk=pk, questions=question)
+    if request.method == "POST":
+        kept = quiz.ordered_questions().exclude(pk=question).values_list("pk", flat=True)
+        quiz.set_questions(list(kept))
+        messages.success(request, "Question retirée du QCM.")
+    return redirect("quiz-detail", pk=quiz.pk)
+
+
+@login_required
+def quiz_copy(request: HttpRequest, pk: int) -> HttpResponse:
+    """Nouveau QCM qui reprend celui-ci en entier (CMP-01)."""
+    source = get_object_or_404(Quiz, pk=pk)
+    form = QuizCopyForm(request.POST or None, source=source)
+    if request.method == "POST" and form.is_valid():
+        quiz = form.save()
+        messages.success(request, "QCM créé.")
+        return redirect("quiz-detail", pk=quiz.pk)
+    return render(request, "bank/quiz_copy.html", {"form": form, "source": source})
 
 
 @login_required
@@ -92,8 +140,6 @@ def _analyse(data: bytes, name: str) -> Preview | list[str]:
         return preview(data, name)
     except AmcSyntaxError as error:
         return error.messages
-    except AlreadyImported as error:
-        return [str(error)]
 
 
 @login_required
@@ -131,15 +177,21 @@ def quiz_import_recap(request: HttpRequest, token: str) -> HttpResponse:
             messages.success(request, "Import annulé.")
             return redirect("quiz-list")
         try:
-            quiz = import_quiz(data, name)
-        except ValueError as error:  # refus de l'analyse, ou fichier importé entre-temps
+            found = preview(data, name)
+            quiz = save_import(found, name)
+        except ValueError as error:  # refus de l'analyse
             messages.error(request, str(error))
             return redirect("quiz-import")
-        n = quiz.questions.count()
-        messages.success(request, f"QCM importé : {n} question{pluralize(n)}.")
+        if found.target is None:
+            n = quiz.questions.count()
+            messages.success(request, f"QCM importé : {n} question{pluralize(n)}.")
+        else:  # réimport (IMP-10)
+            added = found.added
+            ajoutee = f"{added} question{pluralize(added)} ajoutée{pluralize(added)}"
+            messages.success(request, f"QCM complété : {ajoutee if added else 'rien à ajouter'}.")
         return redirect("quiz-detail", pk=quiz.pk)
     found = _analyse(data, name)
-    if isinstance(found, list):  # fichier importé entre-temps
+    if isinstance(found, list):  # analysé sans erreur à l'envoi : ne devrait pas arriver
         pending.delete()
         for message in found:
             messages.error(request, message)

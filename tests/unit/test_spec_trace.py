@@ -67,3 +67,66 @@ def test_real_spec_and_pyproject_are_consistent():
     assert len(reqs) >= 20
     inc = spec_trace.current_increment(spec_trace.PYPROJECT.read_text(encoding="utf-8"))
     assert inc >= 0
+
+
+# --- I15 : `make accept` reprend le résultat du dernier `make verify` vert sur le même état.
+
+
+def _repo(path):
+    import subprocess
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=path, check=True, capture_output=True)
+
+    git("init", "-q")
+    (path / ".gitignore").write_text("ignored.txt\n")
+    (path / "code.py").write_text("x = 1\n")
+    (path / "rex").mkdir()
+    (path / "rex" / "I1.md").write_text("# I1\n")
+    (path / "REX.md").write_text("# REX\n")
+    git("add", ".")
+    return path
+
+
+def test_state_key_follows_code_but_not_the_rex(tmp_path):
+    repo = _repo(tmp_path)
+    before = spec_trace.state_key(repo)
+    (repo / "rex" / "I1.md").write_text("# I1\nAudit spec-auditor : abc1234\n")
+    (repo / "rex" / "I2.md").write_text("# I2\n")
+    (repo / "REX.md").write_text("# REX\n| I2 |\n")
+    (repo / "ignored.txt").write_text("rien\n")
+    assert spec_trace.state_key(repo) == before
+    (repo / "code.py").write_text("x = 2\n")
+    assert spec_trace.state_key(repo) != before
+
+
+def test_state_key_sees_new_and_deleted_files(tmp_path):
+    repo = _repo(tmp_path)
+    before = spec_trace.state_key(repo)
+    (repo / "new.py").write_text("")
+    with_new = spec_trace.state_key(repo)
+    assert with_new != before
+    (repo / "new.py").unlink()
+    (repo / "code.py").unlink()  # suivi, mais supprimé
+    assert spec_trace.state_key(repo) not in (before, with_new)
+
+
+def test_record_is_reused_only_for_the_same_state():
+    coverage = {"AAA-01": Coverage(passed_e2e=["tests/e2e/test_a.py::test_x"])}
+    text = spec_trace.dump_record("abc", coverage, "2026-11-17T18:00:00+01:00")
+    assert spec_trace.load_record(text, "abc") == (coverage, "2026-11-17T18:00:00+01:00")
+    assert spec_trace.load_record(text, "autre") is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "{",
+        "[]",
+        '{"state": "abc"}',
+        '{"state": "abc", "finished_at": 1, "coverage": {"A": {"x": 1}}}',
+    ],
+)
+def test_damaged_record_means_rerun(text):
+    assert spec_trace.load_record(text, "abc") is None

@@ -13,5 +13,7 @@ urlpatterns = [
     path("qcm/importer/<str:token>/", views.quiz_import_recap, name="quiz-import-recap"),
     path("qcm/<int:pk>/", views.quiz_detail, name="quiz-detail"),
     path("qcm/<int:pk>/modifier/", views.quiz_edit, name="quiz-update"),
+    path("qcm/<int:pk>/reprendre/", views.quiz_copy, name="quiz-copy"),
+    path("qcm/<int:pk>/retirer/<int:question>/", views.quiz_remove, name="quiz-remove"),
     path("qcm/<int:pk>/supprimer/", views.quiz_delete, name="quiz-delete"),
 ]

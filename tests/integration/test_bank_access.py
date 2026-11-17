@@ -56,18 +56,15 @@ def test_unknown_objects_give_404(admin_client):
     assert admin_client.get(reverse("quiz-detail", args=[999])).status_code == 404
 
 
-def test_invalid_order_number_reports_only_its_own_error(admin_client):
-    first, second = make_question("Q-1"), make_question("Q-2")
+def test_box_for_a_question_not_offered_is_ignored(admin_client):
+    # CMP-04 (I15) : seules comptent les cases des questions proposées ; l'ancien rang,
+    # ou une question inconnue, ne compose rien.
+    question = make_question("Q-1")
     response = admin_client.post(
         reverse("quiz-create"),
-        {
-            "title": "T",
-            f"order_{first.pk}": "0",
-            f"order_{second.pk}": "",
-        },
+        {"title": "T", "include_999999": "on", f"order_{question.pk}": "1"},
     )
-    errors = response.context["form"].errors
-    assert set(errors) == {f"order_{first.pk}"}
+    assert response.context["form"].non_field_errors() == ["Cochez au moins une question."]
     assert Quiz.objects.count() == 0
 
 

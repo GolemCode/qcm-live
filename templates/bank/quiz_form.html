@@ -11,12 +11,12 @@
       <legend>Questions</legend>
       {% with rows=form.question_rows %}
         {% if rows %}
-          <p class="muted">Numérotez les questions à inclure dans l'ordre voulu (1, 2, 3…). Laissez vide pour exclure.</p>
+          <p class="muted">Cochez les questions du QCM. Celles de son fichier AMC suivent l'ordre du fichier ; les autres viennent à la suite, les nouvelles à la fin.</p>
           <table class="grid">
-            <thead><tr><th scope="col">Ordre</th><th scope="col">Question</th><th scope="col">Type</th></tr></thead>
+            <thead><tr><th scope="col">Inclure</th><th scope="col">Question</th><th scope="col">Type</th></tr></thead>
             <tbody>
               {% for question, field in rows %}
-                <tr><td class="order">{{ field }}</td><td>{{ question.text }}</td><td>{{ question.get_kind_display }}</td></tr>
+                <tr><td class="center">{{ field }}</td><td>{{ question.text }}</td><td>{{ question.get_kind_display }}</td></tr>
               {% endfor %}
             </tbody>
           </table>

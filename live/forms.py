@@ -56,6 +56,7 @@ class LaunchSessionForm(PlainForm):
                     "content": freeze_quiz(quiz),
                     "roster": freeze_group(group),
                 }
+                self.sources = list(quiz.ordered_questions().values_list("pk", flat=True))
             if not self.frozen["content"]["questions"]:
                 raise forms.ValidationError("Ce QCM ne contient plus aucune question.")
         return self.cleaned_data
@@ -70,7 +71,9 @@ class LaunchSessionForm(PlainForm):
         for _ in range(CODE_ATTEMPTS):
             try:
                 with transaction.atomic():
-                    return Session.objects.create(code=random_code(), **fields)
+                    session = Session.objects.create(code=random_code(), **fields)
+                    session.source_questions.add(*self.sources)
+                    return session
             except IntegrityError:
                 continue  # code déjà attribué : on en tire un autre
         raise RuntimeError("Aucun code de session libre trouvé.")

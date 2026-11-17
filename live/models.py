@@ -58,6 +58,9 @@ class Session(models.Model):
     group_name = models.CharField(max_length=GROUP_NAME_MAX_LENGTH)
     content = models.JSONField()  # live.snapshot.FrozenQuiz
     roster = models.JSONField()  # list[live.snapshot.FrozenStudent]
+    # Questions de la banque copiées au lancement : elles sont « utilisées » (VER-01). La
+    # session ne les lit jamais, elle n'a que sa copie.
+    source_questions = models.ManyToManyField("bank.Question", related_name="sessions", blank=True)
     # Nombre de questions de la copie figée : les états interrogés chaque seconde calculent
     # le déroulement sans charger ni décoder `content`.
     n_questions = models.PositiveSmallIntegerField()

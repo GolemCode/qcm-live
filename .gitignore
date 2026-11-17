@@ -24,6 +24,7 @@ htmlcov/
 .pytest_cache/
 .ruff_cache/
 test-results/
+.verify-result.json
 
 # Réglages locaux de Claude Code (le partagé est dans .claude/settings.json)
 .claude/settings.local.json

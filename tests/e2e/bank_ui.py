@@ -54,13 +54,22 @@ def create_question(
     expect(page.get_by_role("status")).to_contain_text("Question enregistrée")
 
 
+INCLUDE = "Inclure la question : "
+
+
+def include_box(page: Page, text: str) -> Locator:
+    """Case à cocher d'une question dans le formulaire de QCM (CMP-04)."""
+    return page.get_by_label(INCLUDE + text, exact=True)
+
+
 def fill_quiz(page: Page, title: str, questions: list[str]) -> None:
-    """Remplit le formulaire de QCM (titre, questions dans l'ordre voulu) et enregistre."""
+    """Remplit le formulaire de QCM (titre, questions cochées, les autres décochées) et
+    enregistre. L'ordre ne se choisit plus (CMP-04) : il suit le fichier ou la banque."""
     page.get_by_label("Titre").fill(title)
-    for order_input in page.get_by_label(re.compile(r"^Ordre de la question")).all():
-        order_input.fill("")
-    for position, text in enumerate(questions, start=1):
-        page.get_by_label(f"Ordre de la question : {text}", exact=True).fill(str(position))
+    for box in page.get_by_label(re.compile("^" + INCLUDE)).all():
+        box.uncheck()
+    for text in questions:
+        include_box(page, text).check()
     page.get_by_role("button", name="Enregistrer").click()
 
 
@@ -80,3 +89,8 @@ def open_quiz(page: Page, title: str) -> None:
 def quiz_question_items(page: Page) -> Locator:
     """Les questions du QCM affiché, dans l'ordre."""
     return page.get_by_role("list", name="Questions du QCM").get_by_role("listitem")
+
+
+def quiz_item(page: Page, text: str) -> Locator:
+    """La ligne d'une question sur la fiche du QCM affiché."""
+    return quiz_question_items(page).filter(has_text=text)

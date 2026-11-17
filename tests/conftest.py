@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import functools
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 from django.utils import timezone
@@ -16,10 +17,14 @@ from tests.databases import remove_stale
 # entre deux tests de même nom dans des fichiers différents).
 _coverage: dict[str, spec_trace.Coverage] = {}
 _spec_ids_by_nodeid: dict[str, list[str]] = {}
+# Empreinte du dépôt au début d'une session qui enregistre son résultat (--spec-record).
+_record_state: list[str] = []
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
     remove_stale(session.config.rootpath)
+    if session.config.getoption("--spec-record"):
+        _record_state.append(spec_trace.state_key(session.config.rootpath))
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -35,6 +40,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=None,
         help="Restreint le contrôle et le rapport aux exigences de cet incrément.",
     )
+    group.addoption(
+        "--spec-record",
+        default=None,
+        help="Enregistre dans ce fichier le résultat d'une session verte, pour `make accept`.",
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -47,7 +57,7 @@ def _fast_password_hasher(settings) -> None:
 def _steady_clock(monkeypatch) -> None:
     """Le serveur de test lit une horloge sans saut. L'horloge système peut être corrigée en
     arrière (sur un PC sous WSL2 : environ -2 s toutes les 30 s), ce qui fait échouer au hasard tout
-    test à faible marge. L'application, elle, garde l'horloge système : voir REX.md, section R."""
+    test à faible marge. L'application, elle, garde l'horloge système : voir rex/R.md."""
     wall, monotonic = timezone.now(), time.monotonic()
     monkeypatch.setattr(
         timezone, "now", lambda: wall + timedelta(seconds=time.monotonic() - monotonic)
@@ -109,6 +119,19 @@ def _missing(config: pytest.Config) -> list[spec_trace.Requirement]:
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if session.config.getoption("--spec-check") and _missing(session.config):
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    record = session.config.getoption("--spec-record")
+    if record:
+        _record(Path(record), session)
+
+
+def _record(path: Path, session: pytest.Session) -> None:
+    """Résultat repris par `make accept` : seulement une session verte, sur un dépôt inchangé du
+    début à la fin. Sinon, l'ancien résultat est effacé : jamais de reprise d'un résultat périmé."""
+    path.unlink(missing_ok=True)
+    state = spec_trace.state_key(session.config.rootpath)
+    if session.exitstatus == 0 and _record_state == [state]:
+        finished = datetime.now().astimezone().isoformat(timespec="seconds")
+        path.write_text(spec_trace.dump_record(state, _coverage, finished), encoding="utf-8")
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus: int, config: pytest.Config) -> None:

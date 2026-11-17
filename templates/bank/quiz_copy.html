@@ -1,0 +1,16 @@
+{% extends "teacher/base.html" %}
+{% block title %}Reprendre dans un nouveau QCM — QCM Live{% endblock %}
+{% block content %}
+  <h1>Reprendre dans un nouveau QCM</h1>
+  <p>Le nouveau QCM reprend toutes les questions de « {{ source.title }} », dans le même ordre ({% with n=source.questions.count %}{{ n }} question{{ n|pluralize }}{% endwith %}).</p>
+  <form method="post" class="form" novalidate>
+    {% csrf_token %}
+    {% include "form_errors.html" %}
+    {{ form.title.label_tag }}
+    {{ form.title }}
+    <p class="actions">
+      <button type="submit">Créer le QCM</button>
+      <a href="{% url 'quiz-detail' source.pk %}">Annuler</a>
+    </p>
+  </form>
+{% endblock %}

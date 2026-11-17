@@ -1,5 +1,7 @@
 """Incrément 1 : banque de questions, QCM et barème, par l'interface enseignant."""
 
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -7,6 +9,7 @@ from tests.e2e.bank_ui import (
     create_quiz,
     fill_question,
     fill_quiz,
+    include_box,
     open_bank,
     open_quiz,
     open_quizzes,
@@ -108,23 +111,14 @@ def test_create_quiz_with_ordered_questions(teacher_page: Page):
     # Aucune question choisie : refusé.
     fill_quiz(page, "Contrôle 1", [])
     expect(alert(page)).to_contain_text("au moins une question")
-    # Deux questions au même rang : refusé.
-    page.get_by_label("Ordre de la question : Q-alpha", exact=True).fill("1")
-    page.get_by_label("Ordre de la question : Q-gamma", exact=True).fill("1")
-    page.get_by_role("button", name="Enregistrer").click()
-    expect(alert(page)).to_contain_text("même rang")
-
-    # Rangs non contigus, ordre sans rapport avec l'ordre de création :
-    # gamma=1, alpha=7, delta=3, beta exclue → gamma, delta, alpha.
-    page.get_by_label("Ordre de la question : Q-alpha", exact=True).fill("7")
-    page.get_by_label("Ordre de la question : Q-beta", exact=True).fill("")
-    page.get_by_label("Ordre de la question : Q-gamma", exact=True).fill("1")
-    page.get_by_label("Ordre de la question : Q-delta", exact=True).fill("3")
-    page.get_by_role("button", name="Enregistrer").click()
+    # I15 (CMP-04) : plus de rang à saisir ; cochées dans un autre ordre, les questions d'un
+    # QCM composé dans l'application suivent l'ordre de la banque. Beta n'est pas cochée.
+    fill_quiz(page, "Contrôle 1", ["Q-delta", "Q-gamma", "Q-alpha"])
 
     expect(page.get_by_role("heading", name="Contrôle 1", level=1)).to_be_visible()
-    expect(quiz_question_items(page)).to_have_count(3)
-    expect(quiz_question_items(page)).to_contain_text(["Q-gamma", "Q-delta", "Q-alpha"])
+    expect(quiz_question_items(page)).to_have_text(
+        [re.compile("^Q-alpha"), re.compile("^Q-gamma"), re.compile("^Q-delta")]
+    )
     open_quizzes(page)
     expect(page.get_by_role("row", name="Contrôle 1")).to_contain_text("3 questions")
 
@@ -195,15 +189,16 @@ def test_edit_quiz(teacher_page: Page):
     make_quiz("Partiel", [q1, q2])
     open_quiz(page, "Partiel")
 
-    page.get_by_role("link", name="Modifier").click()
+    page.get_by_role("link", name="Modifier le QCM").click()
     expect(page.get_by_label("Titre")).to_have_value("Partiel")
-    expect(page.get_by_label("Ordre de la question : Q1", exact=True)).to_have_value("1")
-    expect(page.get_by_label("Ordre de la question : Q2", exact=True)).to_have_value("2")
+    expect(include_box(page, "Q1")).to_be_checked()
+    expect(include_box(page, "Q2")).to_be_checked()
+    expect(include_box(page, "Q3")).not_to_be_checked()
     fill_quiz(page, "Partiel v2", ["Q3", "Q1"])
 
+    # I15 (CMP-04) : Q1 gardée à sa place, Q3 ajoutée à la suite, Q2 retirée.
     expect(page.get_by_role("heading", name="Partiel v2", level=1)).to_be_visible()
-    expect(quiz_question_items(page)).to_have_count(2)
-    expect(quiz_question_items(page)).to_contain_text(["Q3", "Q1"])
+    expect(quiz_question_items(page)).to_have_text([re.compile("^Q1"), re.compile("^Q3")])
     open_quizzes(page)
     expect(page.get_by_role("link", name="Partiel", exact=True)).to_have_count(0)
 

@@ -4,7 +4,10 @@
   {% with parsed=found.parsed %}
   <h1>Récapitulatif de l'import</h1>
   <p>Fichier « {{ name }} » : QCM <strong>{{ parsed.title }}</strong>.</p>
-  {% if parsed.questions %}
+  {% if parsed.questions and found.target %}
+    <p class="notice">Ce fichier a déjà été importé : l'import complète le QCM « {{ found.target.title }} », sans en changer le titre.</p>
+    <p>{{ found.already_there }} déjà là, {{ found.added }} ajoutée{% if found.added > 1 %}s{% endif %}, à leur place du fichier.</p>
+  {% elif parsed.questions %}
     <p>{{ parsed.questions|length }} question{{ parsed.questions|length|pluralize }} à importer, dont {{ found.existing }} déjà dans la banque (partagée{{ found.existing|pluralize }}, pas recopiée{{ found.existing|pluralize }}).</p>
   {% else %}
     <p class="error" role="alert">Toutes les questions sont écartées : ce fichier ne peut pas être importé.</p>
@@ -31,10 +34,10 @@
 
   {% if parsed.questions %}
     <section aria-labelledby="recap-questions">
-      <h2 id="recap-questions">Questions à importer</h2>
+      <h2 id="recap-questions">{% if found.target %}Questions du fichier{% else %}Questions à importer{% endif %}</h2>
       <ol>
-        {% for question, shared in found.rows %}
-          <li><span class="text">{{ question.text }}</span> <span class="muted">(ligne {{ question.line }} · {% if question.multiple %}choix multiple{% else %}choix simple{% endif %} · barème : {{ question.scoring|default:"b=1, m=0, v=0" }}{% if question.label %} · étiquette {{ question.label }}{% endif %}{% if shared %} · déjà dans la banque{% endif %})</span></li>
+        {% for question, note in found.rows %}
+          <li><span class="text">{{ question.text }}</span> <span class="muted">(ligne {{ question.line }} · {% if question.multiple %}choix multiple{% else %}choix simple{% endif %} · barème : {{ question.scoring|default:"b=1, m=0, v=0" }}{% if question.label %} · étiquette {{ question.label }}{% endif %}{% if note %} · {{ note }}{% endif %})</span></li>
         {% endfor %}
       </ol>
     </section>

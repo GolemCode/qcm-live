@@ -82,6 +82,7 @@ def test_pytest_removes_stale_databases_when_it_starts(tmp_path):
 
     stale = tmp_path / f".test-db-{_dead_pid()}.sqlite3"
     stale.write_text("")
-    session = SimpleNamespace(config=SimpleNamespace(rootpath=tmp_path))
+    config = SimpleNamespace(rootpath=tmp_path, getoption=lambda name: None)
+    session = SimpleNamespace(config=config)
     pytest_sessionstart(session)  # type: ignore[arg-type]
     assert not stale.exists()

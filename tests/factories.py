@@ -58,9 +58,16 @@ def make_question(
 
 
 def make_quiz(title: str, questions: Sequence[Question]) -> Quiz:
-    data: dict[str, object] = {"title": title}
-    data |= {QuizForm.order_field(q): position for position, q in enumerate(questions, start=1)}
-    return _saved(QuizForm(data))
+    """QCM composé par le formulaire, une question cochée à la fois : chaque ajout va à la fin
+    (CMP-04), si bien que l'ordre est celui de `questions`."""
+    quiz, checked = None, []
+    for question in questions:
+        checked.append(question)
+        data = {"title": title} | {QuizForm.include_field(q): "on" for q in checked}
+        quiz = _saved(QuizForm(data, instance=quiz))
+    assert quiz is not None, "un QCM a au moins une question"
+    assert list(quiz.ordered_questions()) == list(questions)
+    return quiz
 
 
 def make_group(
