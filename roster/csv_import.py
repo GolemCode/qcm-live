@@ -95,7 +95,8 @@ def _has_control_char(text: str) -> bool:
 
 
 class _Checker:
-    """Contrôles ligne par ligne ; retient les n° et numéros étudiants des lignes valides."""
+    """Contrôles ligne par ligne ; retient chaque n° et numéro étudiant valide, même sur une
+    ligne fautive par ailleurs : un doublon plus loin est signalé dans le même rapport."""
 
     def __init__(self, new_format: bool) -> None:
         self.new_format = new_format
@@ -114,12 +115,14 @@ class _Checker:
             list_number, errors = self._list_number(line, list_cell)
         else:
             (student_number, name), list_number, errors = cells, self.rank, []
-        errors += self._student_number(line, student_number) + self._name(line, name)
+        number_errors = self._student_number(line, student_number)
+        if list_number is not None:
+            self.list_numbers[list_number] = line
+        if student_number and not number_errors:
+            self.student_numbers[student_number] = line
+        errors += number_errors + self._name(line, name)
         if errors or list_number is None:
             return None, errors
-        self.list_numbers[list_number] = line
-        if student_number:
-            self.student_numbers[student_number] = line
         return Entry(list_number, student_number, name), []
 
     def _format_error(self, line: int, width: int) -> str:

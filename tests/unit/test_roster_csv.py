@@ -244,8 +244,9 @@ def test_all_faulty_lines_are_reported_in_order():
 
 
 def test_error_list_is_capped():
-    # « 1x » contient un chiffre : la première ligne n'est pas prise pour un en-tête.
-    messages = errors_of(b"".join(b"1x;\n" for _ in range(30)))
+    # « 0x » contient un chiffre : la première ligne n'est pas prise pour un en-tête. Numéros
+    # distincts : une erreur par ligne (nom vide), sans doublon.
+    messages = errors_of("".join(f"{i}x;\n" for i in range(30)).encode())
     assert len(messages) == 21
     assert messages[-1] == "… et 10 autres erreurs."
 

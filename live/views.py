@@ -303,6 +303,9 @@ def student_confirm(request: HttpRequest, code: str, list_number: int) -> HttpRe
         raise Http404("Étudiant inconnu")
     if _identity(request, session) is not None or _is_over(session):
         return redirect("student-session", code=code)
+    if session.participants.filter(list_number=list_number).exists():
+        messages.error(request, TAKEN)  # nom pris : adresse saisie, liste périmée
+        return redirect("student-session", code=code)
     if request.method == "POST":
         participant = session.enrol(student)
         if participant is None:
@@ -313,7 +316,12 @@ def student_confirm(request: HttpRequest, code: str, list_number: int) -> HttpRe
                 session.code: participant.pk,
             }
         return redirect("student-session", code=code)
-    return render(request, "live/student_confirm.html", {"session": session, "student": student})
+    # La session Django existe avant « Oui, c'est moi » : l'identité s'y écrit côté serveur,
+    # et un second envoi la retrouve même si la réponse au premier (son cookie) s'est perdue.
+    request.session.setdefault(IDENTITIES, {})
+    # Le n° et le nom seulement : le numéro étudiant n'atteint jamais le gabarit du téléphone.
+    shown = {"list_number": student["list_number"], "name": student["name"]}
+    return render(request, "live/student_confirm.html", {"session": session, "student": shown})
 
 
 def student_state(request: HttpRequest, code: str) -> JsonResponse:

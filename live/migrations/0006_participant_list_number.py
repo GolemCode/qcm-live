@@ -26,13 +26,36 @@ def number_roster(apps, schema_editor):
             participant.save(update_fields=["list_number"])
 
 
+def old_number(list_number, used):
+    """Ancien numéro, obligatoire et unique, pour qui n'en a pas : « n°3 », ou « n°3-1 »…"""
+    number, suffix = f"n°{list_number}", 0
+    while number in used:
+        suffix += 1
+        number = f"n°{list_number}-{suffix}"
+    used.add(number)
+    return number
+
+
 def unnumber_roster(apps, schema_editor):
-    """Retour à l'état d'avant I14 : la liste figée reprend l'ordre des n°."""
+    """Retour à l'état d'avant I14 : la liste figée reprend l'ordre des n° ; l'ancien numéro,
+    obligatoire et unique dans la session, est inventé pour qui n'en a pas."""
     Session = apps.get_model("live", "Session")
+    Participant = apps.get_model("live", "Participant")
     for session in Session.objects.all():
         students = sorted(session.roster, key=lambda s: s["list_number"])
-        session.roster = [{"number": s["student_number"], "name": s["name"]} for s in students]
+        used = {s["student_number"] for s in students if s["student_number"]}
+        numbers = {
+            s["list_number"]: s["student_number"] or old_number(s["list_number"], used)
+            for s in students
+        }
+        session.roster = [
+            {"number": numbers[s["list_number"]], "name": s["name"]} for s in students
+        ]
         session.save(update_fields=["roster"])
+        for participant in Participant.objects.filter(session=session):
+            number = numbers.get(participant.list_number) or participant.student_number
+            participant.student_number = number or old_number(participant.list_number, used)
+            participant.save(update_fields=["student_number"])
 
 
 class Migration(migrations.Migration):
@@ -43,7 +66,9 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RemoveConstraint(model_name="participant", name="unique_participant_number"),
-        migrations.RenameField(model_name="participant", old_name="number", new_name="student_number"),
+        migrations.RenameField(
+            model_name="participant", old_name="number", new_name="student_number"
+        ),
         migrations.AlterField(
             model_name="participant",
             name="student_number",
