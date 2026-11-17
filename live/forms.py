@@ -108,7 +108,11 @@ class JoinForm(PlainForm):
         return code
 
 
-TAKEN = "Ce nom est déjà connecté sur un autre appareil : si c'est le vôtre, prévenez l'enseignant."
+# Espace insécable avant « : », pour que le deux-points ne commence pas une ligne.
+TAKEN = (
+    "Ce nom est déjà connecté sur un autre appareil\u00a0: si c'est le vôtre,"
+    " prévenez l'enseignant."
+)
 
 
 class IdentifyForm(PlainForm):

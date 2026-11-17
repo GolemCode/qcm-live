@@ -174,6 +174,7 @@ def test_refused_codes_and_students(teacher_page: Page, live_server, new_phone, 
     expect(identity(first)).to_have_text("Vous êtes DURAND Élise")
     phone.get_by_role("button", name="Oui, c'est moi").click()
     expect(phone.get_by_role("status")).to_contain_text("déjà connecté")
+    expect(phone.get_by_role("status").locator("p")).to_have_class("message error")
     expect(list_entry(phone, "DURAND Élise")).to_contain_text("déjà connecté")
     expect(list_entry(phone, "DURAND Élise").get_by_role("link")).to_have_count(0)
     first.reload()

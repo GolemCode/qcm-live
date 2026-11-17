@@ -139,7 +139,7 @@ def test_student_not_in_the_list_is_404(client, session):
 def test_confirmation_page_identifies_nobody(client, session):
     """Ouvrir la confirmation n'identifie personne : seul « Oui, c'est moi » (POST) le fait."""
     url = reverse("student-confirm", args=[session.code, 1])
-    assert "Vous êtes A ?" in client.get(url).content.decode()
+    assert "Vous êtes A&nbsp;?" in client.get(url).content.decode()
     assert not session.participants.exists()
 
 
