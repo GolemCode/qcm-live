@@ -14,9 +14,10 @@ def academic_year(day):
 
 def year_of_launch(apps, schema_editor):
     Session = apps.get_model("live", "Session")
-    for session in Session.objects.all():
+    sessions = list(Session.objects.only("pk", "created_at"))  # sans les QCM figés (JSON)
+    for session in sessions:
         session.group_year = academic_year(timezone.localdate(session.created_at))
-        session.save(update_fields=["group_year"])
+    Session.objects.bulk_update(sessions, ["group_year"])
 
 
 class Migration(migrations.Migration):

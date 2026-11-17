@@ -154,11 +154,12 @@ class Session(models.Model):
         `seconds` calcule d'après sa position ; False si ce créneau n'est pas en cours.
 
         Une ligne par clic : deux clics simultanés s'ajoutent sans se perdre. La ligne est
-        écrite d'abord, ce qui prend le verrou d'écriture de la base ; le créneau en cours est
-        alors recalculé avec les changements déjà validés, sans celui-ci, et c'est de ce calcul
-        que vient le nombre de secondes : deux « Terminer » simultanés ne retirent pas deux
-        fois. Un clic arrivé après l'échéance est annulé : il ne rouvre pas un créneau terminé.
-        Reste la fenêtre, de quelques millisecondes, entre ce calcul et la validation (REX, I5).
+        écrite d'abord, dans une transaction qui tient le verrou d'écriture de SQLite dès son
+        ouverture (`transaction_mode: IMMEDIATE`) : un clic simultané attend sa validation. Le
+        créneau en cours est recalculé avec les changements déjà validés, sans celui-ci, et
+        c'est de ce calcul que vient le nombre de secondes : deux « Terminer » simultanés ne
+        retirent pas deux fois. Un clic arrivé après l'échéance est annulé : il ne rouvre pas
+        un créneau terminé.
         """
         if self.started_at is None:
             return False

@@ -19,7 +19,8 @@ def year_from_sessions(apps, schema_editor):
     Session = apps.get_model("live", "Session")
     current = academic_year(timezone.localdate())
     for group in StudentGroup.objects.all():
-        first = Session.objects.filter(group_name=group.name).order_by("created_at").first()
+        launches = Session.objects.filter(group_name=group.name).only("created_at")
+        first = launches.order_by("created_at").first()  # sans les QCM figés (JSON)
         launched = timezone.localdate(first.created_at) if first else None
         group.year = academic_year(launched) if launched else current
         group.save(update_fields=["year"])

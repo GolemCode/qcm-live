@@ -9,7 +9,7 @@ par l'interface (tests/e2e/bank_ui.py).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import F
@@ -31,9 +31,11 @@ def _saved(form):
     return form.save()
 
 
-def current_year(today: date | None = None) -> str:
-    """Année universitaire en cours, de septembre à août (GRP-04) : « 2026-2027 »."""
-    today = today or timezone.localdate()
+def current_year() -> str:
+    """Année universitaire en cours, de septembre à août (GRP-04) : « 2026-2027 ». Recopiée
+    exprès de roster.years : elle sert d'oracle au préremplissage, qui ne doit pas se vérifier
+    par son propre code."""
+    today = timezone.localdate()
     first = today.year if today.month >= 9 else today.year - 1
     return f"{first}-{first + 1}"
 
