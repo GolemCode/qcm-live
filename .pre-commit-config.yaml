@@ -12,16 +12,16 @@ repos:
       - id: no-commit-to-branch
         args: [--branch, main]
       - id: detect-private-key
-      # Fichiers tiers gardés tels que publiés : axe-core (650 ko, minifié), licences des polices.
+      # Fichiers tiers gardés tels que publiés : axe-core (650 ko, minifié), KaTeX, licences des polices.
       - id: check-added-large-files
-        exclude: ^(tests/e2e/vendor|static/fonts)/
+        exclude: ^(tests/e2e/vendor|static/fonts|static/vendor)/
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
       - id: end-of-file-fixer
-        exclude: ^(tests/e2e/vendor|static/fonts)/
+        exclude: ^(tests/e2e/vendor|static/fonts|static/vendor)/
       - id: trailing-whitespace
-        exclude: ^(tests/e2e/vendor|static/fonts)/
+        exclude: ^(tests/e2e/vendor|static/fonts|static/vendor)/
 
   # ruff vient de uv.lock : une seule version, la même qu'en CI et dans le hook Claude.
   - repo: local
