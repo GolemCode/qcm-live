@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from bank.importer import AlreadyImported, import_quiz
+from roster.csv_import import HEADER
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 
@@ -70,7 +71,7 @@ class Command(BaseCommand):
 
     def import_group(self) -> StudentGroup:
         lines = [f"{n};{number};{name}\n" for n, number, name in STUDENTS]
-        content = "".join(["n°;numéro étudiant;nom\n", *lines]).encode()
+        content = "".join([";".join(HEADER) + "\n", *lines]).encode()
         upload = SimpleUploadedFile("demo.csv", content, content_type="text/csv")
         form = GroupImportForm({"name": GROUP_NAME}, {"file": upload})
         if not form.is_valid():

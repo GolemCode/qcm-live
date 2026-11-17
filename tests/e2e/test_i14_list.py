@@ -12,8 +12,6 @@ from datetime import timedelta
 import pytest
 from django.conf import settings
 from django.contrib.sessions.backends.db import SessionStore
-from django.db import connection
-from django.db.migrations.executor import MigrationExecutor
 from django.utils import timezone
 from playwright.sync_api import Browser, Page, Playwright, expect
 
@@ -44,6 +42,7 @@ from tests.e2e.live_ui import (
 )
 from tests.e2e.roster_ui import import_group, open_groups, student_rows, submit_group
 from tests.factories import jump_to, make_group, make_question, make_quiz
+from tests.migrations import leaves, migrate
 
 # --- GRP-05 : fichier à en-tête n°, numéro étudiant, nom -------------------------------------
 
@@ -278,17 +277,6 @@ OLD_ROSTER = [
     {"number": "42", "name": "MARTIN Léo"},
     {"number": "7", "name": "Ng Anh"},
 ]
-
-
-def migrate(targets):
-    executor = MigrationExecutor(connection)
-    executor.loader.build_graph()
-    executor.migrate(targets)
-    return executor.loader.project_state(targets).apps
-
-
-def leaves():
-    return MigrationExecutor(connection).loader.graph.leaf_nodes()
 
 
 @pytest.fixture

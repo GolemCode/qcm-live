@@ -66,8 +66,9 @@ def freeze_quiz(quiz: Quiz) -> FrozenQuiz:
 
 
 def freeze_group(group: StudentGroup) -> list[FrozenStudent]:
-    """Étudiants par n° de liste."""
+    """Étudiants par n° de liste : `Session.students` garde cet ordre (et la migration
+    live.0006 numérote les anciennes listes dans leur ordre enregistré)."""
     return [
         {"list_number": s.list_number, "student_number": s.student_number, "name": s.name}
-        for s in group.students.all()
+        for s in group.students.order_by("list_number")
     ]

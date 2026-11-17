@@ -24,7 +24,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from config.join import join_url, qr_data_uri
-from live.forms import TAKEN, AnswerForm, IdentifyForm, JoinForm, LaunchSessionForm
+from live.forms import AnswerForm, JoinForm, LaunchSessionForm
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
 from live.results import csv_rows, decimal_fr, grade_20_text, max_total
 
@@ -35,6 +35,11 @@ SAVED = "Réponse enregistrée"
 CLEARED = "Réponse effacée"
 TOO_LATE = "Temps écoulé : réponse non enregistrée"
 IDENTIFY_FIRST = "Identifiez-vous d'abord."
+# Espace insécable avant « : », pour que le deux-points ne commence pas une ligne.
+TAKEN = (
+    "Ce nom est déjà connecté sur un autre appareil\u00a0: si c'est le vôtre,"
+    " prévenez l'enseignant."
+)
 RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."  # n° de liste
 SLOT_OVER = "Créneau terminé : aucun temps ajouté."
 
@@ -265,8 +270,7 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
         # ETU-13 : la liste du groupe figé, par n° ; un nom déjà pris ne se choisit pas.
         taken = set(session.participants.values_list("list_number", flat=True))
         context["students"] = [
-            (s["list_number"], s["name"], s["list_number"] in taken)
-            for s in sorted(session.students, key=lambda s: s["list_number"])
+            (s["list_number"], s["name"], s["list_number"] in taken) for s in session.students
         ]
     elif participant is not None and state.position is not None:
         # ETU-04, ETU-05 : couleur et propositions mélangées pour l'étudiant, jamais l'énoncé.
@@ -293,15 +297,14 @@ def student_session(request: HttpRequest, code: str) -> HttpResponse:
 def student_confirm(request: HttpRequest, code: str, list_number: int) -> HttpResponse:
     """ETU-13 : « Vous êtes … ? ». La confirmation identifie le téléphone ; un nom pris
     entre-temps est refusé, et la liste revient avec le message."""
-    session = get_object_or_404(Session, code=code)
+    session = get_object_or_404(Session.objects.defer("content"), code=code)
     student = session.student(list_number)
     if student is None:
         raise Http404("Étudiant inconnu")
     if _identity(request, session) is not None or _is_over(session):
         return redirect("student-session", code=code)
     if request.method == "POST":
-        form = IdentifyForm({}, session=session, list_number=list_number)
-        participant = form.save() if form.is_valid() else None
+        participant = session.enrol(student)
         if participant is None:
             messages.error(request, TAKEN)
         else:

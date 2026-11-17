@@ -6,11 +6,11 @@ from typing import cast
 
 from django import forms
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count
 
 from bank.models import NONE_OF_THESE, Quiz
 from config.forms import PlainForm
-from live.models import CODE_LENGTH, Participant, Session, random_code
+from live.models import CODE_LENGTH, Session, random_code
 from live.results import none_index
 from live.snapshot import FrozenQuestion, freeze_group, freeze_quiz
 from roster.models import StudentGroup
@@ -20,7 +20,6 @@ DEFAULT_SHOWN = 4  # SES-06
 MIN_SECONDS, MAX_SECONDS = 5, 600
 CODE_ATTEMPTS = 20  # un million de codes : une collision est rare, vingt d'affilée impossible
 INVALID_ANSWER = "Réponse invalide."
-RANK_ATTEMPTS = 10  # arrivées simultanées : une tentative par conflit de rang
 
 
 class LaunchSessionForm(PlainForm):
@@ -106,58 +105,6 @@ class JoinForm(PlainForm):
         if not Session.objects.filter(code=code).exists():
             raise forms.ValidationError("Aucune session ne porte ce code.")
         return code
-
-
-# Espace insécable avant « : », pour que le deux-points ne commence pas une ligne.
-TAKEN = (
-    "Ce nom est déjà connecté sur un autre appareil\u00a0: si c'est le vôtre,"
-    " prévenez l'enseignant."
-)
-
-
-class IdentifyForm(PlainForm):
-    """ETU-13 : l'étudiant du n° `list_number` confirme que c'est lui. Aucun champ : le n° vient
-    de l'adresse, et le formulaire porte seulement la confirmation."""
-
-    def __init__(self, *args, session: Session, list_number: int, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.session = session
-        self.list_number = list_number
-
-    def clean(self):
-        student = self.session.student(self.list_number)
-        if student is None:
-            raise forms.ValidationError("Cet étudiant ne fait pas partie du groupe de la session.")
-        self.student = student
-        return super().clean()
-
-    def _next_rank(self) -> int:
-        """Rotation : rangs successifs 0, 1, 2… (un n° libéré ne crée pas de doublon)."""
-        top = self.session.participants.aggregate(top=Max("rank"))["top"]
-        return 0 if top is None else top + 1
-
-    def save(self) -> Participant | None:
-        """Le participant, ou None si l'étudiant est déjà pris dans la session (erreur ajoutée).
-
-        Les contraintes d'unicité en base sont les seuls arbitres : deux téléphones qui
-        confirment le même nom au même instant ne passent pas tous les deux, et deux arrivées
-        simultanées n'obtiennent pas le même rang (le second retente avec le rang suivant).
-        """
-        for _ in range(RANK_ATTEMPTS):
-            try:
-                with transaction.atomic():
-                    return Participant.objects.create(
-                        session=self.session,
-                        list_number=self.list_number,
-                        student_number=self.student["student_number"],
-                        name=self.student["name"],
-                        rank=self._next_rank(),
-                    )
-            except IntegrityError:
-                if self.session.participants.filter(list_number=self.list_number).exists():
-                    break
-        self.add_error(None, TAKEN)
-        return None
 
 
 class AnswerForm(PlainForm):

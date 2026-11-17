@@ -21,7 +21,7 @@ MAX_STUDENT_NUMBER_LENGTH = 20
 MAX_NAME_LENGTH = 200
 MAX_REPORTED_ERRORS = 20
 # Chiffres ASCII seulement : « \d » accepterait aussi les chiffres pleine chasse ou arabes.
-LIST_NUMBER_RE = re.compile(r"[0-9]{1,3}")
+LIST_NUMBER_RE = re.compile(r"[0-9]{1,3}")  # « 0001 » refusé : 3 chiffres au plus
 HEADER = ("n°", "numéro étudiant", "nom")
 ENCODING_ERROR = "Fichier illisible (encodage non reconnu) : enregistrez-le en « CSV UTF-8 »."
 
@@ -63,18 +63,26 @@ def _decode(data: bytes) -> str:
 def _header_key(cell: str) -> str:
     """Cellule d'en-tête sans accents, espaces ni majuscules ; « nº » s'écrit « no »."""
     letters = unicodedata.normalize("NFKD", cell)
-    return "".join(ch for ch in letters if not unicodedata.combining(ch) and not ch.isspace())
+    return "".join(
+        ch for ch in letters if not unicodedata.combining(ch) and not ch.isspace()
+    ).lower()
 
 
-HEADER_KEYS = [{"n°", "no"}, {"numeroetudiant"}, {"nom"}]
+HEADER_KEYS = [{_header_key(title)} for title in HEADER]
+HEADER_KEYS[0].add("no")  # « No », « nº »
+
+
+def _trim(cells: list[str], width: int) -> list[str]:
+    """Sans les colonnes vides en fin de ligne (exports d'Excel), jusqu'à `width` colonnes."""
+    while len(cells) > width and not cells[-1]:
+        cells = cells[:-1]
+    return cells
 
 
 def _is_new_header(cells: list[str]) -> bool:
-    """En-tête du format d'I14, sans tenir compte des colonnes vides en fin de ligne."""
-    while cells and not cells[-1]:
-        cells = cells[:-1]
-    return len(cells) == len(HEADER_KEYS) and all(
-        _header_key(cell).lower() in keys for cell, keys in zip(cells, HEADER_KEYS, strict=True)
+    cells = _trim(cells, len(HEADER))
+    return len(cells) == len(HEADER) and all(
+        _header_key(cell) in keys for cell, keys in zip(cells, HEADER_KEYS, strict=True)
     )
 
 
@@ -98,8 +106,7 @@ class _Checker:
 
     def entry(self, line: int, cells: list[str]) -> tuple[Entry | None, list[str]]:
         self.rank += 1
-        while len(cells) > self.width and not cells[-1]:
-            cells.pop()  # colonnes vides en fin de ligne (exports d'Excel)
+        cells = _trim(cells, self.width)
         if len(cells) != self.width:
             return None, [self._format_error(line, len(cells))]
         if self.new_format:
@@ -199,8 +206,7 @@ def parse_roster(data: bytes) -> Roster:
             checker = _Checker(new_format=_is_new_header(cells))
             if checker.new_format:
                 continue
-            while len(cells) > 2 and not cells[-1]:
-                cells.pop()
+            cells = _trim(cells, checker.width)
             if _is_old_header(cells):
                 header = (line, " ; ".join(cells))
                 continue

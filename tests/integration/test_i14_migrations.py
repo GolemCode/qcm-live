@@ -8,29 +8,18 @@ jusqu'au bout et relit le résultat avec les modèles de l'application.
 from datetime import timedelta
 
 import pytest
-from django.db import IntegrityError, connection, transaction
-from django.db.migrations.executor import MigrationExecutor
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from live.models import Participant, Session
 from live.results import ABSENT, csv_rows, grade
 from live.snapshot import FrozenChoice, FrozenQuiz
 from roster.models import Student, StudentGroup
+from tests.migrations import leaves, migrate
 
 BEFORE = [("roster", "0001_initial"), ("live", "0005_frozen_question_scoring")]
 
 pytestmark = pytest.mark.django_db(transaction=True)
-
-
-def migrate(targets):
-    executor = MigrationExecutor(connection)
-    executor.loader.build_graph()
-    executor.migrate(targets)
-    return executor.loader.project_state(targets).apps
-
-
-def leaves():
-    return MigrationExecutor(connection).loader.graph.leaf_nodes()
 
 
 @pytest.fixture

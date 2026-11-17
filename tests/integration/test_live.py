@@ -13,7 +13,6 @@ from django.urls import reverse
 from django.utils import timezone
 
 from live import forms as live_forms
-from live.forms import IdentifyForm
 from live.models import Answer, Extension, Participant, Session
 from live.schedule import Schedule
 from live.views import CLEARED, SAVED, SLOT_OVER
@@ -120,12 +119,10 @@ def test_code_collision_draws_a_new_code(session, monkeypatch):
     assert other.code == "123456"
 
 
-def test_student_taken_concurrently_is_a_form_error(session, monkeypatch):
-    form = IdentifyForm({}, session=session, list_number=1)
-    assert form.is_valid()
-    participant(session, 1)  # l'autre téléphone
-    assert form.save() is None
-    assert "déjà connecté" in form.non_field_errors()[0]
+def test_student_taken_concurrently_is_refused(session):
+    student = session.student(1)
+    participant(session, 1)  # l'autre téléphone, arrivé entre l'affichage et la confirmation
+    assert session.enrol(student) is None
     assert session.participants.count() == 1
 
 
@@ -338,11 +335,9 @@ def test_ranks_stay_distinct_after_a_release(admin_client, session):
 
 def test_rank_conflict_retries_with_the_next_rank(session, monkeypatch):
     participant(session, 1, rank=0)
-    form = IdentifyForm({}, session=session, list_number=2)
-    assert form.is_valid()
     ranks = iter([0, 1])  # arrivée simultanée : le premier rang lu est déjà pris
-    monkeypatch.setattr(IdentifyForm, "_next_rank", lambda self: next(ranks))
-    joined = form.save()
+    monkeypatch.setattr(Session, "_next_rank", lambda self: next(ranks))
+    joined = session.enrol(session.student(2))
     assert joined is not None and joined.rank == 1
 
 

@@ -5,7 +5,7 @@
 {% block band %}<h1 class="band-title">Session {% include "live/code.html" with code=session.code %}</h1>{% endblock %}
 {% block content %}
   {% comment %}ETU-13 : le n° de liste et le nom, jamais le numéro étudiant.{% endcomment %}
-  <section class="whoami confirm">
+  <section class="whoami">
     <h2 class="confirm-question">Vous êtes {{ student.name }}&nbsp;?</h2>
     <p class="number">N°&nbsp;{{ student.list_number }}</p>
     <form method="post" class="confirm-actions">

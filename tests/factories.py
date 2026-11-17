@@ -17,8 +17,9 @@ from django.utils import timezone
 
 from bank.forms import LETTERS, QuestionForm, QuizForm
 from bank.models import Question, Quiz
-from live.forms import IdentifyForm, LaunchSessionForm
+from live.forms import LaunchSessionForm
 from live.models import Participant, Session
+from roster.csv_import import HEADER
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
 
@@ -70,7 +71,7 @@ def make_group(
     d'I14 pour des triplets (n°, numéro étudiant, nom) (GRP-05)."""
     lines = [";".join(map(str, student)) + "\n" for student in students]
     if students and len(students[0]) == 3:
-        lines.insert(0, "n°;numéro étudiant;nom\n")
+        lines.insert(0, ";".join(HEADER) + "\n")
     content = "".join(lines).encode()
     upload = SimpleUploadedFile("groupe.csv", content, content_type="text/csv")
     return _saved(GroupImportForm({"name": name}, {"file": upload}))
@@ -83,11 +84,13 @@ def make_session(quiz: Quiz, group: StudentGroup, *, shown: int = 1, seconds: in
 
 
 def make_participant(session: Session, list_number: int) -> Participant:
-    """Étudiant identifié dans la session, comme s'il avait confirmé son nom sur un téléphone :
-    pour remplir une salle sans ouvrir un navigateur par étudiant."""
-    form = IdentifyForm({}, session=session, list_number=list_number)
-    participant = _saved(form)
-    assert participant is not None, form.errors
+    """Étudiant identifié dans la session, par le même chemin que la confirmation de son nom
+    sur un téléphone (`Session.enrol`) : pour remplir une salle sans ouvrir un navigateur par
+    étudiant."""
+    student = session.student(list_number)
+    assert student is not None, f"n° {list_number} hors de la liste"
+    participant = session.enrol(student)
+    assert participant is not None, f"n° {list_number} déjà pris"
     return participant
 
 
