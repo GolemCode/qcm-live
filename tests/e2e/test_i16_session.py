@@ -245,3 +245,26 @@ def test_answered_count_for_the_current_slot(teacher_page: Page, live_server, ne
     jump_to(session, 60.5)
     expect(page.get_by_role("main")).to_contain_text("Session terminée", timeout=LIVE_MS)
     expect(answered(page)).to_have_count(0)
+
+
+@pytest.mark.spec("DER-04")
+def test_answered_counts_each_student_own_question(teacher_page: Page, live_server, new_phone):
+    """Deux questions affichées ensemble : chacun a la sienne et en change au créneau suivant.
+    Une réponse à la question d'avant, encore à l'écran pour l'autre, ne compte pas."""
+    page = teacher_page
+    session = make_live(2, shown=2)
+    a, b = phones_joined(new_phone, live_server.url, session.code, ["DURAND Élise", "MARTIN Léo"])
+    open_board(page, live_server.url, session)
+    start(page)
+    expect_slot(a, 0)
+    choose(a, phone_choices(a)[0])
+    expect(save_status(a)).to_have_text(SAVED)
+    expect(answered(page)).to_have_text("1 / 2 ont répondu", timeout=LIVE_MS)
+
+    jump_to(session, 30.5)
+    expect_slot(a, 1)
+    expect_slot(b, 1)
+    expect(answered(page)).to_have_text("0 / 2 ont répondu", timeout=LIVE_MS)
+    choose(a, phone_choices(a)[0])
+    expect(save_status(a)).to_have_text(SAVED)
+    expect(answered(page)).to_have_text("1 / 2 ont répondu", timeout=LIVE_MS)

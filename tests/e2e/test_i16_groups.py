@@ -55,6 +55,7 @@ def test_group_year_is_checked_and_shown(teacher_page: Page):
 
     open_groups(page)
     expect(row(page, "ITI4")).to_have_count(2)
+    expect(row(page, "ITI4")).to_contain_text(["2026-2027", "2025-2026"])  # le plus récent d'abord
     expect(row(page, "2025-2026")).to_contain_text("ITI4")
     expect(row(page, "2026-2027")).to_contain_text("ITI4")
     assert sorted(StudentGroup.objects.values_list("name", "year")) == [
