@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import secrets
-from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,14 +10,15 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Literal
 
 from django.db import IntegrityError, models, transaction
-from django.db.models import Max
+from django.db.models import Max, Sum
 from django.utils import timezone
 
 from bank.models import TITLE_MAX_LENGTH
 from live.results import StudentResult, none_index, results
-from live.schedule import Position, Schedule, Slot, shuffled
+from live.schedule import Position, Schedule, Slot, seconds_to_remove, shuffled
 from roster.csv_import import MAX_NAME_LENGTH, MAX_STUDENT_NUMBER_LENGTH
 from roster.models import GROUP_NAME_MAX_LENGTH
+from roster.years import YEAR_LENGTH
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
@@ -56,6 +56,7 @@ class Session(models.Model):
     code = models.CharField(max_length=CODE_LENGTH, unique=True)
     quiz_title = models.CharField(max_length=TITLE_MAX_LENGTH)
     group_name = models.CharField(max_length=GROUP_NAME_MAX_LENGTH)
+    group_year = models.CharField(max_length=YEAR_LENGTH)  # GRP-04, figée comme le nom
     content = models.JSONField()  # live.snapshot.FrozenQuiz
     roster = models.JSONField()  # list[live.snapshot.FrozenStudent]
     # Questions de la banque copiées au lancement : elles sont « utilisées » (VER-01). La
@@ -80,6 +81,11 @@ class Session(models.Model):
         return self.code
 
     @property
+    def group_label(self) -> str:
+        """Le groupe figé, avec son année (GRP-04) : « ITI4 — 2025-2026 »."""
+        return f"{self.group_name} — {self.group_year}"
+
+    @property
     def questions(self) -> list[FrozenQuestion]:
         return self.content["questions"]
 
@@ -93,8 +99,8 @@ class Session(models.Model):
         return self._schedule(self.extensions.all())
 
     def _schedule(self, extensions: models.QuerySet[Extension]) -> Schedule:
-        clicks = Counter(extensions.values_list("slot", flat=True))
-        extra = {slot: n * EXTRA_SECONDS for slot, n in clicks.items()}
+        totals = extensions.order_by().values("slot").annotate(total=Sum("seconds"))
+        extra = {row["slot"]: row["total"] for row in totals}
         return Schedule(self.n_questions, self.shown, self.seconds, extra)
 
     def start(self, now: datetime) -> None:
@@ -128,13 +134,31 @@ class Session(models.Model):
     def add_time(self, slot: str | None, clock: Callable[[], datetime] | None = None) -> bool:
         """TPS-01 : ajoute 10 s au créneau `slot` (son rang, tel qu'envoyé par le tableau) s'il
         est en cours ; False sinon (clic arrivé après la fin du créneau, avant le démarrage ou
-        après la fin de la session).
+        après la fin de la session)."""
+        return self._change_slot(slot, lambda position: EXTRA_SECONDS, clock)
+
+    def end_slot(self, slot: str | None, clock: Callable[[], datetime] | None = None) -> bool:
+        """TPS-02 : ramène à 5 s le temps restant du créneau `slot` s'il est en cours (rien s'il
+        en reste 5 ou moins) ; False si ce créneau n'est pas en cours, comme `add_time`."""
+        return self._change_slot(
+            slot, lambda position: -seconds_to_remove(position.remaining), clock
+        )
+
+    def _change_slot(
+        self,
+        slot: str | None,
+        seconds: Callable[[Position], int],
+        clock: Callable[[], datetime] | None,
+    ) -> bool:
+        """Ajoute au créneau `slot`, s'il est en cours, les secondes (retirées si négatives) que
+        `seconds` calcule d'après sa position ; False si ce créneau n'est pas en cours.
 
         Une ligne par clic : deux clics simultanés s'ajoutent sans se perdre. La ligne est
         écrite d'abord, ce qui prend le verrou d'écriture de la base ; le créneau en cours est
-        alors recalculé avec les ajouts déjà validés, sans celui-ci. Un clic arrivé après
-        l'échéance est annulé : il ne rouvre pas un créneau terminé. Reste la fenêtre, de
-        quelques millisecondes, entre ce calcul et la validation (REX, I5).
+        alors recalculé avec les changements déjà validés, sans celui-ci, et c'est de ce calcul
+        que vient le nombre de secondes : deux « Terminer » simultanés ne retirent pas deux
+        fois. Un clic arrivé après l'échéance est annulé : il ne rouvre pas un créneau terminé.
+        Reste la fenêtre, de quelques millisecondes, entre ce calcul et la validation (REX, I5).
         """
         if self.started_at is None:
             return False
@@ -143,14 +167,29 @@ class Session(models.Model):
         if position is None or slot != str(position.slot.index):
             return False
         with transaction.atomic():
-            added = Extension.objects.create(session=self, slot=position.slot.index)
-            others = self._schedule(self.extensions.exclude(pk=added.pk))
+            change = Extension.objects.create(session=self, slot=position.slot.index, seconds=0)
+            others = self._schedule(self.extensions.exclude(pk=change.pk))
             current = others.position((clock() - self.started_at).total_seconds())
             if current is None or current.slot != position.slot:
                 transaction.set_rollback(True)
                 return False
-        vars(self).pop("schedule", None)  # à recalculer avec le temps ajouté
+            change.seconds = seconds(current)
+            if change.seconds:
+                change.save(update_fields=["seconds"])
+            else:  # rien à changer (TPS-02, 5 s ou moins) : pas de ligne
+                transaction.set_rollback(True)
+        vars(self).pop("schedule", None)  # à recalculer avec le changement
         return True
+
+    def answered(self, slot: Slot) -> tuple[int, int]:
+        """DER-04 : (k, n) au créneau `slot`. n : les connectés ; k : ceux dont une réponse est
+        enregistrée pour leur question de ce créneau (une réponse effacée n'a plus de ligne)."""
+        participants = list(self.participants.values_list("pk", "rank"))
+        given = set(
+            Answer.objects.filter(participant__session=self).values_list("participant", "question")
+        )
+        k = sum((pk, self.schedule.question_for(slot, rank)) in given for pk, rank in participants)
+        return k, len(participants)
 
     def results(self) -> list[StudentResult]:
         """RES-01 : un résultat par étudiant du groupe figé ; les absents n'ont pas de note."""
@@ -269,12 +308,14 @@ class Answer(models.Model):
 
 
 class Extension(models.Model):
-    """10 secondes ajoutées par l'enseignant au créneau `slot` (rang dans la session) : une
-    ligne par clic (TPS-01, Session.add_time)."""
+    """Temps changé par l'enseignant au créneau `slot` (rang dans la session), une ligne par
+    clic : 10 secondes ajoutées (TPS-01, Session.add_time) ou, négatives, retirées pour
+    terminer le créneau (TPS-02, Session.end_slot)."""
 
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="extensions")
     slot = models.PositiveSmallIntegerField()
+    seconds = models.SmallIntegerField(default=EXTRA_SECONDS)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
-        return f"{self.session} +{EXTRA_SECONDS} s au créneau {self.slot}"
+        return f"{self.session} {self.seconds:+d} s au créneau {self.slot}"

@@ -4,7 +4,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from roster.models import StudentGroup
+from roster.models import SAME_YEAR, StudentGroup
 from tests.factories import make_group
 
 pytestmark = pytest.mark.django_db
@@ -42,12 +42,15 @@ def test_import_without_file_is_refused(admin_client):
 
 
 def test_concurrent_duplicate_name_is_a_form_error_not_a_crash(admin_client, group, monkeypatch):
-    """Double clic : le même nom peut passer la validation deux fois avant l'écriture."""
+    """Double clic : le même nom, la même année peuvent passer la validation deux fois avant
+    l'écriture (GRP-04)."""
     from roster.forms import GroupImportForm
 
     monkeypatch.setattr(GroupImportForm, "validate_unique", lambda self: None)
+    monkeypatch.setattr(GroupImportForm, "validate_constraints", lambda self: None)
     upload = SimpleUploadedFile("g.csv", b"1;A\n", content_type="text/csv")
-    response = admin_client.post(reverse("group-import"), {"name": "TD", "file": upload})
+    data = {"name": "TD", "year": group.year, "file": upload}
+    response = admin_client.post(reverse("group-import"), data)
     assert response.status_code == 200
-    assert response.context["form"].errors["name"] == ["Un groupe porte déjà ce nom."]
+    assert response.context["form"].non_field_errors() == [SAME_YEAR]
     assert StudentGroup.objects.count() == 1

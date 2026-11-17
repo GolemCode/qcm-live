@@ -9,12 +9,15 @@
 - Temps additionnel (TPS-01) : des secondes ajoutées à un créneau l'allongent et décalent
   d'autant les suivants. Le déroulement se calcule sur les échéances cumulées, sans jamais
   toucher à l'heure de démarrage, ce qui ferait reculer le créneau en cours.
+- Terminer le créneau (TPS-02) : du temps retiré, des secondes négatives, ramène le temps
+  restant à 5 s et avance d'autant les suivants.
 """
 
 from __future__ import annotations
 
 import bisect
 import itertools
+import math
 import random
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -40,12 +43,22 @@ class Position:
     length: int  # durée du créneau, temps ajouté compris (barre du temps restant, VIS-02)
 
 
+END_LEFT = 5  # TPS-02 : secondes laissées au créneau que l'enseignant termine
+
+
+def seconds_to_remove(remaining: float, left: int = END_LEFT) -> int:
+    """Secondes entières à retirer pour qu'il ne reste plus que `left` secondes, au plus ;
+    0 s'il en reste déjà `left` ou moins."""
+    return max(0, math.ceil(remaining - left))
+
+
 @dataclass(frozen=True)
 class Schedule:
     n_questions: int
     shown: int  # N : questions affichées en même temps
     seconds: int  # t : durée d'un créneau
-    # Secondes ajoutées, par rang de créneau. Hors du hachage : un dict n'est pas hachable.
+    # Secondes ajoutées (retirées si négatives), par rang de créneau. Hors du hachage : un
+    # dict n'est pas hachable.
     extra: Mapping[int, int] = field(default_factory=dict, hash=False)
 
     @cached_property

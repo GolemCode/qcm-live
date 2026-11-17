@@ -42,6 +42,7 @@ TAKEN = (
 )
 RELEASE_CLOSED = "La session a démarré : plus aucun numéro ne peut être libéré."  # n° de liste
 SLOT_OVER = "Créneau terminé : aucun temps ajouté."
+SLOT_ALREADY_OVER = "Créneau terminé : rien n'est changé."  # TPS-02, clic après la fin
 
 
 def _ms(seconds: float) -> int:
@@ -129,7 +130,10 @@ def board(request: HttpRequest, code: str) -> HttpResponse:
         # DER-01, AFF-01 : les énoncés du groupe et leur couleur, sans proposition ;
         # AFF-02 : la mention des questions à réponses multiples.
         questions = [session.questions[index] for index in group]
+        answered, present = session.answered(state.position.slot)
         context |= {
+            "answered": answered,  # DER-04
+            "present": present,
             "cards": [
                 {"color": color, "text": question["text"], "multiple": question["multiple"]}
                 for color, question in enumerate(questions, start=1)
@@ -148,6 +152,9 @@ def board_state(request: HttpRequest, code: str) -> JsonResponse:
     state = session.state(timezone.now())
     if state.phase == "waiting":
         return _live_json(state, board=True, connected=_connected(session))
+    if state.position is not None:  # DER-04 : des nombres seulement, aucun texte (AFF-01)
+        answered, present = session.answered(state.position.slot)
+        return _live_json(state, board=True, answered=answered, present=present)
     return _live_json(state, board=True)
 
 
@@ -166,6 +173,16 @@ def session_add_time(request: HttpRequest, code: str) -> HttpResponse:
     session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
     if not session.add_time(request.POST.get("slot")):
         messages.error(request, SLOT_OVER)
+    return redirect("board", code=code)
+
+
+@login_required
+@require_POST
+def session_end_slot(request: HttpRequest, code: str) -> HttpResponse:
+    """TPS-02 : ramène à 5 s le créneau affiché au tableau, s'il est toujours en cours."""
+    session = get_object_or_404(Session.objects.defer("content", "roster"), code=code)
+    if not session.end_slot(request.POST.get("slot")):
+        messages.error(request, SLOT_ALREADY_OVER)
     return redirect("board", code=code)
 
 

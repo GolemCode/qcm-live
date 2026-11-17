@@ -4,28 +4,46 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from roster.csv_import import MAX_NAME_LENGTH, MAX_STUDENT_NUMBER_LENGTH
+from roster.years import YEAR_ERROR, YEAR_LENGTH, valid_year
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
 
 
 GROUP_NAME_MAX_LENGTH = 100
+SAME_YEAR = "Un groupe porte déjà ce nom cette année-là."
+
+
+def validate_year(value: str) -> None:
+    if not valid_year(value):
+        raise ValidationError(YEAR_ERROR)
 
 
 class StudentGroup(models.Model):
-    name = models.CharField("nom du groupe", max_length=GROUP_NAME_MAX_LENGTH, unique=True)
+    """Un groupe d'une année universitaire : le même nom peut revenir une autre année (GRP-04)."""
+
+    name = models.CharField("nom du groupe", max_length=GROUP_NAME_MAX_LENGTH)
+    year = models.CharField("année", max_length=YEAR_LENGTH, validators=[validate_year])
 
     if TYPE_CHECKING:
         students: RelatedManager[Student]
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "year"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "year"],
+                name="unique_group_name_year",
+                violation_error_message=SAME_YEAR,
+            )
+        ]
 
     def __str__(self) -> str:
-        return self.name
+        return f"{self.name} — {self.year}"  # GRP-04 : au choix du groupe, au lancement
 
 
 class Student(models.Model):

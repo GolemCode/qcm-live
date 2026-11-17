@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
 
 from roster.forms import GroupImportForm
-from roster.models import StudentGroup
+from roster.models import SAME_YEAR, StudentGroup
 
 
 @login_required
@@ -24,8 +24,8 @@ def group_import(request: HttpRequest) -> HttpResponse:
     if request.method == "POST" and form.is_valid():
         try:
             group = form.save()
-        except IntegrityError:  # même nom enregistré entre la validation et l'écriture
-            form.add_error("name", "Un groupe porte déjà ce nom.")
+        except IntegrityError:  # même nom et année enregistrés entre validation et écriture
+            form.add_error(None, SAME_YEAR)
         else:
             roster = form.cleaned_data["file"]
             n = len(roster.entries)

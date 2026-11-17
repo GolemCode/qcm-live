@@ -17,11 +17,13 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from bank.importer import import_quiz
 from roster.csv_import import HEADER
 from roster.forms import GroupImportForm
 from roster.models import StudentGroup
+from roster.years import academic_year
 
 DEMO_FILE = Path(settings.BASE_DIR) / "demo" / "qcm-demo.txt"
 USERNAME = "demo"
@@ -71,7 +73,8 @@ class Command(BaseCommand):
         lines = [f"{n};{number};{name}\n" for n, number, name in STUDENTS]
         content = "".join([";".join(HEADER) + "\n", *lines]).encode()
         upload = SimpleUploadedFile("demo.csv", content, content_type="text/csv")
-        form = GroupImportForm({"name": GROUP_NAME}, {"file": upload})
+        year = academic_year(timezone.localdate())  # GRP-04 : l'année en cours
+        form = GroupImportForm({"name": GROUP_NAME, "year": year}, {"file": upload})
         if not form.is_valid():
             raise CommandError(f"Groupe de démonstration refusé : {form.errors.as_text()}")
         return form.save()

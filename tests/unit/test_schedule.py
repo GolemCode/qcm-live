@@ -4,7 +4,7 @@ import itertools
 
 import pytest
 
-from live.schedule import Schedule, shuffled
+from live.schedule import Schedule, seconds_to_remove, shuffled
 
 
 def test_groups_of_n_in_quiz_order_last_one_smaller():
@@ -65,6 +65,30 @@ def test_added_time_lengthens_its_slot_and_shifts_the_next(elapsed, slot, remain
     assert position.remaining == pytest.approx(remaining)
     assert position.length == 30 + schedule.extra.get(slot, 0)
     assert schedule.position(180) is None
+
+
+@pytest.mark.parametrize(
+    ("remaining", "removed"),
+    [(30, 25), (20, 15), (19.2, 15), (6, 1), (5.01, 1), (5, 0), (4.5, 0), (0.1, 0)],
+)
+def test_seconds_to_remove_leaves_5_s_at_most(remaining, removed):
+    """TPS-02 : il reste 5 s au plus, et un peu moins quand le temps restant n'est pas entier ;
+    jamais de temps ajouté quand il en reste déjà 5 ou moins."""
+    assert seconds_to_remove(remaining) == removed
+    assert remaining - removed <= 5
+    assert removed == 0 or remaining - removed > 4
+
+
+def test_removed_time_ends_the_slot_and_brings_the_next_forward():
+    """TPS-02 : 15 s retirées au créneau 1 (secondes négatives), puis 10 rajoutées (TPS-01)."""
+    schedule = Schedule(3, 1, 30, extra={1: -15 + 10})
+    assert schedule.deadlines == [30, 55, 85]
+    position = schedule.position(50)
+    assert position is not None
+    assert (position.slot.index, position.remaining, position.length) == (1, 5, 25)
+    last = Schedule(1, 1, 30, extra={0: -20})
+    assert last.duration == 10
+    assert last.position(10) is None
 
 
 def test_added_time_changes_neither_slots_nor_rotation():

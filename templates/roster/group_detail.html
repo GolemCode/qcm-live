@@ -1,12 +1,12 @@
 {% extends "teacher/base.html" %}
-{% block title %}{{ group.name }} — QCM Live{% endblock %}
+{% block title %}{{ group }} — QCM Live{% endblock %}
 {% block content %}
   <div class="bar">
     <h1>{{ group.name }}</h1>
     <p class="actions"><a href="{% url 'group-delete' group.pk %}">Supprimer</a></p>
   </div>
   {% with students=group.students.all %}
-  <p class="muted">{{ students|length }} étudiant{{ students|length|pluralize }}</p>
+  <p class="muted">Année {{ group.year }} · {{ students|length }} étudiant{{ students|length|pluralize }}</p>
   <table class="grid" aria-label="Étudiants du groupe">
     <thead>
       <tr><th scope="col">N°</th><th scope="col">Numéro étudiant</th><th scope="col">Nom</th></tr>

@@ -230,7 +230,7 @@ body.board { display: flex; flex-direction: column; min-height: 100vh; font-size
 .board .brand { font-size: 1.4em; }
 .board .band-title { margin: 0; font-size: 1.5em; font-weight: 400; }
 .board .band-title .digits { font-weight: 700; }
-.board .band-position { margin: 0; font-size: 1.5em; }
+.board .band-position, .board .band-answered { margin: 0; font-size: 1.5em; }
 .board .band-link { margin-left: auto; font-size: 1.4em; font-weight: 700; }
 .board .timer {
   margin: 0; font-size: 3.4em; font-weight: 700; line-height: 1;

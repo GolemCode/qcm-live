@@ -53,6 +53,7 @@ class LaunchSessionForm(PlainForm):
                 self.frozen = {
                     "quiz_title": quiz.title,
                     "group_name": group.name,
+                    "group_year": group.year,
                     "content": freeze_quiz(quiz),
                     "roster": freeze_group(group),
                 }
