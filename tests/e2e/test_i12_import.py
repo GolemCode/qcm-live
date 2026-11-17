@@ -306,7 +306,7 @@ def test_groups_are_imported_whole_with_their_label(teacher_page: Page):
 
 
 @pytest.mark.spec("IMP-07")
-def test_identical_questions_are_shared_and_reimport_is_refused(teacher_page: Page):
+def test_identical_questions_are_shared(teacher_page: Page):
     page = teacher_page
     import_amc(page, FILE_OK)
     open_quiz(page, "Contrôle d'essai")
@@ -323,12 +323,10 @@ def test_identical_questions_are_shared_and_reimport_is_refused(teacher_page: Pa
     shared = Question.objects.get(text="Capitale de l'Italie ?", choices__text="Turin")
     assert sorted(shared.quizzes.values_list("title", flat=True)) == ["Contrôle d'essai", "Reprise"]
 
-    # Réimporter le même fichier, octet pour octet, est refusé avec le nom du QCM existant.
+    # I15 : réimporter le même fichier n'est plus refusé, il complète son QCM (IMP-10).
     upload_amc(page, FILE_OK, name="autre-nom.txt")
-    expect(page.get_by_role("alert")).to_contain_text("déjà importé")
-    expect(page.get_by_role("alert")).to_contain_text("Contrôle d'essai")
+    expect_recap(page)
+    expect(page.get_by_role("main")).to_contain_text("complète le QCM « Contrôle d'essai »")
+    confirm_import(page)
     assert Quiz.objects.count() == 2
-    # Une fois ce QCM supprimé, le fichier peut de nouveau être importé.
-    Quiz.objects.filter(title="Contrôle d'essai").delete()
-    import_amc(page, FILE_OK)
-    assert Quiz.objects.count() == 2
+    assert Question.objects.filter(text="Capitale de l'Italie ?").count() == 2
