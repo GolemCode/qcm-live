@@ -9,7 +9,7 @@ par l'interface (tests/e2e/bank_ui.py).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import F
@@ -31,7 +31,14 @@ def _saved(form):
     return form.save()
 
 
-def make_question(
+def current_year(today: date | None = None) -> str:
+    """Année universitaire en cours, de septembre à août (GRP-04) : « 2026-2027 »."""
+    today = today or timezone.localdate()
+    first = today.year if today.month >= 9 else today.year - 1
+    return f"{first}-{first + 1}"
+
+
+def _question_data(
     text: str,
     choices: Sequence[tuple[str, bool] | tuple[str, bool, str]] = YES_NO,
     *,
@@ -39,9 +46,7 @@ def make_question(
     scoring: str = "",
     none_of_these: bool = False,
     ordered: bool = False,
-) -> Question:
-    """Question enregistrée par le formulaire. Une proposition peut porter ses propres points
-    (troisième élément, questions simples : BAR-01) ; `scoring` : directives AMC du barème."""
+) -> dict[str, str]:
     data = {"text": text, "kind": Question.Kind.MULTIPLE if multiple else Question.Kind.SIMPLE}
     data["scoring"] = scoring
     if none_of_these:
@@ -54,7 +59,21 @@ def make_question(
             data[f"correct_{letter}"] = "on"
         if points:
             data[f"points_{letter}"] = points[0]
-    return _saved(QuestionForm(data))
+    return data
+
+
+def make_question(text: str, choices=YES_NO, **options) -> Question:
+    """Question enregistrée par le formulaire. Une proposition peut porter ses propres points
+    (troisième élément, questions simples : BAR-01) ; `scoring` : directives AMC du barème."""
+    return _saved(QuestionForm(_question_data(text, choices, **options)))
+
+
+def new_version(question: Question, text: str, choices=YES_NO, **options) -> Question:
+    """Nouvelle version d'une question déjà utilisée, comme l'enregistre sa modification depuis
+    la banque (VER-01) : elle prend sa place dans tous ses QCM."""
+    form = QuestionForm(_question_data(text, choices, **options), instance=question)
+    assert form.is_valid(), form.errors
+    return form.save_version()
 
 
 def make_quiz(title: str, questions: Sequence[Question]) -> Quiz:
@@ -71,17 +90,20 @@ def make_quiz(title: str, questions: Sequence[Question]) -> Quiz:
 
 
 def make_group(
-    name: str, students: Sequence[tuple[str, str]] | Sequence[tuple[int, str, str]]
+    name: str,
+    students: Sequence[tuple[str, str]] | Sequence[tuple[int, str, str]],
+    year: str | None = None,
 ) -> StudentGroup:
     """Groupe importé par le formulaire d'import, à partir d'un CSV construit ici : à l'ancien
     format pour des couples (numéro étudiant, nom), dont le n° est alors le rang ; au format
-    d'I14 pour des triplets (n°, numéro étudiant, nom) (GRP-05)."""
+    d'I14 pour des triplets (n°, numéro étudiant, nom) (GRP-05). L'année est par défaut
+    l'année universitaire en cours (GRP-04)."""
     lines = [";".join(map(str, student)) + "\n" for student in students]
     if students and len(students[0]) == 3:
         lines.insert(0, ";".join(HEADER) + "\n")
     content = "".join(lines).encode()
     upload = SimpleUploadedFile("groupe.csv", content, content_type="text/csv")
-    return _saved(GroupImportForm({"name": name}, {"file": upload}))
+    return _saved(GroupImportForm({"name": name, "year": year or current_year()}, {"file": upload}))
 
 
 def make_session(quiz: Quiz, group: StudentGroup, *, shown: int = 1, seconds: int = 30) -> Session:
