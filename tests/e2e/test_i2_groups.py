@@ -64,8 +64,9 @@ def test_invalid_csv_is_refused_entirely(teacher_page: Page):
         submit_group(page, "TD3", content)
         for fragment in fragments:
             expect(page.get_by_role("alert")).to_contain_text(fragment)
-    # Au-delà de 20 lignes fautives : les 20 premières, puis le nombre des autres.
-    submit_group(page, "TD3", b"".join(b"1x;\n" for _ in range(25)))
+    # Au-delà de 20 lignes fautives : les 20 premières, puis le nombre des autres. Numéros
+    # distincts : une erreur par ligne (nom vide), sans doublon.
+    submit_group(page, "TD3", "".join(f"{i}x;\n" for i in range(25)).encode())
     expect(page.get_by_role("alert")).to_contain_text("Ligne 20 :")
     expect(page.get_by_role("alert")).not_to_contain_text("Ligne 21 :")
     expect(page.get_by_role("alert")).to_contain_text("… et 5 autres erreurs.")
