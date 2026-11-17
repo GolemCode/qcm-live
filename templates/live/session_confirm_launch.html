@@ -1,0 +1,20 @@
+{% extends "teacher/base.html" %}
+{% block title %}Questions déjà posées — QCM Live{% endblock %}
+{% block content %}
+  {# CMP-03 : les énoncés seuls, jamais les propositions. #}
+  <h1>Questions déjà posées</h1>
+  <p>Ces questions du QCM « {{ form.cleaned_data.quiz.title }} » ont déjà été posées au groupe {{ group }} :</p>
+  <ul aria-label="Questions déjà posées" class="posed">
+    {% for question, n in posed %}
+      <li>{{ question.text }} <span class="muted">— posée à {{ n }} étudiant{{ n|pluralize }} sur {{ n_students }}</span></li>
+    {% endfor %}
+  </ul>
+  <form method="post" class="form" novalidate>
+    {% csrf_token %}
+    {% for field in form %}{{ field.as_hidden }}{% endfor %}
+    <p class="actions">
+      <button type="submit" name="confirmed" value="1">Lancer quand même</button>
+      <button type="submit" name="back" value="1" class="secondary">Revenir</button>
+    </p>
+  </form>
+{% endblock %}

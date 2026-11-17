@@ -25,6 +25,7 @@ from django.views.decorators.http import require_POST
 
 from config.join import join_url, qr_data_uri
 from live.forms import AnswerForm, JoinForm, LaunchSessionForm
+from live.history import posed_to
 from live.models import PHASE_LABELS, Answer, Participant, Session, State
 from live.results import csv_rows, decimal_fr, grade_20_text, max_total
 
@@ -102,7 +103,15 @@ def session_list(request: HttpRequest) -> HttpResponse:
 @login_required
 def session_launch(request: HttpRequest) -> HttpResponse:
     form = LaunchSessionForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
+    if request.method == "POST" and form.is_valid() and "back" not in request.POST:
+        if "confirmed" not in request.POST:
+            # CMP-03 : questions déjà posées au groupe ? Confirmer avant de lancer.
+            quiz, group = form.cleaned_data["quiz"], form.cleaned_data["group"]
+            posed = posed_to(group, quiz.ordered_questions())
+            if posed:
+                context = {"form": form, "group": group, "posed": posed.items()}
+                context["n_students"] = group.students.count()
+                return render(request, "live/session_confirm_launch.html", context)
         session = form.save()
         return redirect("board", code=session.code)
     return render(request, "live/session_launch.html", {"form": form})

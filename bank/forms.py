@@ -20,6 +20,7 @@ from bank.scoring import (
     parse_scoring,
 )
 from config.forms import PlainForm, TeacherForm, table_field
+from roster.models import StudentGroup
 
 MIN_CHOICES = 2
 SLOTS = LETTERS[:MAX_CHOICES]
@@ -188,7 +189,15 @@ class VersionScopeForm(PlainForm):
 
 
 class QuizForm(TeacherForm):
-    """Titre et une case par question de la banque (CMP-04) ; l'ordre suit `arrange`."""
+    """Titre et une case par question de la banque (CMP-04) ; l'ordre suit `arrange`. Le
+    groupe à « Marquer » (CMP-03) n'est pas enregistré : il sert à réafficher le formulaire."""
+
+    mark = forms.ModelChoiceField(
+        label="Marquer les questions déjà posées au groupe",
+        queryset=StudentGroup.objects.all(),
+        required=False,
+        empty_label="—",
+    )
 
     class Meta:
         model = Quiz
@@ -203,6 +212,7 @@ class QuizForm(TeacherForm):
         )
         included = set(self.current)
         self.bank = list(Question.current())
+        self.posed: dict[Question, int] = {}  # CMP-03, rempli par « Marquer »
         for question in self.bank:
             self.fields[self.include_field(question)] = table_field(
                 forms.BooleanField(
@@ -216,9 +226,28 @@ class QuizForm(TeacherForm):
     def include_field(question: Question) -> str:
         return f"include_{question.pk}"
 
+    @classmethod
+    def as_typed(cls, data, instance: Quiz) -> QuizForm:
+        """« Marquer » (CMP-03) : le formulaire tel que saisi, non lié, donc ni validé ni
+        enregistré, et sans message d'erreur."""
+        form = cls(instance=instance)
+        form.initial["title"] = data.get("title", "")
+        form.initial["mark"] = data.get("mark", "")
+        for question in form.bank:
+            name = cls.include_field(question)
+            form.initial[name] = name in data
+        return form
+
+    def marked_group(self) -> StudentGroup | None:
+        """Groupe choisi pour « Marquer », d'après la saisie (None si aucun ou inconnu)."""
+        try:
+            return self.fields["mark"].clean(self.initial.get("mark"))
+        except forms.ValidationError:
+            return None
+
     def question_rows(self):
-        """(question, case à cocher) pour le gabarit."""
-        return [(q, self[self.include_field(q)]) for q in self.bank]
+        """(question, case à cocher, nombre d'étudiants à qui elle a été posée) pour le gabarit."""
+        return [(q, self[self.include_field(q)], self.posed.get(q)) for q in self.bank]
 
     def clean(self):
         super().clean()
