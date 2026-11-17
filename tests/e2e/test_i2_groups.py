@@ -74,7 +74,7 @@ def test_invalid_csv_is_refused_entirely(teacher_page: Page):
     submit_group(page, "", b"1;A\n2;B\n")
     expect(page.get_by_role("alert")).to_contain_text("Nom du groupe")
     submit_group(page, "Existant", b"1;A\n2;B\n")
-    expect(page.get_by_role("alert")).to_contain_text("existe déjà")
+    expect(page.get_by_role("alert")).to_contain_text("Un groupe porte déjà ce nom cette année-là.")
 
     # Rien n'a été créé : seul le groupe préexistant reste.
     open_groups(page)
