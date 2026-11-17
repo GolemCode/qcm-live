@@ -41,6 +41,7 @@ FILE = """Title: Contrôle fichier
 - Six
 """
 FILE_QUESTIONS = ["Fichier Q1 ?", "Fichier Q2 ?", "Fichier Q3 ?"]
+FILE_CHOICES = [("Un", "Deux"), ("Trois", "Quatre"), ("Cinq", "Six")]
 
 
 def starts(*texts: str) -> list[re.Pattern[str]]:
@@ -86,6 +87,9 @@ def previous_versions(page: Page, text: str):
 @pytest.mark.spec("CMP-01")
 def test_new_quiz_takes_an_old_quiz_whole(teacher_page: Page):
     page = teacher_page
+    # Déjà dans la banque, créées à rebours : l'ordre du QCM n'est pas celui de leur création.
+    for text, (right, wrong) in reversed(list(zip(FILE_QUESTIONS, FILE_CHOICES, strict=True))):
+        make_question(text, [(right, True), (wrong, False)])
     import_amc(page, FILE, name="fichier.txt")
     make_question("Banque seule ?")
 
@@ -272,6 +276,17 @@ def test_used_question_gets_a_new_version(teacher_page: Page):
     page.get_by_role("button", name="Enregistrer").click()
     expect(status(page)).to_contain_text("Aucun changement")
     assert Question.objects.count() == count
+
+    # Changer la seule bonne réponse, énoncé intact : c'est un changement, donc une version.
+    edit_from_bank(page, "Capitale de la France ?")
+    fill_question(
+        page, "Capitale de la France ?", multiple=False, choices=[("Lyon", True), ("Paris", False)]
+    )
+    expect(status(page)).to_contain_text("Nouvelle version enregistrée")
+    assert Question.objects.count() == count + 1
+    assert list(new.choices.values_list("text", "correct")) == [("Lyon", False), ("Paris", True)]
+    latest = Question.objects.get(previous=new)
+    assert list(latest.choices.values_list("text", "correct")) == [("Lyon", True), ("Paris", False)]
 
 
 # --- VER-02 : QCM touchés, limiter au QCM courant ----------------------------------------------
@@ -482,3 +497,32 @@ def test_file_imported_before_i15_is_recognised_by_identity_then_place(teacher_p
     assert Question.objects.count() == count
     # Les origines sont désormais enregistrées : la place n'est plus nécessaire.
     assert QuestionOrigin.objects.count() == 3
+
+
+@pytest.mark.spec("IMP-10")
+def test_before_i15_identity_comes_before_place(teacher_page: Page):
+    # QCM d'avant I15 : Q1 modifiée sur place, Q2 retirée ; il reste [Q1 modifiée, Q3].
+    # Q3 est reconnue par identité (rang 3) ; Q1 modifiée par sa place (rang 1) ; la place 2,
+    # occupée par Q3, n'est pas libre : Q2, toujours dans la banque, est remise à son rang.
+    from bank.models import QuestionOrigin
+
+    page = teacher_page
+    import_amc(page, FILE, name="fichier.txt")
+    open_quiz(page, "Contrôle fichier")
+    quiz_item(page, "Fichier Q2 ?").get_by_role("button", name="Retirer du QCM").click()
+    expect(status(page)).to_contain_text("retirée du QCM")
+    edit_from_quiz(page, "Contrôle fichier", "Fichier Q1 ?")
+    fill_question(
+        page, "Fichier Q1, corrigée ?", multiple=False, choices=[("Un", True), ("Deux", False)]
+    )
+    QuestionOrigin.objects.all().delete()  # comme un import d'avant I15
+    count = Question.objects.count()
+
+    upload_amc(page, FILE)
+    expect(page.get_by_role("main")).to_contain_text("2 déjà là, 1 ajoutée")
+    confirm_import(page)
+    open_quiz(page, "Contrôle fichier")
+    expect(quiz_question_items(page)).to_have_text(
+        starts("Fichier Q1, corrigée ?", "Fichier Q2 ?", "Fichier Q3 ?")
+    )
+    assert Question.objects.count() == count
