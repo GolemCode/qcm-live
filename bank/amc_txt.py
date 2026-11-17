@@ -451,12 +451,13 @@ class _Images:
 
     def check(self, path: str) -> CheckedImage:
         """L'image contrôlée ; `_Skip` si elle est refusée (PDF, EPS, format, contenu)."""
-        if path not in self.checked:
+        key = self.key(path)  # `a.png` et `./a.png` : une seule image, contrôlée une fois
+        if key not in self.checked:
             try:
-                self.checked[path] = images.check(path, self.files[self.key(path)])
+                self.checked[key] = images.check(path, self.files[key])
             except ImageError as error:
                 raise _Skip(str(error)) from None
-        return self.checked[path]
+        return self.checked[key]
 
 
 def _scoring(question: _Question, settings: _Settings) -> str:

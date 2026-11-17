@@ -2,8 +2,8 @@
 d'avant I17 y est réécrit pour s'afficher à l'identique : `\\` devient `\\textbackslash{}` et
 `$` devient `\\$`. Les copies figées des sessions (`live.snapshot`) le sont aussi.
 
-La copie de `bank.content.latex_text` est figée ici : une migration ne suit pas le code qui
-évolue. Le retour en arrière défait ces deux réécritures, y compris dans un texte écrit après I17.
+Les réécritures sont écrites ici, sans appel à `bank.content` : une migration ne suit pas le
+code qui évolue. Le retour en arrière défait ces deux réécritures, y compris dans un texte écrit après I17.
 """
 
 import re

@@ -5,6 +5,8 @@ dans un titre ou un libellé. Tout texte est échappé ; les formules sont rendu
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from django import template
 from django.urls import reverse
 from django.utils.html import escape, format_html
@@ -41,6 +43,7 @@ def _html(node: Node, preview: bool) -> str:
             return "<br>"
 
 
+@lru_cache(maxsize=1024)  # tableau et téléphones affichent sans cesse les mêmes textes
 def _render(text: str, preview: bool) -> SafeString:
     try:
         nodes = parser.parse(text)

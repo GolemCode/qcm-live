@@ -195,7 +195,7 @@ def save_import(found: Preview, filename: str) -> Quiz:
     if not found.parsed.questions:
         raise ValueError(NOTHING_TO_IMPORT)
     for image in found.parsed.images:  # avant les questions, dont le formulaire les vérifie
-        stored, _ = Image.objects.get_or_create(
+        stored, _ = Image.objects.defer("data").get_or_create(  # le contenu ne sert pas
             name=image.name,
             defaults={
                 "sha256": image.sha256,

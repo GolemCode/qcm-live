@@ -13,10 +13,8 @@ from bank.content import (
     Text,
     image_alt,
     images,
-    latex_text,
     parse,
     plain,
-    rename_images,
 )
 
 
@@ -125,14 +123,8 @@ def test_line_break():
 
 def test_images():
     text = r"Voir \includegraphics[width=2cm]{ graphe.png } et \textbf{\includegraphics{b.svg}}"
-    assert parse(text)[1] == Image("graphe.png", 33, 45)  # nom entre les accolades
+    assert parse(text)[1] == Image("graphe.png")  # sans les espaces
     assert images(text) == ["graphe.png", "b.svg"]
-
-
-def test_rename_images_keeps_the_rest():
-    text = r"\includegraphics{a.png} $a.png$ \verb|\includegraphics{a.png}| \includegraphics{b.png}"
-    renamed = rename_images(text, {"a.png": "a-1234abcd.png"})
-    assert renamed == text.replace("{a.png} $", "{a-1234abcd.png} $", 1)
 
 
 @pytest.mark.parametrize(
@@ -153,8 +145,3 @@ def test_plain(text, shown):
 )
 def test_image_alt(name, alt):
     assert image_alt(name) == alt
-
-
-@pytest.mark.parametrize("text", [r"3 $ et C:\temp", "\\", "$$", r"\textbf{x}", "a\\\\b"])
-def test_latex_text_shows_an_old_text_unchanged(text):
-    assert parse(latex_text(text)) == [Text(text)]

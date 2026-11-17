@@ -48,8 +48,6 @@ class Code:
 @dataclass(frozen=True)
 class Image:
     name: str
-    start: int  # position du nom dans le texte, pour le remplacer (`rename_images`)
-    end: int
 
 
 @dataclass(frozen=True)
@@ -221,9 +219,8 @@ class _Parser:
         name = source[self.pos + 1 : end]
         if not name.strip():
             raise ContentError("nom d'image vide")
-        image = Image(name.strip(), self.pos + 1, end)
         self.pos = end + 1
-        return image
+        return Image(name.strip())
 
 
 def parse(text: str) -> list[Node]:
@@ -244,19 +241,11 @@ def images(text: str) -> list[str]:
     return [node.name for node in walk(parse(text)) if isinstance(node, Image)]
 
 
-def rename_images(text: str, names: dict[str, str]) -> str:
-    """Le texte, dont chaque image citée prend le nom que lui donne `names`."""
-    found = [n for n in walk(parse(text)) if isinstance(n, Image) and n.name in names]
-    for image in sorted(found, key=lambda n: n.start, reverse=True):
-        text = text[: image.start] + names[image.name] + text[image.end :]
-    return text
-
-
 def _plain(nodes: list[Node] | tuple[Node, ...]) -> str:
-    return "".join(plain_node(node) for node in nodes)
+    return "".join(_plain_node(node) for node in nodes)
 
 
-def plain_node(node: Node) -> str:
+def _plain_node(node: Node) -> str:
     match node:
         case Text(text) | Code(text):
             return text
@@ -286,8 +275,3 @@ def image_alt(name: str) -> str:
     donne « image graphe »)."""
     stem = name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
     return f"image {IMAGE_SUFFIX_RE.sub('', stem)}"
-
-
-def latex_text(text: str) -> str:
-    """Un texte brut écrit en LaTeX léger : il s'affiche à l'identique."""
-    return re.sub(r"[\\$]", lambda m: "\\$" if m.group() == "$" else "\\textbackslash{}", text)
