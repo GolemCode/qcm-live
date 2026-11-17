@@ -9,16 +9,24 @@ from tests.e2e.bank_ui import open_bank, open_quizzes, question_card
 NONE_OF_THESE = "Aucune de ces réponses n'est correcte"
 IMPORT_HEADING = "Importer un fichier AMC"
 RECAP_HEADING = "Récapitulatif de l'import"
+ZIP = "application/zip"
 
 
 def upload_amc(page: Page, content: str | bytes, name: str = "controle.txt") -> None:
-    """Depuis la liste des QCM, envoie un fichier AMC-TXT à l'analyse (rien n'est encore créé)."""
+    """Depuis la liste des QCM, envoie un fichier AMC-TXT, ou une archive ZIP s'il porte ce
+    nom (IMP-08), à l'analyse (rien n'est encore créé)."""
     open_quizzes(page)
     page.get_by_role("link", name=IMPORT_HEADING).click()
     expect(page.get_by_role("heading", name=IMPORT_HEADING, level=1)).to_be_visible()
     data = content.encode() if isinstance(content, str) else content
     page.get_by_label("Fichier AMC-TXT").set_input_files(
-        files=[{"name": name, "mimeType": "text/plain", "buffer": data}]
+        files=[
+            {
+                "name": name,
+                "mimeType": ZIP if name.endswith(".zip") else "text/plain",
+                "buffer": data,
+            }
+        ]
     )
     page.get_by_role("button", name="Analyser").click()
 

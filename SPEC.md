@@ -123,6 +123,7 @@ I15 livre CMP-01, CMP-02, CMP-04, CMP-05, VER-01 à VER-03 et le réimport (IMP-
 - **[CNT-01]** (I17) Les énoncés et les propositions peuvent contenir des **formules mathématiques**, qui s'affichent correctement au tableau et sur le téléphone. *(demande du commanditaire)*
 - **[CNT-02]** (I17) Ils peuvent contenir du **code**, en police à chasse fixe, avec ses espaces et ses retours à la ligne. *(demande du commanditaire)*
 - **[CNT-03]** (I17) Ils peuvent contenir des **images** PNG, JPEG ou SVG. Une image PDF ou EPS est refusée, avec la raison. *(décision du commanditaire)*
+- **[CNT-04]** (I17) Ils peuvent contenir de la **mise en forme** : gras, italique, souligné ; le titre AMC (`[==…==]`) s'affiche en gras. *(décision du commanditaire, I17)*
 - **[IMP-08]** (I17) L'import accepte une **archive ZIP** (le fichier AMC et ses images) ou le fichier seul. Les images s'importent avec le fichier qui les référence ; une image référencée mais absente refuse le fichier. *(décision du commanditaire ; image absente : dérivé)*
 
 ### Import LaTeX AMC (I18, prévu)
