@@ -43,6 +43,12 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
   - À la mise à jour, chaque question reçoit le barème du QCM qui la contenait. Une question présente dans plusieurs QCM aux barèmes différents prend celui du plus ancien QCM. Une question d'aucun QCM garde le barème vide. Les sessions déjà lancées gardent exactement leurs notes. *(décision du commanditaire ; cas des barèmes différents : dérivé)*
 - **[BAN-09]** (I12) Une question multiple peut proposer, en dernier, **« Aucune de ces réponses n'est correcte »**, comme le fait AMC (option `CompleteMulti`). Dans le formulaire, c'est une case à cocher. Cette proposition est juste si et seulement si aucune autre ne l'est. Elle compte comme une réponse, pas comme une absence de réponse (`v`). Elle ne compte pas parmi les 8 propositions au plus. *(décision du commanditaire)*
 - **[BAN-10]** (I12) Une question peut avoir un **ordre fixe** (AMC : `ordered`) : ses propositions ne sont pas mélangées sur les téléphones (ETU-05). Dans le formulaire, c'est une case « Ne pas mélanger les propositions ». *(décision du commanditaire)*
+- **[BAN-11]** (I19) **Recherche dans la banque.** Un texte se cherche dans l'énoncé et les propositions, sans tenir compte des majuscules ni des accents. Deux filtres s'y ajoutent : le type (choix simple, choix multiple) et l'utilisation (dans au moins un QCM, dans aucun). Les critères se combinent. *(décision du commanditaire, I19)*
+  - Tri : plus récentes d'abord (par défaut), plus anciennes d'abord, énoncé de A à Z, sans tenir compte des majuscules ni des accents. 20 questions par page ; changer de page garde les critères et le tri. *(décision du commanditaire, I19)*
+  - La page dit combien de questions correspondent. Sans résultat : « Aucune question ne correspond. », avec un lien qui efface les critères. *(dérivé)*
+  - Les critères sont dans l'adresse de la page : un retour en arrière, ou le retour après « Modifier », les retrouve. *(dérivé)*
+- **[BAN-12]** (I19) **Filtre par QCM d'origine.** Le choix liste les QCM importés d'un fichier AMC, triés par titre (BAN-03). Il retient les questions venues de ce fichier (IMP-10), dans leur dernière version, même retirées du QCM depuis (CMP-05). *(décision du commanditaire, I19)*
+- **[BAN-13]** (I19) **Filtre « déjà posée » ou « jamais posée » à un groupe.** L'enseignant choisit un groupe (nom et année), puis « déjà posée » ou « jamais posée ». « Déjà posée » a le sens de CMP-03 et chaque question retenue porte la mention « posée à 12 étudiants sur 80 » ; « jamais posée » retient les autres. *(décision du commanditaire, I19)*
 
 ### Enseignant : groupes d'étudiants
 - **[GRP-01]** (I2) L'enseignant importe un groupe d'étudiants : il donne au groupe un nom unique et fournit un fichier CSV (numéro, nom). Le groupe et ses étudiants s'affichent. Les numéros gardent leurs éventuels zéros de tête. *(modifié en I14 : fichier à en-tête `n°`, `numéro étudiant`, `nom`, l'ancien format restant accepté, GRP-05)* *(modifié en I16 : le nom est unique dans son année, GRP-04)*
@@ -148,12 +154,16 @@ I15 livre CMP-01, CMP-02, CMP-04, CMP-05, VER-01 à VER-03 et le réimport (IMP-
   - La limite de 200 caractères d'une proposition porte sur son texte en LaTeX léger, commandes comprises. *(dérivé)*
 - **[CNT-02]** (I17) Ils peuvent contenir du **code**, en police à chasse fixe, avec ses espaces et ses retours à la ligne. *(demande du commanditaire)*
 - **[CNT-03]** (I17) Ils peuvent contenir des **images** PNG, JPEG ou SVG. Une image PDF ou EPS est refusée, avec la raison. *(décision du commanditaire)*
-  - Une image s'ajoute par l'import seulement (IMP-08). Le formulaire garde les images de la question et refuse une image inconnue. L'envoi d'une image depuis le formulaire est prévu en I19. *(décision du commanditaire, I17)*
+  - Une image s'ajoute par l'import (IMP-08) ou, depuis I19, par le formulaire de la question (CNT-06). Le formulaire garde les images de la question et refuse une image inconnue. *(décision du commanditaire, I17 ; envoi depuis le formulaire : I19)*
   - Image PDF ou EPS : la question est écartée (IMP-03), avec la raison ; le reste du fichier s'importe. *(décision du commanditaire, I17)*
   - Une image importée n'est jamais supprimée, car une session, une ancienne version ou une question masquée peut la citer. Elle est nommée d'après son contenu : deux imports de la même image la partagent. *(dérivé)*
   - Limites : 2 Mo par image ; SVG sans DTD ni entité. Une image ouverte seule dans le navigateur n'exécute aucun script. Au tableau, sa hauteur est bornée pour que N questions tiennent sans défilement (SES-06). *(dérivé)*
 - **[CNT-04]** (I17) Ils peuvent contenir de la **mise en forme** : gras, italique, souligné ; le titre AMC (`[==…==]`) s'affiche en gras. *(décision du commanditaire, I17)*
 - **[CNT-05]** (ID) Une formule que KaTeX ne sait pas afficher se voit **dès le récapitulatif de l'import**, en rouge, avant de confirmer ; le guide de l'enseignant, section « Formules qui s'affichent en rouge », explique pourquoi (commande inconnue de KaTeX, macro personnelle, paquet LaTeX) et quoi faire. *(demande du commanditaire)*
+- **[CNT-06]** (I19) **Envoi d'une image depuis le formulaire d'une question.** Le champ « Image » accepte un fichier PNG, JPEG ou SVG, contrôlé comme à l'import (CNT-03 : 2 Mo, SVG sans DTD ni entité, PDF et EPS refusés). À l'enregistrement, la référence `\includegraphics{<nom>}` s'ajoute en dernier paragraphe de l'énoncé ; l'enseignant peut ensuite la déplacer dans l'énoncé ou dans une proposition. *(décision du commanditaire, I19)*
+  - Une image refusée l'est avec la raison, et rien n'est enregistré. *(dérivé)*
+  - Si le formulaire a une autre erreur, l'image n'est pas gardée : le message demande de la choisir de nouveau. *(décision du commanditaire, I19)*
+  - Ajouter une image à une question déjà utilisée en crée une nouvelle version, comme toute modification (VER-01). Une image déjà dans la banque est partagée, comme à l'import (nom tiré du contenu). *(dérivé)*
 - **[IMP-08]** (I17) L'import accepte une **archive ZIP** (le fichier AMC et ses images) ou le fichier seul. Les images s'importent avec le fichier qui les référence ; une image référencée mais absente refuse le fichier. *(décision du commanditaire ; image absente : dérivé)*
   - L'archive contient un seul fichier `.txt` ; les chemins des images partent de son dossier. Les fichiers cachés et `__MACOSX/` sont ignorés. *(dérivé)*
   - Limites : 20 Mo d'archive, 50 Mo une fois décompressée, 500 fichiers. Le fichier seul reste limité à 1 Mo. *(dérivé)*
@@ -228,7 +238,7 @@ I15 livre CMP-01, CMP-02, CMP-04, CMP-05, VER-01 à VER-03 et le réimport (IMP-
   - L'ancienne palette confondait le jaune et l'orange (1 et 5) en deutéranopie et sur projecteur, le bleu et le violet (2 et 6) en protanopie, et ses six couleurs avaient presque la même luminosité. *(constat I9)*
 
 ### Présentation et accessibilité (refonte visuelle)
-Direction « Signalétique », choisie par le commanditaire parmi trois maquettes (I10). Découpage : socle et tableau (I10), téléphone (I11), espace enseignant (I19, après l'import AMC et la composition des QCM : §5 bis).
+Direction « Signalétique », choisie par le commanditaire parmi trois maquettes (I10). Découpage : socle et tableau (I10), téléphone (I11), espace enseignant (I19, VIS-05 et ACC-03).
 
 - **[VIS-01]** (I10) L'interface suit la direction « Signalétique » : encre sur papier, bandeau noir, filets épais, majuscules espacées pour les étiquettes. La police est Atkinson Hyperlegible Next, dessinée pour les lecteurs malvoyants : elle distingue les caractères proches (I, l, 1 ; O, 0), utile pour un code de session et des numéros d'étudiant.
   - La police est servie par l'application : aucune page ne demande quoi que ce soit à un autre serveur, la salle n'ayant pas forcément accès à Internet. *(dérivé)*
@@ -245,7 +255,7 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - un contraste d'au moins 4,5:1 pour tout texte affiché (la mesure d'AFF-04, étendue à ces pages) ;
   - chaque lien, bouton et champ s'atteint au clavier, avec la touche Tab, et montre un indicateur de focus d'au moins 2 px, contrasté d'au moins 3:1 avec le fond.
 
-  Le téléphone suivra en I11, l'espace enseignant en I19. Un contrôle automatique ne trouve qu'une partie des défauts : il ne remplace pas un essai avec un lecteur d'écran, qui reste à faire. *(dérivé)*
+  Le téléphone a suivi en I11 (ACC-02), l'espace enseignant en I19 (ACC-03). Un contrôle automatique ne trouve qu'une partie des défauts : il ne remplace pas un essai avec un lecteur d'écran, qui reste à faire. *(dérivé)*
 
 - **[VIS-04]** (I11) Le téléphone suit la direction « Signalétique » dans tous ses états : saisie du code et du numéro *(I14 : choix du nom, ETU-13)*, attente, déroulement, envoi, perte de connexion, fin. *(validé par le commanditaire)*
   - Un bandeau noir porte « QCM Live » et, dès que la session est connue, son code groupé par trois.
@@ -259,6 +269,13 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
   - Toute cible tactile (proposition, bouton, champ) mesure au moins 48 px de haut et de large. *(dérivé)*
   - Aucun défilement horizontal, en Pixel 7 comme sur un petit téléphone de 360 px de large. *(dérivé)*
 - **[ACC-02]** (I11) Les vérifications d'ACC-01 (axe-core, contraste, clavier) s'appliquent à tous les états du téléphone, sur un Pixel 7. *(dérivé)*
+- **[VIS-05]** (I19) L'espace enseignant suit la direction « Signalétique ». *(décision du commanditaire, I10 ; détail : dérivé)*
+  - Un bandeau noir porte le logo « QCM Live », la navigation (Accueil, Banque de questions, QCM, Groupes, Sessions), où la rubrique en cours est marquée, et « Se déconnecter » avec le nom de l'enseignant.
+  - Le titre de la page est souligné d'un filet épais ; les fiches (questions, QCM) sont encadrées d'un filet d'encre ; les étiquettes (type, barème, utilisation) sont en majuscules espacées.
+  - Sur toutes ses pages, une image d'énoncé a la hauteur bornée d'un texte, comme dans la banque : liste de confirmation du lancement (CMP-03), composition d'un QCM, confirmation de suppression. *(constat du commanditaire après I17 : dans la liste de confirmation du lancement, l'image s'affichait en grand)*
+  - Aucune page ne défile horizontalement, de 1280 px de large à un téléphone de 360 px. *(dérivé)*
+  - Le tableau et le téléphone ne changent pas, et aucun parcours de l'enseignant ne change de logique : seules la présentation, la recherche, les filtres (BAN-11 à BAN-13) et l'envoi d'image (CNT-06) sont nouveaux. *(décision du commanditaire, I19)*
+- **[ACC-03]** (I19) Les vérifications d'ACC-01 (axe-core, contraste, clavier) s'appliquent aux pages de l'espace enseignant : accueil, banque (avec ses filtres), formulaire de question, liste, fiche, formulaire et import des QCM, récapitulatif d'import, groupes, sessions, lancement et sa confirmation, résultats, réseau. *(dérivé)*
 
 ### Session : temps additionnel
 - **[TPS-01]** (I5) Pendant un créneau, l'enseignant peut ajouter 10 secondes depuis son PC. Le temps restant augmente de 10 s au tableau et sur tous les téléphones, et les créneaux suivants sont décalés d'autant. Les ajouts se cumulent. Une réponse envoyée pendant le temps ajouté est acceptée. Le bouton « +10 s » est sur le tableau, pendant le déroulement seulement ; un clic arrivé après la fin du créneau n'ajoute rien. *(emplacement et clic tardif : dérivé)*
@@ -451,10 +468,7 @@ Rien de ce qui suit n'est implémenté.
 
 *(Après I11, l'import AMC, la composition des QCM, le contenu des énoncés et le barème des questions multiples ont été tranchés par le commanditaire : voir IMP, CMP, VER, CNT, BAR-01 et §3.)*
 
-- **Refonte de l'espace enseignant (I19, reportée, la première à sauter si le temps manque).** Elle reprendra après l'import AMC et la composition des QCM (I12 à I18), qui en changent le contenu : import, QCM repris d'anciens QCM, versions des questions, questions déjà posées à un groupe. *(décision du commanditaire, I10 ; renumérotée après I11, puis après I12)*
-  - La recherche et les filtres de la banque de questions seront revus à ce moment-là. En plus de ceux proposés (texte, type, utilisation, tri, pagination), il faudra un filtre par QCM d'origine (fichier AMC importé) et un filtre « déjà posée à tel groupe ».
-  - L'envoi d'une image depuis le formulaire d'une question y entrera (CNT-03). *(décision du commanditaire, I17)*
-  - D'ici là, l'espace enseignant prend la police et les couleurs du socle (I10), sans changer de mise en page.
+- *(Résolu en I19 : VIS-05, ACC-03, BAN-11 à BAN-13, CNT-06.)* **Refonte de l'espace enseignant**, reportée après l'import AMC et la composition des QCM, avec la recherche et les filtres de la banque (texte, type, utilisation, tri, pagination, QCM d'origine, « déjà posée à tel groupe ») et l'envoi d'une image depuis le formulaire. *(décision du commanditaire, I10, I17)*
 - *(Résolu en I15 par les versions précédentes, VER-03.)* **Lettres du CSV après modification d'une question** (`/code-review`, I9). Les lettres du CSV désignent les propositions figées au lancement (SES-03). Si l'enseignant modifie ensuite la question, par exemple en changeant l'ordre de ses propositions, la banque montre le nouvel ordre, et plus aucune page ne montre celui de la session. Faut-il rappeler, sur la page des résultats (réservée à l'enseignant, jamais projetée), les propositions figées de chaque question ? Aujourd'hui, AFF-01 exclut énoncés et propositions de cette page.
 
 ## 6. Journal des décisions du commanditaire
@@ -544,3 +558,4 @@ Rien de ce qui suit n'est implémenté.
 | Réimport d'un fichier AMC (après I12, I15) | Permis ; question reconnue par son origine (fichier, rang) ; modification de l'enseignant gardée ; questions manquantes recréées et remises ; récapitulatif « déjà là, ajoutée, écartée » ; fichier corrigé : nouveau QCM ; « retirer du QCM » distinct de « supprimer de la banque » *(remplacera le refus d'IMP-07)* |
 | Ordre et composition (après I12, I15) | Cases à cocher ; une question remise retrouve sa place dans le fichier, les autres à la suite ; plus de saisie de rang |
 | Versions et réimport, précisions (I15) | Ancienne version masquée de la banque, consultable depuis la nouvelle ; « utilisée » dès le lancement ; question jamais utilisée modifiée sur place partout ; fichier d'avant I15 reconnu par identité puis par place libre (VER-01, VER-03, IMP-10) |
+| Espace enseignant et banque (I19) | Feu vert la veille de l'essai réel : tableau et téléphone inchangés, aucun parcours modifié ; « déjà posée » et « jamais posée » à un groupe ; image ajoutée en fin d'énoncé, à rechoisir si le formulaire a une autre erreur ; recherche dans l'énoncé et les propositions, plus récentes d'abord, 20 par page ; QCM d'origine : questions venues de son fichier (VIS-05, BAN-11 à BAN-13, CNT-06) |
