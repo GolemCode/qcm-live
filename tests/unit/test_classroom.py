@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import socket
+from pathlib import Path
 
 import pytest
 
@@ -89,3 +90,28 @@ def test_default_port_and_detected_address():
     assert args.port == 8000
     assert args.address is None
     assert classroom.parse_args(["--port", "8123", "--adresse", "10.1.2.3"]).address == "10.1.2.3"
+
+
+def test_demo_option_names_the_demo_database():
+    assert classroom.parse_args([]).demo is None
+    assert classroom.parse_args(["--demo", "demo.sqlite3"]).demo == Path("demo.sqlite3")
+
+
+def test_reset_demo_removes_the_demo_database_and_its_sqlite_files(tmp_path):
+    database = tmp_path / classroom.DEMO_DATABASE
+    names = ["demo.sqlite3", "demo.sqlite3-wal", "demo.sqlite3-shm", "demo.sqlite3-journal"]
+    for name in [*names, "db.sqlite3", "demo.sqlite3.bak"]:
+        (tmp_path / name).write_text("x")
+    classroom.reset_demo(database)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["db.sqlite3", "demo.sqlite3.bak"]
+    classroom.reset_demo(database)  # déjà absente : rien à faire
+
+
+@pytest.mark.parametrize("name", ["db.sqlite3", "demo.sqlite", "autre.sqlite3"])
+def test_reset_demo_never_removes_another_database(tmp_path, name):
+    """Garde-fou (DEM-03) : la base de l'enseignant n'est jamais effacée."""
+    database = tmp_path / name
+    database.write_text("x")
+    with pytest.raises(ValueError, match=r"demo\.sqlite3"):
+        classroom.reset_demo(database)
+    assert database.exists()
