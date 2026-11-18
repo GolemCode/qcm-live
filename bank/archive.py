@@ -8,8 +8,10 @@ fichier est comptée pendant la lecture, sans se fier à celle que l'archive ann
 from __future__ import annotations
 
 import io
+import lzma
 import posixpath
 import zipfile
+import zlib
 from dataclasses import dataclass
 
 MAX_ARCHIVE_BYTES = 20_000_000
@@ -92,7 +94,17 @@ def read(data: bytes) -> Archive:
                     txt = content
                 else:
                     files[posixpath.relpath(path, folder)] = content
-    except (zipfile.BadZipFile, zipfile.LargeZipFile, NotImplementedError, RuntimeError, EOFError):
-        # CRC faux, compression inconnue, archive chiffrée ou tronquée
+    except (
+        zipfile.BadZipFile,
+        zipfile.LargeZipFile,
+        NotImplementedError,
+        RuntimeError,
+        EOFError,
+        zlib.error,
+        lzma.LZMAError,
+        OSError,
+    ):
+        # CRC faux, compression inconnue, archive chiffrée ou tronquée, flux compressé altéré
+        # (deflate : zlib.error ; bzip2 : OSError ; lzma : LZMAError)
         raise ArchiveError("Archive ZIP illisible.") from None
     return Archive(txts[0], txt, files)

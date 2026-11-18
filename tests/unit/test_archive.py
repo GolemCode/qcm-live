@@ -132,11 +132,19 @@ def test_entries_limit(monkeypatch):
     assert refused(data) == "Archive de plus de 1 fichiers."
 
 
+def _corrupt_deflate() -> bytes:
+    data = bytearray(make_zip({"q.txt": b"Quiz " * 200}))
+    start = 30 + len("q.txt")  # en-tête local de taille fixe, puis le nom
+    data[start : start + 4] = b"\xff\xff\xff\xff"
+    return bytes(data)
+
+
 @pytest.mark.parametrize(
     "data",
     [
         b"PK\x03\x04 tronquee",
         make_zip({"q.txt": b"Quiz"}, zipfile.ZIP_STORED).replace(b"Quiz", b"Quix"),  # CRC faux
+        _corrupt_deflate(),  # flux compressé altéré, en-têtes intacts : zlib.error
     ],
 )
 def test_unreadable(data):
