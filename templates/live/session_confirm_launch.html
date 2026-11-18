@@ -6,7 +6,7 @@
   <p>Ces questions du QCM « {{ form.cleaned_data.quiz.title }} » ont déjà été posées au groupe {{ group }} :</p>
   <ul aria-label="Questions déjà posées" class="posed">
     {% for question, n in posed %}
-      <li>{{ question.text }} <span class="muted">— posée à {{ n }} étudiant{{ n|pluralize }} sur {{ n_students }}</span></li>
+      <li>{{ question.text|content }} <span class="muted">— posée à {{ n }} étudiant{{ n|pluralize }} sur {{ n_students }}</span></li>
     {% endfor %}
   </ul>
   <form method="post" class="form" novalidate>

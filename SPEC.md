@@ -29,10 +29,12 @@ Les éléments marqués *dérivé* ne sont pas dans la spec initiale : ils sont 
 - **[BAN-01]** (I1) L'enseignant crée une question **simple** : un énoncé et 2 à 8 propositions, dont exactement une juste.
 - **[BAN-02]** (I1) L'enseignant crée une question **multiple** : un énoncé et 2 à 8 propositions, dont au moins une juste. *(précisé en I12)* Aucune proposition juste est permis quand la question propose « Aucune de ces réponses n'est correcte » (BAN-09) : c'est alors la bonne réponse.
 - **[BAN-03]** (I1) L'enseignant crée un QCM : un titre et une sélection **ordonnée** d'au moins une question de la banque. Un QCM sans question ne peut pas se lancer. Il peut le devenir après la suppression de ses questions (BAN-07) ; pour le modifier, il faut alors lui redonner au moins une question. *(modifié en I15 : les questions se cochent, l'ordre suit CMP-04)*
+  - La liste des QCM et celle du lancement (SES-01) sont **triées par titre**, sans tenir compte des majuscules ni des accents. *(décision du commanditaire, I17 ; majuscules et accents : dérivé)*
 - **[BAN-04]** (I1) Une même question de la banque peut servir dans plusieurs QCM.
 - **[BAN-05]** (I1) L'enseignant modifie une question : énoncé, type, propositions, bonnes réponses. Les règles de validité sont les mêmes qu'à la création. *(précisé en I12)* Il modifie aussi son barème (BAR-01) et ses options (BAN-09, BAN-10). Une question déjà utilisée dans une session ne se modifie plus : la modifier en crée une nouvelle version (VER-01, I15).
 - **[BAN-06]** (I1) L'enseignant modifie un QCM : titre, questions, ordre. *(modifié en I12 : le barème passe aux questions, BAR-01 ; le formulaire de barème du QCM disparaît)* *(modifié en I15 : plus de saisie de rang, l'ordre suit CMP-04)*
 - **[BAN-07]** (I1) L'enseignant supprime une question après confirmation. La page de confirmation nomme les QCM qui l'utilisent. La question est retirée de ces QCM.
+  - Une question présente dans une session **lancée** ne se supprime plus : elle se **masque**, comme une ancienne version (VER-03). Elle quitte la banque et ses QCM, mais reste comptée dans « déjà posée » (CMP-03). La page de confirmation le dit. Comme une ancienne version, un import ne la partage pas (IMP-07) et un réimport ne la reprend pas (IMP-10). *(décision du commanditaire, I17 ; confirmation et import : dérivé)*
 - **[BAN-08]** (I1) L'enseignant supprime un QCM après confirmation. Ses questions restent dans la banque.
 - **[BAR-01]** (I12) **Chaque question porte son barème**, écrit comme dans Auto Multiple Choice (AMC) : des directives séparées par des virgules, par exemple `b=2,m=-0.5` ou `haut=2`. Le calcul est celui d'AMC (§3). *(livré en I1 par QCM, passé à la question en I12, décision du commanditaire)*
   - Directives reconnues : `b`, `m`, `v`, `e`, `d`, `p`, `haut`, `mz`, `MAX`, avec des valeurs numériques, éventuellement négatives, au point décimal comme dans AMC. Le formulaire refuse toute autre directive et toute valeur calculée, avec la raison. *(liste validée par le commanditaire)*
@@ -84,6 +86,7 @@ Les questions viennent de fichiers AMC d'anciens QCM. Aucun fichier réel n'est 
 ### Démonstration
 - **[DEM-01]** (I12) Le dépôt contient un **fichier AMC-TXT de démonstration**, `demo/qcm-demo.txt`, aux questions fictives. Il sert aux tests et à la démonstration. Il s'importe sans question écartée, et une session menée avec lui va jusqu'aux résultats et au CSV. *(demande du commanditaire)*
   - En I12, il couvre les questions simples et multiples, le barème (par défaut, par question, `DefaultScoringM`, valeur d'une proposition), « Aucune de ces réponses n'est correcte », l'ordre fixe et un groupe. Les formules, le code et une image s'y ajoutent en I17. *(découpage validé, renuméroté après I12)*
+  - En I17, il reçoit une formule, du code, une image et de la mise en forme. L'image est dans `demo/images/` : le fichier s'importe alors en archive ZIP du dossier `demo/` (IMP-08), et `make demo` construit cette archive lui-même. *(découpage validé ; archive construite par la commande : dérivé)*
 - **[DEM-02]** (I12) Une commande, `make demo`, prépare une **démonstration complète** : un compte enseignant, un groupe d'étudiants fictifs et le QCM importé du fichier de démonstration. *(demande du commanditaire)*
   - Le compte s'appelle `demo`. Un nouveau mot de passe aléatoire est tiré et affiché à chaque lancement : rien de fixe n'est écrit dans le dépôt. *(dérivé)*
   - Relancée, la commande réutilise le groupe et le QCM au lieu d'en créer d'autres. *(dérivé)*
@@ -117,11 +120,24 @@ I15 livre CMP-01, CMP-02, CMP-04, CMP-05, VER-01 à VER-03 et le réimport (IMP-
   - On modifie une question depuis la fiche d'un QCM par son lien « Modifier ». Limitée à ce QCM, la nouvelle version n'y remplace que lui ; les autres QCM gardent l'ancienne. *(dérivé)*
 - **[VER-03]** (I15) **Une ancienne version quitte la liste de la banque**, sauf si un QCM la garde encore (VER-02). La nouvelle version montre ses **versions précédentes**, avec leurs propositions dans l'ordre d'alors (A, B, C…), celui des lettres du CSV. Un import ne partage jamais une ancienne version (IMP-07). *(décision du commanditaire, I15 ; import : dérivé)*
 
-### Contenu : formules, code et images (I17, prévu)
+### Contenu : formules, code et images (I17)
 - **[CNT-01]** (I17) Les énoncés et les propositions peuvent contenir des **formules mathématiques**, qui s'affichent correctement au tableau et sur le téléphone. *(demande du commanditaire)*
+  - Les énoncés et les propositions s'écrivent en **LaTeX léger** (§2 quater), dans le formulaire comme après un import. *(décision du commanditaire, I17)*
+  - Les formules sont affichées par KaTeX, servi par l'application : rien ne se charge depuis un autre serveur que le PC de l'enseignant. *(demande du commanditaire, I17)*
+  - Une formule que KaTeX ne sait pas afficher apparaît avec son code, soulignée en rouge, au survol la raison. Le serveur ne vérifie pas une formule commande par commande. *(dérivé)*
+  - La limite de 200 caractères d'une proposition porte sur son texte en LaTeX léger, commandes comprises. *(dérivé)*
 - **[CNT-02]** (I17) Ils peuvent contenir du **code**, en police à chasse fixe, avec ses espaces et ses retours à la ligne. *(demande du commanditaire)*
 - **[CNT-03]** (I17) Ils peuvent contenir des **images** PNG, JPEG ou SVG. Une image PDF ou EPS est refusée, avec la raison. *(décision du commanditaire)*
+  - Une image s'ajoute par l'import seulement (IMP-08). Le formulaire garde les images de la question et refuse une image inconnue. L'envoi d'une image depuis le formulaire est prévu en I19. *(décision du commanditaire, I17)*
+  - Image PDF ou EPS : la question est écartée (IMP-03), avec la raison ; le reste du fichier s'importe. *(décision du commanditaire, I17)*
+  - Une image importée n'est jamais supprimée, car une session, une ancienne version ou une question masquée peut la citer. Elle est nommée d'après son contenu : deux imports de la même image la partagent. *(dérivé)*
+  - Limites : 2 Mo par image ; SVG sans DTD ni entité. Une image ouverte seule dans le navigateur n'exécute aucun script. Au tableau, sa hauteur est bornée pour que N questions tiennent sans défilement (SES-06). *(dérivé)*
+- **[CNT-04]** (I17) Ils peuvent contenir de la **mise en forme** : gras, italique, souligné ; le titre AMC (`[==…==]`) s'affiche en gras. *(décision du commanditaire, I17)*
 - **[IMP-08]** (I17) L'import accepte une **archive ZIP** (le fichier AMC et ses images) ou le fichier seul. Les images s'importent avec le fichier qui les référence ; une image référencée mais absente refuse le fichier. *(décision du commanditaire ; image absente : dérivé)*
+  - L'archive contient un seul fichier `.txt` ; les chemins des images partent de son dossier. Les fichiers cachés et `__MACOSX/` sont ignorés. *(dérivé)*
+  - Limites : 20 Mo d'archive, 50 Mo une fois décompressée, 500 fichiers. Le fichier seul reste limité à 1 Mo. *(dérivé)*
+  - Une image absente est signalée avec la ligne de la question, même si celle-ci serait écartée. *(dérivé)*
+  - L'empreinte du réimport (IMP-10) porte sur le fichier et ses images ; sans image, elle est celle du fichier seul, comme avant I17. *(dérivé)*
 
 ### Import LaTeX AMC (I18, prévu)
 - **[IMP-09]** (I18) L'enseignant importe un fichier **LaTeX AMC**, limité à un sous-ensemble documenté : questions simples et multiples, bonnes et mauvaises réponses, groupes, barème, formules, code, images. Comme pour AMC-TXT, une erreur de syntaxe refuse le fichier et une question non prise en charge est écartée. *(demande du commanditaire)*
@@ -196,7 +212,7 @@ Direction « Signalétique », choisie par le commanditaire parmi trois maquette
 - **[VIS-01]** (I10) L'interface suit la direction « Signalétique » : encre sur papier, bandeau noir, filets épais, majuscules espacées pour les étiquettes. La police est Atkinson Hyperlegible Next, dessinée pour les lecteurs malvoyants : elle distingue les caractères proches (I, l, 1 ; O, 0), utile pour un code de session et des numéros d'étudiant.
   - La police est servie par l'application : aucune page ne demande quoi que ce soit à un autre serveur, la salle n'ayant pas forcément accès à Internet. *(dérivé)*
   - Les énoncés sont en graisse normale ; le gras est réservé aux numéros, aux étiquettes et aux titres. *(demande du commanditaire, I10 : vérifier au tableau la lisibilité d'un énoncé d'environ 200 caractères ; résultat dans REX.md)*
-  - Les styles du code (police à chasse fixe Atkinson Hyperlegible Mono), des formules et des images sont prêts, mais aucun contenu de ce type n'existe encore : il viendra en I17 (CNT-01 à CNT-03). *(décision du commanditaire, I10)*
+  - Le code s'affiche en police à chasse fixe (Atkinson Hyperlegible Mono), les formules en police KaTeX ; formules, code et images arrivent en I17 (CNT-01 à CNT-04). *(décision du commanditaire, I10)*
 - **[VIS-02]** (I10) Au tableau, pendant le déroulement, un bandeau porte le code de session, la position dans le QCM (« Questions 5–8 sur 24 », ou « Question 5 sur 24 » pour un groupe d'une seule question), le temps restant en minutes et secondes (« 0:18 ») et le bouton « +10 s ». Sous le bandeau, une barre montre la part du créneau qui reste : elle se vide jusqu'à l'échéance et tient compte du temps ajouté (TPS-01). *(validé par le commanditaire, I10)*
   - Le temps restant s'écrit de la même façon sur le téléphone. *(dérivé)*
   - Le tableau, projeté, n'a ni la navigation de l'espace enseignant ni le bouton de déconnexion : son logo ramène à la liste des sessions, et « Gérer les connectés » reste dans le bandeau à toute phase (SES-04). *(décision I10, d'après la maquette validée)*
@@ -284,7 +300,7 @@ Plateforme cible : Linux, sur le PC personnel de l'enseignant, avec droits admin
 - **[INS-03]** (I13) **Un seul lancement** : l'icône « QCM Live » ou la commande `qcm-live` lance toujours le mode classe (CLA-01) et ouvre le navigateur sur l'espace enseignant. Le terminal affiche l'adresse des téléphones et cite le guide de l'enseignant. `make run` ne sert plus qu'au développement. *(décision du commanditaire)*
   - Si le port est déjà pris, par exemple parce que QCM Live est déjà lancé, le message le dit. *(dérivé)*
 - **[SAV-01]** (I13) **À chaque lancement**, `qcm-live` sauvegarde les données dans le dossier `~/QCM Live/sauvegardes/`, avant toute mise à jour de la base. Les 10 dernières sauvegardes sont gardées. Aucun autre fichier du dossier n'est touché. *(décision du commanditaire ; avant la mise à jour de la base : dérivé)*
-  - Une sauvegarde est un fichier `qcm-live-<date>-<heure>.zip`. Les images y entreront avec elles (I17). *(dérivé)*
+  - Une sauvegarde est un fichier `qcm-live-<date>-<heure>.zip`. Les images, enregistrées dans la base, y entrent avec elle (I17). *(dérivé)*
 - **[SAV-02]** (I13) `qcm-live sauvegarder` fait une sauvegarde à la demande. `qcm-live restaurer` remet les données d'une sauvegarde, choisie dans la liste ou désignée par son chemin, après confirmation. *(décision du commanditaire)*
   - Les données remplacées sont d'abord sauvegardées, pour qu'une restauration se rattrape. *(dérivé)*
   - Une archive qui n'est pas une sauvegarde de QCM Live, qui est abîmée ou qui vient d'une version plus récente de l'application est refusée, sans rien changer. *(dérivé)*
@@ -336,8 +352,30 @@ Le lecteur suit les règles du lecteur AMC-TXT d'AMC (`AMC::Filter::plain`) : m�
   - Plus de 8 propositions, sans compter « Aucune de ces réponses n'est correcte » ; proposition de plus de 200 caractères ; énoncé ou proposition vide.
   - Limites de la base (I12) : barème de plus de 200 caractères, une fois réécrit sous sa forme courte ; étiquette de groupe de plus de 100 caractères ; valeur d'une proposition de plus de 6 chiffres avant la virgule ou de 3 après.
   - Question multiple sans bonne réponse, sans « Aucune de ces réponses n'est correcte » (`CompleteMulti: 0`).
-  - Contenu prévu en I17 : formule ou LaTeX (`[[…]]`, `[latex]…[/latex]`, et avec `LaTeX: 1`, tout caractère spécial de LaTeX), code (`[verbatim]`, `[|…|]`), image (`!image.png!`), mise en forme (`[_…_]`, `[*…*]`, `[/…/]`, `[==…==]`). Un module désactivé par `Disable:` laisse ces marques en texte, comme dans AMC.
+  - Contenu converti en LaTeX léger (I17), mais refusé par celui-ci (§2 quater) : commande inconnue, formule ou accolade non fermée. Mise en forme jamais fermée.
+  - Image PDF ou EPS, d'un autre format que PNG, JPEG ou SVG, ou illisible (CNT-03). Image écrite en LaTeX (`\includegraphics` avec `LaTeX: 1` ou dans `[latex]…[/latex]`) : seule `!…!` est cherchée dans l'archive. *(dérivé, I17)*
   - Doublon d'une question précédente du même fichier (IMP-07). L'étiquette de groupe n'entre pas dans la comparaison : une question répétée dans deux groupes reste un doublon.
+
+- **Conversion du contenu (I17).** Le texte est converti en LaTeX léger (§2 quater), module par module dans l'ordre d'AMC :
+  - `[verbatim]…[/verbatim]` devient un bloc de code, lignes et espaces gardés ;
+  - `[latex]…[/latex]` et `[[…]]` sont gardés tels quels, comme du LaTeX ;
+  - `!image.png!` devient `\includegraphics{…}` ; les options `{center}` et `[width=…]` sont acceptées sans effet ;
+  - `[_…_]`, `[*…*]`, `[/…/]` et `[|…|]` deviennent italique, gras, souligné et code en ligne ; le titre `[==…==]`, du gras ;
+  - le reste est du texte : `\`, `$` et les accolades y sont échappés. Avec `LaTeX: 1`, il est déjà du LaTeX et passe tel quel.
+  - Le code en ligne garde ses espaces, comme un bloc (CNT-02).
+  - Un module désactivé par `Disable:` laisse ses marques en texte, comme dans AMC.
+
+## 2 quater. LaTeX léger des énoncés et des propositions (I17, *décision du commanditaire* ; détail : *dérivé*)
+
+Hors des formules et des commandes ci-dessous, le texte s'écrit tel quel (« 50 % », « A & B », « x_1 ») : seuls `$` et `\` sont spéciaux.
+
+- **Formules** (CNT-01) : `$…$` ou `\(…\)` en ligne ; `$$…$$` ou `\[…\]` en bloc. Leur contenu est du LaTeX de mathématiques, affiché par KaTeX.
+- **Code** (CNT-02) : `\texttt{…}` ou `\verb|…|` en ligne ; `\begin{verbatim}` … `\end{verbatim}` en bloc, lignes et espaces gardés.
+- **Mise en forme** (CNT-04) : `\textbf{…}` (gras), `\textit{…}` et `\emph{…}` (italique), `\underline{…}` (souligné).
+- **Image** (CNT-03) : `\includegraphics{nom}` ; des options entre crochets sont acceptées sans effet. Le nom est celui donné à l'import.
+- **Caractères** : `\\` est un saut de ligne ; `\$`, `\%`, `\&`, `\_`, `\#`, `\{`, `\}` et `\textbackslash{}` s'affichent tels quels. Hors d'un argument, une accolade est du texte.
+- **Refusé** par le formulaire et à l'import, avec la raison : commande inconnue, formule non fermée, accolade ou crochet non fermé, argument manquant, nom d'image vide, mise en forme imbriquée sur plus de 20 niveaux.
+- **Textes d'avant I17** : la migration échappe leurs `\`, `$` et accolades (`\textbackslash{}`, `\$`, `\{`, `\}`), banque et sessions comprises, comme le fait l'import (IMP-07 : une question réimportée n'est pas dupliquée). Ils s'affichent à l'identique.
 
 ## 3. Barème (logique AMC)
 
@@ -362,7 +400,7 @@ Calcul vérifié dans le code d'AMC (`AMC::Scoring`). Chaque question a son bar�
 ## 4. Règles et hypothèses validées
 
 - **Contenu figé.** Le contenu du QCM, son barème et la liste du groupe sont figés au **lancement** de la session (SES-03, décision I3 ; H8 disait « au démarrage »). Modifier la banque ou les groupes ensuite ne change ni la session ni ses résultats.
-- **Questions.** Texte brut, en paragraphes, sans image ni formule jusqu'à I17 (CNT-01 à CNT-03). Les styles du code, des formules et des images sont prêts depuis I10 (VIS-01).
+- **Questions.** En LaTeX léger depuis I17 (§2 quater) : texte, formules, code, images et mise en forme (CNT-01 à CNT-04). Avant I17, du texte brut en paragraphes.
 - **Couleurs.** Six couleurs, numérotées de 1 à 6, chacune avec sa forme (AFF-03, AFF-04).
 - **Correction.** Il n'y a pas de correction en classe : le professeur corrige de son côté et envoie les résultats par mail à la promotion. Aucune correction ni page de résultats n'est affichée aux étudiants ; l'export CSV (RES-02) suffit. *(confirmé par le commanditaire en I9)*
 - **Retardataires.** Un étudiant arrivé après le démarrage passe sur copie AMC papier. Le QR code de jonction, affiché avant le démarrage seulement (SES-05), convient. *(confirmé en I9 ; l'application accepte toujours un retardataire qui a le code, ETU-08)*
@@ -394,6 +432,7 @@ Rien de ce qui suit n'est implémenté.
 
 - **Refonte de l'espace enseignant (I19, reportée, la première à sauter si le temps manque).** Elle reprendra après l'import AMC et la composition des QCM (I12 à I18), qui en changent le contenu : import, QCM repris d'anciens QCM, versions des questions, questions déjà posées à un groupe. *(décision du commanditaire, I10 ; renumérotée après I11, puis après I12)*
   - La recherche et les filtres de la banque de questions seront revus à ce moment-là. En plus de ceux proposés (texte, type, utilisation, tri, pagination), il faudra un filtre par QCM d'origine (fichier AMC importé) et un filtre « déjà posée à tel groupe ».
+  - L'envoi d'une image depuis le formulaire d'une question y entrera (CNT-03). *(décision du commanditaire, I17)*
   - D'ici là, l'espace enseignant prend la police et les couleurs du socle (I10), sans changer de mise en page.
 - *(Résolu en I15 par les versions précédentes, VER-03.)* **Lettres du CSV après modification d'une question** (`/code-review`, I9). Les lettres du CSV désignent les propositions figées au lancement (SES-03). Si l'enseignant modifie ensuite la question, par exemple en changeant l'ordre de ses propositions, la banque montre le nouvel ordre, et plus aucune page ne montre celui de la session. Faut-il rappeler, sur la page des résultats (réservée à l'enseignant, jamais projetée), les propositions figées de chaque question ? Aujourd'hui, AFF-01 exclut énoncés et propositions de cette page.
 
@@ -461,6 +500,8 @@ Rien de ce qui suit n'est implémenté.
 | Questions identiques, fichier réimporté (après I11) | Stockées une fois et partagées ; réimport refusé avec le nom du QCM existant (IMP-07) |
 | Groupes AMC avec tirage (après I11) | Toutes les questions, dans l'ordre du fichier ; nom du groupe gardé comme étiquette (IMP-06) |
 | Images (après I11) | Archive ZIP ou fichier seul ; PNG, JPEG, SVG ; PDF et EPS refusés (I14, renuméroté I17) |
+| Contenu (I17) | Formules, code et images sans Internet ; texte du formulaire en LaTeX léger, seuls `$` et `\` spéciaux ; image PDF ou EPS : question écartée ; mise en forme livrée en I17 (CNT-04) ; image par l'import seulement, envoi depuis le formulaire en I19 |
+| Questions à la suite d'I16 (I17) | Groupe supprimé puis réimporté : la règle est gardée ; question posée dans une session lancée : masquée, plus supprimée ; listes des QCM triées par titre |
 | Nombre de propositions (après I11) | 8 au plus, sans compter « Aucune… » |
 | Questions déjà posées (après I11) | Signalées, l'enseignant décide ; historique lié au groupe et à son année, pas au seul nom (CMP-03, GRP-04 proposé) |
 | Modifier une question déjà utilisée (après I11) | Nouvelle version ; elle remplace l'ancienne dans les QCM, jamais dans les sessions ; liste des QCM touchés, avec la possibilité de limiter au QCM courant (VER-01, VER-02) |

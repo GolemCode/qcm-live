@@ -139,7 +139,7 @@ def test_syntax_error_refuses_the_whole_file(teacher_page: Page):
     assert Question.objects.count() == 0
 
 
-SOME_SKIPPED = """Title: Écartées
+SOME_SKIPPED = r"""Title: Écartées
 
 * Capitale de l'Italie ?
 + Rome
@@ -147,7 +147,7 @@ SOME_SKIPPED = """Title: Écartées
 
 *<lines=3> Expliquez votre démarche.
 
-* Que vaut [[x^2]] pour x = 2 ?
+* Que vaut [[\hspace{1cm}x]] pour x = 2 ?
 + 4
 - 2
 
@@ -170,7 +170,9 @@ def test_unsupported_questions_are_listed_before_confirmation(teacher_page: Page
     skipped = recap_items(page, SKIPPED)
     expect(skipped).to_have_count(4)
     expect(skipped.nth(0)).to_contain_text(re.compile(r"Ligne 7 : question ouverte"))
-    expect(skipped.nth(1)).to_contain_text(re.compile(r"Ligne 9 : .*formule"))
+    expect(skipped.nth(1)).to_contain_text(
+        re.compile(r"Ligne 9 : .*commande LaTeX non prise en charge : \\hspace")
+    )
     expect(skipped.nth(2)).to_contain_text(re.compile(r"Ligne 13 : .*directive « P »"))
     expect(skipped.nth(3)).to_contain_text(re.compile(r"Ligne 17 : .*doublon.*ligne 3"))
     assert Question.objects.count() == 0
@@ -181,7 +183,9 @@ def test_unsupported_questions_are_listed_before_confirmation(teacher_page: Page
     assert Question.objects.count() == 1
 
     # Un fichier dont toutes les questions sont écartées ne peut pas être importé.
-    upload_amc(page, "*<lines=3> Racontez.\n\n* Que vaut [[x]] ?\n+ 1\n- 2\n", name="vide.txt")
+    upload_amc(
+        page, "*<lines=3> Racontez.\n\n* Que vaut [[\\hspace{1cm}]] ?\n+ 1\n- 2\n", name="vide.txt"
+    )
     expect_recap(page)
     expect(page.get_by_role("main")).to_contain_text("ne peut pas être importé")
     expect(page.get_by_role("button", name="Importer")).to_have_count(0)

@@ -7,8 +7,17 @@ from decimal import Decimal
 from django import forms
 from django.db import transaction
 
+from bank import content
 from bank.composition import arrange
-from bank.models import CHOICE_MAX_LENGTH, NONE_OF_THESE, Choice, Question, Quiz, QuizItem
+from bank.models import (
+    CHOICE_MAX_LENGTH,
+    NONE_OF_THESE,
+    Choice,
+    Image,
+    Question,
+    Quiz,
+    QuizItem,
+)
 from bank.scoring import (
     LETTERS,
     MAX_CHOICES,
@@ -28,20 +37,51 @@ KEEP_ORDER = "Ne pas mélanger les propositions"
 INCLUDE = "Inclure la question : "  # libellé de la case de composition (CMP-04)
 
 
+def check_content(text: str) -> None:
+    """Refuse un texte mal formé, ou qui cite une image inconnue : une image ne s'ajoute que par
+    l'import (CNT-03, I17)."""
+    try:
+        names = content.images(text)
+    except content.ContentError as error:
+        raise forms.ValidationError(f"{error}.") from None
+    known = set(Image.objects.filter(name__in=names).values_list("name", flat=True))
+    for name in names:
+        if name not in known:
+            raise forms.ValidationError(f"image inconnue : {name}.")
+
+
+class ContentField(forms.CharField):
+    """Énoncé ou proposition en LaTeX léger (CNT-01 à CNT-04), dans une zone de texte : un
+    champ d'une ligne perdrait les retours à la ligne d'un bloc de code."""
+
+    def __init__(self, *, rows: int, **kwargs) -> None:
+        super().__init__(widget=forms.Textarea(attrs={"rows": rows}), **kwargs)
+
+    def to_python(self, value) -> str:
+        return (super().to_python(value) or "").replace("\r\n", "\n")  # CRLF du navigateur
+
+    def validate(self, value) -> None:
+        super().validate(value)
+        if value:
+            check_content(value)
+
+
 class QuestionForm(TeacherForm):
     """Énoncé, type, barème, options, et 8 emplacements de proposition (les vides sont ignorés)."""
+
+    text = ContentField(label="Énoncé", rows=3)
 
     class Meta:
         model = Question
         fields = ["text", "kind", "scoring", "none_of_these", "ordered"]
-        labels = {"text": "Énoncé", "scoring": "Barème", "ordered": KEEP_ORDER}
+        labels = {"scoring": "Barème", "ordered": KEEP_ORDER}
         help_texts = {
             "scoring": "Directives d'Auto Multiple Choice séparées par des virgules, par exemple "
             "b=2,m=-0.5 ou haut=2. Vide : b=1, m=0, v=0.",
             "none_of_these": "Question multiple : ajoutée en dernier, juste si aucune autre "
             "ne l'est.",
         }
-        widgets = {"text": forms.Textarea(attrs={"rows": 3}), "kind": forms.RadioSelect}
+        widgets = {"kind": forms.RadioSelect}
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -49,8 +89,9 @@ class QuestionForm(TeacherForm):
         for index, letter in enumerate(SLOTS):
             choice = existing[index] if index < len(existing) else None
             self.fields[f"choice_{letter}"] = table_field(
-                forms.CharField(
+                ContentField(
                     label=f"Proposition {letter}",
+                    rows=1,
                     max_length=CHOICE_MAX_LENGTH,
                     required=False,
                     initial=choice.text if choice else "",
@@ -216,7 +257,7 @@ class QuizForm(TeacherForm):
         for question in self.bank:
             self.fields[self.include_field(question)] = table_field(
                 forms.BooleanField(
-                    label=f"{INCLUDE}{question.text}",
+                    label=f"{INCLUDE}{content.plain(question.text)}",
                     required=False,
                     initial=question.pk in included,
                 )
@@ -288,4 +329,4 @@ class QuizCopyForm(TeacherForm):
 class AmcUploadForm(PlainForm):
     """Envoi d'un fichier AMC-TXT à l'analyse (IMP-01) ; rien n'est encore créé."""
 
-    file = forms.FileField(label="Fichier AMC-TXT")
+    file = forms.FileField(label="Fichier AMC-TXT ou archive ZIP")

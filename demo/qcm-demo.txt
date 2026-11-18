@@ -1,6 +1,7 @@
 # Fichier de démonstration de QCM Live (DEM-01), au format AMC-TXT.
-# Questions fictives. Il s'importe par « QCM », puis « Importer un fichier AMC »,
-# ou d'un coup avec `make demo`.
+# Questions fictives. Il s'importe d'un coup avec `make demo`, ou par « QCM », puis
+# « Importer un fichier AMC », en envoyant le dossier demo/ mis en archive ZIP :
+# l'image d'une question est dans demo/images/ (IMP-08).
 #
 # Ce qu'il montre :
 # - question simple au barème par défaut (1 si juste, 0 sinon) ;
@@ -12,6 +13,8 @@
 # - ordre fixe des propositions ([ordered]) ;
 # - groupe de questions et son étiquette ([group=geographie]) ;
 # - énoncé en deux paragraphes.
+# - formule ([[…]], CNT-01), code (bloc verbatim et [|…|], CNT-02), image (!…!, CNT-03)
+#   et mise en forme ([*…*], CNT-04).
 
 Title: Démonstration de QCM Live
 Lang: FR
@@ -28,7 +31,7 @@ DefaultScoringM: b=1,m=-0.5,p=0
 + 6
 - 8
 
-* Lisez l'énoncé jusqu'au bout : une réponse fait perdre un point.
+* Lisez l'énoncé [*jusqu'au bout*] : une réponse fait perdre un point.
 
 Quelle planète est la plus proche du Soleil ?
 + Mercure
@@ -52,6 +55,29 @@ Quelle planète est la plus proche du Soleil ?
 - L'araignée
 - Le scorpion
 - Le crabe
+
+** Lesquelles de ces fractions sont égales à [[$\frac{1}{2}$]] ?
++ [[$\frac{2}{4}$]]
++ [[$\frac{50}{100}$]]
+- [[$\frac{1}{3}$]]
+- [[$\frac{2}{1}$]]
+
+** Lesquels de ces nombres ce programme Python affiche-t-il ?
+[verbatim]
+for i in range(3):
+    print(i * 2)
+[/verbatim]
++ [|0|]
++ [|4|]
+- [|3|]
+- [|6|]
+
+* Quelle figure est dessinée ?
+
+!images/triangle.svg!
++ Un triangle
+- Un carré
+- Un cercle
 
 *([group=geographie]
 * Quel fleuve traverse Paris ?

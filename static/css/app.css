@@ -5,7 +5,7 @@
 /* Police servie par l'application : la salle n'a pas forcément Internet. Atkinson Hyperlegible
    Next, à graisse variable (licence OFL, static/fonts/). Le navigateur ne télécharge que les
    fichiers dont il a besoin : latin-ext seulement pour un nom qui l'exige, Mono seulement pour
-   du code (prévu pour l'import AMC). */
+   du code (CNT-02). */
 @font-face {
   font-family: "Atkinson Hyperlegible Next";
   src: url("../fonts/atkinson-hyperlegible-next-latin.woff2") format("woff2");
@@ -200,15 +200,22 @@ form.actions.inline { display: inline-flex; gap: 1rem; margin: 0 0 0 1rem; }
 
 /* Énoncés et propositions : une ligne vide sépare deux paragraphes (I12, import AMC). Le
    gabarit ne laisse aucun blanc autour du texte dans ces éléments. */
-.text, .statement, .answer span { white-space: pre-line; }
+.text, .statement, .answer > span { white-space: pre-line; } /* > : pas les span de KaTeX */
 
-/* --- Contenus à venir avec l'import AMC : code, formules, images (VIS-01) ------------------- */
+/* --- Contenu : code, formules, images (CNT-01 à CNT-03) ------------------------------------- */
 code, kbd, samp, pre { font-family: var(--mono); font-size: 0.95em; }
 pre { background: var(--surface); border: 2px solid var(--soft-line); border-radius: var(--radius); padding: 0.5rem 1rem; overflow-x: auto; }
-.statement code, .answer code { padding: 0 0.2em; border-radius: 0.2em; background: var(--surface); color: var(--ink); }
-.statement pre, .answer pre { color: var(--ink); border-color: currentColor; }
-.math { font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", serif; font-style: normal; }
-.statement img, .answer img { display: block; max-width: 100%; height: auto; background: var(--surface); }
+/* Code en ligne : ses espaces sont gardés (CNT-02), pas fusionnés comme le texte (pre-line). */
+:is(.text, .statement, .answer) code { padding: 0 0.2em; border-radius: 0.2em; background: var(--surface); color: var(--ink); white-space: pre-wrap; }
+/* Bloc de code (`verbatim`) : espaces et retours à la ligne gardés, coupé plutôt que débordant. */
+:is(.text, .statement, .answer) .code-block { display: block; margin: 0.2em 0; padding: 0.2em 0.5em; border: 2px solid currentColor; white-space: pre-wrap; overflow-wrap: anywhere; }
+.katex { font-size: 1.1em; }
+.katex-display { margin: 0.2em 0; }
+.math-error { font-family: var(--mono); text-decoration: wavy underline var(--error); }
+/* Images bornées en hauteur, relative au texte : la carte du tableau garde sa place (SES-06). */
+:is(.text, .statement, .answer) img { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; max-height: 6em; background: var(--surface); }
+.statement img { max-height: 4em; }
+.image-name { font-style: italic; }
 
 /* --- Six couleurs de questions (AFF-04) -----------------------------------------------------
    Palette d'Okabe et Ito, ordonnée pour que les 4 premières restent distinctes pour les
@@ -379,7 +386,7 @@ a.button.secondary, button.secondary { background: transparent; color: var(--ink
   background: var(--surface); color: var(--ink); font-size: 1.25rem; line-height: 1.3;
   overflow-wrap: anywhere; cursor: pointer;
 }
-.phone .answer span { min-width: 0; }
+.phone .answer > span { min-width: 0; }
 /* La proposition choisie (classe posée par la page, puis par static/js/phone.js) : noir plein,
    texte blanc. Les propositions se verrouillent à l'échéance. */
 .phone .answer.chosen { background: var(--ink); color: var(--on-ink); }

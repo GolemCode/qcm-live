@@ -6,16 +6,18 @@
 
 from __future__ import annotations
 
+import io
 import os
 import re
 import subprocess
+import zipfile
 from pathlib import Path
 
 import pytest
 from django.conf import global_settings, settings
 from playwright.sync_api import Page, expect
 
-from bank.models import Choice, Question, Quiz
+from bank.models import Choice, Image, Question, Quiz
 from roster.models import StudentGroup
 from tests.e2e.amc_ui import NONE_OF_THESE, confirm_import, expect_recap, recap_items, upload_amc
 from tests.e2e.bank_ui import open_quizzes, quiz_question_items
@@ -33,7 +35,8 @@ from tests.e2e.live_ui import (
 from tests.factories import jump_to, make_group, make_session
 
 REPO = Path(__file__).resolve().parents[2]
-DEMO_FILE = REPO / "demo" / "qcm-demo.txt"
+DEMO_DIR = REPO / "demo"
+DEMO_FILE = DEMO_DIR / "qcm-demo.txt"
 PASSWORD_RE = re.compile(r"Mot de passe\s*:\s*(\S+)")
 SECONDS = 30
 
@@ -44,12 +47,22 @@ def demo_title() -> str:
     return match.group(1).strip()
 
 
+def demo_archive() -> bytes:
+    """Le dossier `demo/` mis en archive ZIP, comme l'enseignant le ferait (IMP-08)."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        for path in sorted(DEMO_DIR.rglob("*")):
+            if path.is_file():
+                zf.write(path, path.relative_to(DEMO_DIR).as_posix())
+    return buffer.getvalue()
+
+
 @pytest.mark.spec("DEM-01")
 def test_demo_file_imports_without_skipped_question_and_runs_a_session(
     teacher_page: Page, live_server, new_phone
 ):
     page = teacher_page
-    upload_amc(page, DEMO_FILE.read_bytes(), name=DEMO_FILE.name)
+    upload_amc(page, demo_archive(), name="demo.zip")
     expect_recap(page)
     expect(recap_items(page, "Questions écartées")).to_have_count(0)
     confirm_import(page)
@@ -67,6 +80,19 @@ def test_demo_file_imports_without_skipped_question_and_runs_a_session(
     assert questions.filter(ordered=True).exists()
     assert questions.exclude(amc_group="").exists()
     assert questions.filter(text__contains="\n\n").exists()  # au moins un paragraphe
+
+    # Ajouts d'I17 : formule, code, image et mise en forme, affichés dans la banque.
+    texts = [q.text for q in questions]
+    texts += [c.text for c in Choice.objects.filter(question__in=questions)]
+    for command in ("\\frac", "\\begin{verbatim}", "\\texttt{", "\\includegraphics{"):
+        assert any(command in text for text in texts), command
+    assert any("\\textbf{" in text for text in texts)
+    assert Image.objects.count() == 1
+    expect(page.locator(".katex").first).to_be_visible()
+    expect(page.locator(".code-block").first).to_be_visible()
+    image = page.locator(f'img[src$="/images/{Image.objects.get().name}"]').first
+    expect(image).to_be_visible()
+    assert image.evaluate("img => img.naturalWidth") > 0
 
     # Une session complète, jusqu'aux résultats et au CSV.
     group = make_group("Démo", [("00123", "DURAND Élise")])
@@ -137,6 +163,7 @@ def test_make_demo_prepares_account_group_and_quiz(page: Page, live_server, tran
     expect(page.get_by_role("main")).to_contain_text("Démo")
     assert (Quiz.objects.count(), StudentGroup.objects.count()) == (1, 1)
     assert StudentGroup.objects.get().students.count() >= 2
+    assert Image.objects.count() == 1  # make demo importe aussi l'image (I17)
 
     # Relancée : mêmes groupe et QCM, nouveau mot de passe ; l'ancien ne sert plus.
     page.context.clear_cookies()

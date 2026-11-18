@@ -64,7 +64,7 @@ Le code va dans `~/.local/share/qcm-live/app`, l'environnement Python dans `…/
 
 ### Démonstration : `make demo`
 
-La commande crée un compte enseignant `demo`, un groupe « Démo » de six étudiants fictifs et le QCM du fichier [demo/qcm-demo.txt](demo/qcm-demo.txt), au format AMC-TXT. Elle affiche le mot de passe du compte : il change à chaque lancement, et la commande réutilise le groupe et le QCM déjà créés. Si un compte `demo` existe déjà, son mot de passe est remplacé : ne pas donner ce nom à un vrai compte. L'installation de l'enseignant propose la même démonstration, sans le compte (`demo --sans-compte`).
+La commande crée un compte enseignant `demo`, un groupe « Démo » de six étudiants fictifs et le QCM du fichier [demo/qcm-demo.txt](demo/qcm-demo.txt), au format AMC-TXT, importé en archive ZIP avec son image (`demo/images/`) ; il montre une formule, du code, une image et de la mise en forme. Elle affiche le mot de passe du compte : il change à chaque lancement, et la commande réutilise le groupe et le QCM déjà créés. Si un compte `demo` existe déjà, son mot de passe est remplacé : ne pas donner ce nom à un vrai compte. L'installation de l'enseignant propose la même démonstration, sans le compte (`demo --sans-compte`).
 
 Sous Windows sans make : `uv run --env-file .env python manage.py migrate`, puis `uv run --env-file .env python manage.py demo`.
 
@@ -100,7 +100,7 @@ tests/      unit/ · integration/ · e2e/ (Playwright) · spec_trace.py (traçab
             factories.py (données de test fictives, créées via les formulaires)
 scripts/    gen_env.py (création du .env local), usage.py (consommation de Claude Code)
 rex/        retour d'expérience, un fichier par incrément (index : REX.md)
-demo/       qcm-demo.txt (fichier AMC-TXT fictif de démonstration)
+demo/       qcm-demo.txt (fichier AMC-TXT fictif de démonstration) et images/
 install.sh  install.ps1   installation de l'enseignant (Linux, Windows) ; GUIDE.md, son guide
 .claude/    environnement de l'agent : réglages, hooks, procédure d'incrément, auditeur de spec
 ```

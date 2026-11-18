@@ -1,5 +1,5 @@
 """Import d'un fichier AMC-TXT analysé (IMP-01, IMP-07, IMP-10) : questions partagées, QCM
-ordonné, réimport qui complète le QCM du même fichier.
+ordonné, réimport qui complète le QCM du même fichier. Une archive ZIP apporte ses images (IMP-08).
 
 Les questions nouvelles sont créées par `QuestionForm`, avec les mêmes règles que l'interface.
 """
@@ -12,10 +12,11 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from bank.amc_txt import ParsedChoice, ParsedFile, ParsedQuestion, parse
+from bank import archive
+from bank.amc_txt import AmcSyntaxError, ParsedChoice, ParsedFile, ParsedQuestion, parse
 from bank.composition import arrange
 from bank.forms import SLOTS, QuestionForm
-from bank.models import SOURCE_NAME_MAX_LENGTH, Question, QuestionOrigin, Quiz
+from bank.models import SOURCE_NAME_MAX_LENGTH, Image, Question, QuestionOrigin, Quiz
 from bank.scoring import format_points
 
 NOTHING_TO_IMPORT = "Aucune question de ce fichier ne peut être importée."
@@ -58,6 +59,27 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def fingerprint(txt: bytes, parsed: ParsedFile) -> str:
+    """Empreinte du fichier (IMP-10) : celle du `.txt` seul s'il ne cite aucune image retenue,
+    comme avant I17 ; sinon, aussi celle de chaque image."""
+    if not parsed.images:
+        return sha256(txt)
+    pairs = sorted(f"{image.name} {image.sha256}" for image in parsed.images)
+    return sha256(txt + "".join(f"\n{pair}" for pair in pairs).encode())
+
+
+def read(data: bytes, filename: str) -> tuple[bytes, ParsedFile]:
+    """Le `.txt` et son analyse, d'un fichier seul ou d'une archive ZIP (IMP-08) ;
+    `AmcSyntaxError` s'il est refusé."""
+    if not archive.is_archive(data):
+        return data, parse(data, filename)
+    try:
+        found = archive.read(data)
+    except archive.ArchiveError as error:
+        raise AmcSyntaxError([str(error)]) from None
+    return found.txt, parse(found.txt, found.txt_name, found.files)
+
+
 def key_of(question: Question) -> ParsedQuestion:
     """La clé de `ParsedQuestion.key`, pour une question de la banque."""
     return ParsedQuestion(
@@ -73,13 +95,15 @@ def key_of(question: Question) -> ParsedQuestion:
 
 def find_existing(questions: Sequence[ParsedQuestion]) -> tuple[Question | None, ...]:
     """Pour chaque question, l'identique de la banque (IMP-07), la plus ancienne s'il y en a
-    plusieurs, jamais une ancienne version (VER-03). Une requête par tranche d'énoncés :
-    SQLite limite le nombre de paramètres."""
+    plusieurs, jamais une ancienne version (VER-03) ni une question masquée (BAN-07). Une
+    requête par tranche d'énoncés : SQLite limite le nombre de paramètres."""
     texts = sorted({q.text for q in questions})
     bank: dict[ParsedQuestion, Question] = {}
     for start in range(0, len(texts), MATCH_BATCH):
         candidates = Question.objects.filter(
-            text__in=texts[start : start + MATCH_BATCH], next_versions__isnull=True
+            text__in=texts[start : start + MATCH_BATCH],
+            next_versions__isnull=True,
+            hidden=False,
         )
         for candidate in candidates.order_by("pk").prefetch_related("choices"):
             bank.setdefault(key_of(candidate), candidate)
@@ -114,8 +138,8 @@ def recognise(questions: Sequence[ParsedQuestion], digest: str, target: Quiz | N
 
 def preview(data: bytes, filename: str) -> Preview:
     """Analyse sans rien créer ; `AmcSyntaxError` si le fichier est refusé."""
-    digest = sha256(data)
-    parsed = parse(data, filename)
+    txt, parsed = read(data, filename)
+    digest = fingerprint(txt, parsed)
     target = same_file(digest)
     known = recognise(parsed.questions, digest, target)
     identical = find_existing(parsed.questions)
@@ -170,6 +194,17 @@ def save_import(found: Preview, filename: str) -> Quiz:
     """Import d'un fichier déjà analysé (`preview`)."""
     if not found.parsed.questions:
         raise ValueError(NOTHING_TO_IMPORT)
+    for image in found.parsed.images:  # avant les questions, dont le formulaire les vérifie
+        stored, _ = Image.objects.defer("data").get_or_create(  # le contenu ne sert pas
+            name=image.name,
+            defaults={
+                "sha256": image.sha256,
+                "content_type": image.content_type,
+                "data": image.data,
+            },
+        )
+        if stored.sha256 != image.sha256:  # même nom, autre contenu : 8 chiffres en commun
+            raise ValueError(f"Image {image.name} : une autre image porte déjà ce nom.")
     quiz = found.target or Quiz.objects.create(
         title=found.parsed.title,
         source_name=filename[:SOURCE_NAME_MAX_LENGTH],

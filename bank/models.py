@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import unicodedata
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 from django.conf import settings
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
 
 SOURCE_NAME_MAX_LENGTH = 255
+IMAGE_NAME_MAX_LENGTH = 64  # `<nom, 40 au plus>-<8 hex>.<ext>`
 NONE_OF_THESE = "Aucune de ces réponses n'est correcte"
 
 
@@ -34,6 +36,9 @@ class Question(models.Model):
     previous = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="next_versions"
     )
+    # Supprimée de la banque après avoir servi dans une session : gardée pour l'historique
+    # (BAN-07, CMP-03), comme une ancienne version.
+    hidden = models.BooleanField("masquée", default=False)
 
     if TYPE_CHECKING:  # relations inverses, déclarées pour le typage statique
         from live.models import Session
@@ -84,9 +89,23 @@ class Question(models.Model):
 
     @classmethod
     def current(cls) -> models.QuerySet[Question]:
-        """Questions de la banque : sans version plus récente, ou encore dans un QCM (VER-03)."""
+        """Questions de la banque : sans version plus récente, ou encore dans un QCM (VER-03),
+        jamais une question masquée (BAN-07)."""
         kept = models.Q(next_versions__isnull=True) | models.Q(quizzes__isnull=False)
-        return cls.objects.filter(kept).distinct()
+        return cls.objects.filter(kept, hidden=False).distinct()
+
+    @transaction.atomic
+    def remove(self) -> None:
+        """Suppression de la banque (BAN-07) : la question quitte ses QCM. Si elle a servi dans
+        une session, elle est seulement masquée, pour que l'historique la compte encore
+        (CMP-03) ; son origine est oubliée, comme si elle avait disparu (IMP-10)."""
+        if not self.sessions.exists():
+            self.delete()
+            return
+        QuizItem.objects.filter(question=self).delete()
+        self.origins.all().delete()
+        self.hidden = True
+        self.save(update_fields=["hidden"])
 
 
 class Choice(models.Model):
@@ -107,6 +126,19 @@ class Choice(models.Model):
 
     def __str__(self) -> str:
         return self.text
+
+
+def title_key(title: str) -> tuple[str, str]:
+    """Clé de l'ordre alphabétique des titres, sans tenir compte des majuscules ni des accents
+    (« Écologie » entre « Biologie » et « Zoologie »), le titre exact départageant."""
+    bare = "".join(c for c in unicodedata.normalize("NFKD", title) if not unicodedata.combining(c))
+    return bare.casefold(), title
+
+
+def by_title(quizzes: Iterable[Quiz]) -> list[Quiz]:
+    """QCM triés par titre (BAN-03, SES-01). Le tri se fait ici et non en base : SQLite ne
+    compare que les octets, et `Meta.ordering` n'agit pas sur une requête agrégée."""
+    return sorted(quizzes, key=lambda quiz: (*title_key(quiz.title), quiz.pk))
 
 
 class Quiz(models.Model):
@@ -173,6 +205,20 @@ class QuestionOrigin(models.Model):
 
     def __str__(self) -> str:
         return f"{self.sha256[:8]} #{self.rank} : {self.question}"
+
+
+class Image(models.Model):
+    """Image citée par un énoncé ou une proposition (`\\includegraphics{name}`, CNT-03), venue
+    d'un import (IMP-08). Jamais supprimée : une session figée, une ancienne version ou une
+    question masquée peut la citer. Gardée en base, elle entre dans la sauvegarde (SAV-01)."""
+
+    name = models.CharField(max_length=IMAGE_NAME_MAX_LENGTH, unique=True)
+    sha256 = models.CharField(max_length=64)
+    content_type = models.CharField(max_length=32)
+    data = models.BinaryField()
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class PendingImport(models.Model):

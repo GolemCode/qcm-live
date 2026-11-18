@@ -92,6 +92,8 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
             ],
+            # Filtres `content` et `plain` du LaTeX léger, dans toutes les pages (CNT-01).
+            "builtins": ["bank.templatetags.content"],
         },
     },
 ]

@@ -2,7 +2,7 @@
 {% block title %}Supprimer la question — QCM Live{% endblock %}
 {% block content %}
   <h1>Supprimer la question ?</h1>
-  <p>« {{ question.text }} »</p>
+  <p>« {{ question.text|content }} »</p>
   {% with quizzes=question.quizzes.all %}
     {% if quizzes %}
       <p>Elle sera retirée des QCM : {{ quizzes|join:", " }}.</p>
@@ -10,6 +10,9 @@
       <p>Elle n'est utilisée dans aucun QCM.</p>
     {% endif %}
   {% endwith %}
+  {% if used %}
+    <p>Elle a servi dans une session : elle quitte la banque, mais ses sessions et l'historique des questions déjà posées la gardent.</p>
+  {% endif %}
   <form method="post" class="actions">
     {% csrf_token %}
     <button type="submit" class="danger">Supprimer</button>

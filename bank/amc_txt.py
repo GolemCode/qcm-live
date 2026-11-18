@@ -8,11 +8,15 @@ mêmes options, mêmes contrôles. Il est plus strict là où AMC ignorerait un 
 
 from __future__ import annotations
 
+import posixpath
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from pathlib import PurePath
 
+from bank import content, images
+from bank.images import CheckedImage, ImageError
 from bank.scoring import (
     LETTERS,
     MAX_CHOICES,
@@ -60,17 +64,15 @@ CHOICE_RE = re.compile(r"^\s*([+-])(?:\[([^\]]*)\])?(?:\{([^}]*)\})?\s*(.*)")
 VERBATIM_OPEN, VERBATIM_CLOSE = "[verbatim]", "[/verbatim]"
 FALSE_RE = re.compile(r"^\s*(no|false|0)\s*$", re.IGNORECASE)  # `parse_bool` d'AMC
 
-# Contenus prévus en I14 : (module d'AMC que `Disable:` désactive, marque, ce qu'elle annonce).
-CONTENT_MARKS = (
-    ("verbatim", re.compile(re.escape(VERBATIM_OPEN)), "code"),
-    ("latex", re.compile(r"\[latex\].*?\[/latex\]", re.DOTALL), "formule ou LaTeX"),
-    ("local_latex", re.compile(r"\[\[(?:(?!\]\]).)+\]\]"), "formule"),
-    ("images", re.compile(r"!(?:\{[^!\s]+\})?(?:\[[^!\s]+\])?[^!\s]+!"), "image"),
-    ("embf", re.compile(r"\[\||\|\]"), "code"),
-    ("embf", re.compile(r"\[[_*/]|[_*/]\]"), "mise en forme"),
-    ("title", re.compile(r"\[==|==\]"), "mise en forme"),
-)
-LATEX_SPECIAL_RE = re.compile(r"[\\$%&~^_{}#]")
+# Conversion en LaTeX léger (`bank.content`), module par module dans l'ordre d'AMC
+# (`AMC::Filter::plain`) ; `Disable:` désactive un module, dont les marques restent du texte.
+VERBATIM_RE = re.compile(r"\[verbatim\](.*?)\[/(?i:verbatim)\]", re.DOTALL)
+LATEX_RE = re.compile(r"\[latex\](.*?)\[/latex\]", re.DOTALL)
+LOCAL_LATEX_RE = re.compile(r"\[\[((?:(?!\]\]).)+)\]\]")
+IMAGE_RE = re.compile(r"!(?:\{[^!\s]+\})?(?:\[[^!\s]+\])?([^!\s]+)!")  # options sans effet
+EMBF = (("_", "\\textit{"), ("*", "\\textbf{"), ("/", "\\underline{"), ("|", "\\texttt{"))
+TITLE = ("==", "\\textbf{")  # le titre d'AMC (`\AMCmakeTitle`) : une ligne en gras
+TEXT_ESCAPES = {"\\": "\\textbackslash{}", "$": "\\$", "{": "\\{", "}": "\\}"}
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,7 @@ class ParsedFile:
     questions: tuple[ParsedQuestion, ...]
     skipped: tuple[tuple[int, str], ...]  # (ligne, raison), IMP-03
     ignored: tuple[tuple[int, str], ...]  # (ligne, texte) des groupes, IMP-06
+    images: tuple[CheckedImage, ...] = ()  # citées par les questions retenues (IMP-08)
 
 
 class AmcSyntaxError(ValueError):
@@ -118,18 +121,33 @@ class AmcSyntaxError(ValueError):
 @dataclass
 class _Text:
     """Texte d'un élément : les lignes d'un paragraphe sont jointes par une espace, les
-    paragraphes séparés par une ligne vide."""
+    paragraphes séparés par une ligne vide. Les lignes d'un bloc `[verbatim]` gardent leurs
+    espaces et leurs retours à la ligne, ligne vide comprise, comme dans AMC."""
 
-    paragraphs: list[list[str]] = field(default_factory=lambda: [[]])
+    paragraphs: list[list[tuple[str, bool]]] = field(default_factory=lambda: [[]])
 
-    def add(self, line: str) -> None:
-        if line.strip():
-            self.paragraphs[-1].append(line.strip())
+    def add(self, line: str, raw: bool = False) -> None:
+        if raw:
+            self.paragraphs[-1].append((line.rstrip(), True))
+        elif line.strip():
+            self.paragraphs[-1].append((line.strip(), False))
         elif self.paragraphs[-1]:
             self.paragraphs.append([])
 
     def __str__(self) -> str:
-        return "\n\n".join(" ".join(p) for p in self.paragraphs if p)
+        texts = []
+        for paragraph in self.paragraphs:
+            parts: list[str] = []
+            previous_raw = False
+            for line, raw in paragraph:
+                if parts and raw and previous_raw:
+                    parts.append("\n" + line)
+                elif line.strip():
+                    parts.append((" " if parts else "") + line.lstrip())
+                previous_raw = raw
+            if parts:
+                texts.append("".join(parts))
+        return "\n\n".join(texts)
 
 
 @dataclass
@@ -180,12 +198,12 @@ class _Reader:
     def read(self, lines: list[str]) -> None:
         for number, line in enumerate(lines, start=1):
             if self.verbatim is not None:  # bloc brut : rien n'y est interprété
-                self._continue(number, line)
+                self._continue(number, line, raw=True)
                 if VERBATIM_CLOSE in line.lower():
                     self.verbatim = None
                 continue
             if VERBATIM_OPEN in line and VERBATIM_CLOSE not in line.lower():
-                self._continue(number, line)  # comme AMC : ni question ni commentaire
+                self._continue(number, line, raw=True)  # comme AMC : ni question ni commentaire
                 self.verbatim = number
             else:
                 self._line(number, line)
@@ -216,9 +234,9 @@ class _Reader:
         else:
             self._continue(number, line)
 
-    def _continue(self, number: int, line: str) -> None:
+    def _continue(self, number: int, line: str, raw: bool = False) -> None:
         if self.target is not None:
-            self.target.add(line)
+            self.target.add(line, raw)
         elif line.strip():
             self.error(number, "texte avant le premier élément du fichier")
 
@@ -319,17 +337,135 @@ def _syntax(question: _Question) -> str | None:
     return None
 
 
-def _content(texts: list[str], settings: _Settings) -> str | None:
-    for module, mark, what in CONTENT_MARKS:
-        if not re.search(rf"\b{module}\b", settings.disabled) and any(map(mark.search, texts)):
-            return f"{what} : pas encore pris en charge"
-    if settings.latex and any(map(LATEX_SPECIAL_RE.search, texts)):
-        return "LaTeX (option LaTeX: 1) : pas encore pris en charge"
-    return None
-
-
 class _Skip(Exception):
     """Question valide mais non prise en charge : écartée, avec la raison (IMP-03)."""
+
+
+# Segment d'un texte en cours de conversion : ("text", texte brut), ("latex", LaTeX léger) ou
+# ("image", chemin écrit dans le fichier).
+_Segment = tuple[str, str]
+
+
+def _enabled(module: str, settings: _Settings) -> bool:
+    return not re.search(rf"\b{module}\b", settings.disabled)
+
+
+def _split(
+    segments: list[_Segment], pattern: re.Pattern[str], make: Callable[[str], _Segment]
+) -> list[_Segment]:
+    """Chaque correspondance d'un segment de texte devient `make(groupe 1)`."""
+    out: list[_Segment] = []
+    for kind, value in segments:
+        if kind != "text":
+            out.append((kind, value))
+            continue
+        start = 0
+        for match in pattern.finditer(value):
+            out += [("text", value[start : match.start()]), make(match.group(1))]
+            start = match.end()
+        out.append(("text", value[start:]))
+    return [segment for segment in out if segment[1]]
+
+
+def _verbatim(body: str) -> _Segment:
+    return ("latex", "\\begin{verbatim}\n" + body.lstrip("\n").rstrip() + "\n\\end{verbatim}")
+
+
+def _segments(text: str, settings: _Settings) -> list[_Segment]:
+    """Blocs bruts, LaTeX et images mis à part (modules `verbatim` à `images`)."""
+    segments: list[_Segment] = [("text", text)]
+    stages = (
+        ("verbatim", VERBATIM_RE, _verbatim),
+        ("latex", LATEX_RE, lambda tex: ("latex", tex)),
+        ("local_latex", LOCAL_LATEX_RE, lambda tex: ("latex", tex)),
+        ("images", IMAGE_RE, lambda path: ("image", path)),
+    )
+    for module, pattern, make in stages:
+        if _enabled(module, settings):
+            segments = _split(segments, pattern, make)
+    return segments
+
+
+def _marks(segments: list[_Segment], mark: str, opening: str) -> list[_Segment]:
+    """`[X…X]` en `\\commande{…}`. Une fermeture sans ouverture reste du texte ; une marque
+    jamais fermée écarte la question (AMC produirait du LaTeX faux)."""
+    pattern = re.compile(rf"(\[{re.escape(mark)}|{re.escape(mark)}\])")
+    out: list[_Segment] = []
+    depth = 0
+    for kind, value in segments:
+        if kind != "text":
+            out.append((kind, value))
+            continue
+        for part in pattern.split(value):
+            if part == f"[{mark}":
+                depth += 1
+                out.append(("latex", opening))
+            elif part == f"{mark}]" and depth:
+                depth -= 1
+                out.append(("latex", "}"))
+            elif part:
+                out.append(("text", part))
+    if depth:
+        raise _Skip("mise en forme non fermée")
+    return out
+
+
+def _latex(text: str, settings: _Settings, image_name: Callable[[str], str]) -> str:
+    """Le texte en LaTeX léger (CNT-01 à CNT-04) ; `_Skip` s'il ne peut pas l'être."""
+    segments = _segments(text, settings)
+    if _enabled("embf", settings):
+        for mark, opening in EMBF:
+            segments = _marks(segments, mark, opening)
+    if _enabled("title", settings):
+        segments = _marks(segments, *TITLE)
+    out: list[str] = []
+    names: set[str] = set()
+    for kind, value in segments:
+        if kind == "image":
+            name = image_name(value)
+            names.add(name)
+            out.append(f"\\includegraphics{{{name}}}")
+        elif kind == "text" and not settings.latex:  # `LaTeX: 1` : le texte est déjà du LaTeX
+            out.append(re.sub(r"[\\${}]", lambda m: TEXT_ESCAPES[m.group()], value))
+        else:
+            out.append(value)
+    latex = "".join(out)
+    nodes = content.parse(latex)  # ContentError : à la charge de l'appelant
+    # Un `\includegraphics` écrit en LaTeX n'est pas cherché dans l'archive (seul `!…!` l'est) :
+    # le formulaire le refuserait à la confirmation.
+    for node in content.walk(nodes):
+        if isinstance(node, content.Image) and node.name not in names:
+            raise content.ContentError(f"image à écrire !{node.name}! dans le fichier AMC-TXT")
+    return latex
+
+
+def _image_paths(texts: list[str], settings: _Settings) -> list[str]:
+    return [value for t in texts for kind, value in _segments(t, settings) if kind == "image"]
+
+
+class _Images:
+    """Images du fichier (chemin relatif au dossier du `.txt` -> octets), contrôlées une fois."""
+
+    def __init__(self, files: Mapping[str, bytes]) -> None:
+        self.files = files
+        self.checked: dict[str, CheckedImage] = {}
+
+    @staticmethod
+    def key(path: str) -> str:
+        return posixpath.normpath(path)
+
+    def missing(self, path: str) -> bool:
+        return self.key(path) not in self.files
+
+    def check(self, path: str) -> CheckedImage:
+        """L'image contrôlée ; `_Skip` si elle est refusée (PDF, EPS, format, contenu)."""
+        key = self.key(path)  # `a.png` et `./a.png` : une seule image, contrôlée une fois
+        if key not in self.checked:
+            try:
+                self.checked[key] = images.check(path, self.files[key])
+            except ImageError as error:
+                raise _Skip(str(error)) from None
+        return self.checked[key]
 
 
 def _scoring(question: _Question, settings: _Settings) -> str:
@@ -350,25 +486,39 @@ def _scoring(question: _Question, settings: _Settings) -> str:
     return scoring
 
 
-def _convert(question: _Question, settings: _Settings) -> ParsedQuestion:
-    """La question prête à importer ; `_Skip` donne la raison de l'écarter (IMP-03)."""
+def _convert(
+    question: _Question, settings: _Settings, files: _Images
+) -> tuple[ParsedQuestion, list[CheckedImage]]:
+    """La question prête à importer, et ses images ; `_Skip` donne la raison de l'écarter
+    (IMP-03)."""
     if question.open:
         raise _Skip("question ouverte")
     if "indicative" in question.options:
         raise _Skip("question indicative")
-    text, choices = str(question.text), question.choices
-    if reason := _content([text, *(str(c.text) for c in choices)], settings):
-        raise _Skip(reason)
+    choices = question.choices
     if len(choices) > MAX_CHOICES:
         raise _Skip(f"plus de {MAX_CHOICES} propositions")
-    if not text:
+    if not str(question.text):
         raise _Skip("énoncé vide")
+    used: list[CheckedImage] = []
+
+    def image_name(path: str) -> str:
+        used.append(files.check(path))
+        return used[-1].name
+
+    def latex(text: _Text, element: str) -> str:
+        try:
+            return _latex(str(text), settings, image_name)
+        except content.ContentError as error:
+            raise _Skip(f"{element} : {error}") from None
+
+    text = latex(question.text, "énoncé")
     scoring = _scoring(question, settings)
     parsed = []
     for letter, choice in zip(LETTERS, choices, strict=False):
-        choice_text = str(choice.text)
-        if not choice_text:
+        if not str(choice.text):
             raise _Skip(f"proposition {letter} vide")
+        choice_text = latex(choice.text, f"proposition {letter}")
         if len(choice_text) > CHOICE_MAX_LENGTH:
             raise _Skip(f"proposition {letter} de plus de {CHOICE_MAX_LENGTH} caractères")
         points = None
@@ -385,7 +535,7 @@ def _convert(question: _Question, settings: _Settings) -> ParsedQuestion:
         raise _Skip("question multiple sans bonne réponse")
     if len(question.label) > GROUP_LABEL_MAX_LENGTH:
         raise _Skip(f"nom de groupe de plus de {GROUP_LABEL_MAX_LENGTH} caractères")
-    return ParsedQuestion(
+    parsed_question = ParsedQuestion(
         line=question.line,
         text=text,
         multiple=question.multiple,
@@ -395,6 +545,7 @@ def _convert(question: _Question, settings: _Settings) -> ParsedQuestion:
         ordered="ordered" in question.options,
         label=question.label,
     )
+    return parsed_question, used
 
 
 # --- Point d'entrée ---------------------------------------------------------------------------
@@ -424,8 +575,9 @@ def _report(errors: list[tuple[int, str]]) -> list[str]:
     return messages
 
 
-def parse(data: bytes, filename: str) -> ParsedFile:
-    """Lit un fichier AMC-TXT ; `AmcSyntaxError` s'il est refusé (IMP-02)."""
+def parse(data: bytes, filename: str, files: Mapping[str, bytes] | None = None) -> ParsedFile:
+    """Lit un fichier AMC-TXT ; `AmcSyntaxError` s'il est refusé (IMP-02). `files` : les autres
+    fichiers de l'archive (IMP-08), par chemin relatif au dossier du `.txt`."""
     if len(data) > MAX_BYTES:
         raise AmcSyntaxError([TOO_LARGE])
     reader = _Reader()
@@ -438,18 +590,25 @@ def parse(data: bytes, filename: str) -> ParsedFile:
     if len(title) > TITLE_MAX_LENGTH:
         message = f"titre de plus de {TITLE_MAX_LENGTH} caractères"
         errors.append((reader.option_lines["title"], message))
+    settings = _settings(reader.options)
+    archive = _Images(files or {})
+    for question in reader.questions:  # avant d'écarter quoi que ce soit (IMP-08)
+        texts = [str(question.text), *(str(choice.text) for choice in question.choices)]
+        for path in dict.fromkeys(_image_paths(texts, settings)):
+            if archive.missing(path):
+                errors.append((question.line, f"image absente : {path}"))
     if errors:
         raise AmcSyntaxError(_report(errors))
     if not reader.questions:
         raise AmcSyntaxError(["Le fichier ne contient aucune question."])
 
-    settings = _settings(reader.options)
     questions: list[ParsedQuestion] = []
     skipped: list[tuple[int, str]] = []
     seen: dict[ParsedQuestion, int] = {}
+    kept_images: dict[str, CheckedImage] = {}
     for draft in reader.questions:
         try:
-            question = _convert(draft, settings)
+            question, used = _convert(draft, settings, archive)
         except _Skip as reason:
             skipped.append((draft.line, str(reason)))
             continue
@@ -458,10 +617,12 @@ def parse(data: bytes, filename: str) -> ParsedFile:
             continue
         seen[question.key()] = draft.line
         questions.append(question)
+        kept_images.update((image.name, image) for image in used)
     ignored = tuple((line, str(text)) for line, text in reader.ignored if str(text))
     return ParsedFile(
         title=title or PurePath(filename).stem.strip()[:TITLE_MAX_LENGTH] or "QCM importé",
         questions=tuple(questions),
         skipped=tuple(skipped),
         ignored=ignored,
+        images=tuple(kept_images.values()),
     )

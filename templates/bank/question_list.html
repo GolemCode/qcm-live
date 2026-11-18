@@ -7,11 +7,11 @@
   </div>
   {% for question in questions %}
     <article class="card">
-      <h2 class="text">{{ question.text }}</h2>
+      <h2 class="text">{{ question.text|content }}</h2>
       <p class="muted">{{ question.get_kind_display }}{% if question.scoring %} · Barème : {{ question.scoring }}{% endif %}{% if question.ordered %} · Ordre fixe{% endif %}{% if question.amc_group %} · Étiquette : {{ question.amc_group }}{% endif %}</p>
       <ol class="choices" type="A">
         {% for choice in question.choices.all %}
-          <li><span class="text">{{ choice.text }}</span>{% if choice.correct %} <strong>(juste)</strong>{% endif %}{% if choice.points is not None %} <span class="muted">({{ choice.points|floatformat:"-3" }} pt)</span>{% endif %}</li>
+          <li><span class="text">{{ choice.text|content }}</span>{% if choice.correct %} <strong>(juste)</strong>{% endif %}{% if choice.points is not None %} <span class="muted">({{ choice.points|floatformat:"-3" }} pt)</span>{% endif %}</li>
         {% endfor %}
         {% if question.none_of_these %}<li>{{ none_of_these }}{% if question.none_is_correct %} <strong>(juste)</strong>{% endif %}</li>{% endif %}
       </ol>
@@ -25,10 +25,10 @@
           <details>
             <summary>Versions précédentes ({{ versions|length }})</summary>
             {% for version in versions %}
-              <p class="text">{{ version.text }}</p>
-              <ul class="choices plain" aria-label="Propositions : {{ version.text }}">
+              <p class="text">{{ version.text|content }}</p>
+              <ul class="choices plain" aria-label="Propositions : {{ version.text|plain }}">
                 {% for letter, choice in version.lettered_choices %}
-                  <li>{{ letter }}. <span class="text">{{ choice.text }}</span>{% if choice.correct %} <strong>(juste)</strong>{% endif %}{% if choice.points is not None %} <span class="muted">({{ choice.points|floatformat:"-3" }} pt)</span>{% endif %}</li>
+                  <li>{{ letter }}. <span class="text">{{ choice.text|content }}</span>{% if choice.correct %} <strong>(juste)</strong>{% endif %}{% if choice.points is not None %} <span class="muted">({{ choice.points|floatformat:"-3" }} pt)</span>{% endif %}</li>
                 {% endfor %}
               </ul>
             {% endfor %}
