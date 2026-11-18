@@ -33,6 +33,7 @@ package = false
 [tool.qcm]
 increment = 19
 lettered = ["D"]
+deferred = [18]  # import LaTeX AMC, mis de côté par le commanditaire (décidé en I19)
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"

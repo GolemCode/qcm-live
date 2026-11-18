@@ -55,10 +55,28 @@ def test_lettered_increment_is_due_once_declared():
     assert str(declared) == "I0..I1, ID"
 
 
+def test_deferred_increment_is_not_due_but_reported():
+    reqs = spec_trace.parse_spec(SPEC)
+    declared = Declared(2, deferred=frozenset({"1"}))
+    missing = spec_trace.missing_requirements(reqs, {}, up_to=declared)
+    assert [r.id for r in missing] == ["AAA-01", "BBB-01"]  # AAA-02 (I1) reporté
+    lines = spec_trace.report_lines(reqs, {}, up_to=declared)
+    assert [line.split()[:2] for line in lines] == [
+        ["MANQUE", "AAA-01"],
+        ["MANQUE", "BBB-01"],
+        ["REPORTÉ", "AAA-02"],
+    ]
+    assert str(declared) == "I0..I2, sauf I1 (reporté)"
+    only = spec_trace.missing_requirements(reqs, {}, up_to=declared, only="1")
+    assert [r.id for r in only] == ["AAA-02"]  # demandé nommément, il reste vérifié
+
+
 def test_declared_increments_read_from_pyproject():
     text = '[tool.qcm]\nincrement = 17\nlettered = ["D"]\n'
     assert spec_trace.current_increment(text) == Declared(17, frozenset({"D"}))
     assert spec_trace.current_increment("[tool.qcm]\nincrement = 3\n") == Declared(3)
+    text = "[tool.qcm]\nincrement = 19\ndeferred = [18]\n"
+    assert spec_trace.current_increment(text) == Declared(19, deferred=frozenset({"18"}))
 
 
 @pytest.mark.parametrize(("typed", "expected"), [("d", "D"), ("D", "D"), ("07", "7"), (12, "12")])

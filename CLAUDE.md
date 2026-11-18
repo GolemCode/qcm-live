@@ -14,7 +14,7 @@ Relu à chaque appel : règles et pièges seulement, une ligne chacun. L'origine
 - `make run` (développement), `make superuser`, `make demo`, `make classe` (mode classe, `PORT=`, `ADRESSE=`), `make demo-complete` (sur `demo.sqlite3`, recréée à chaque lancement).
 - `make check` : lint, types, unitaires, intégration ; le hook Stop le lance.
 - `make verify` : tout, comme la CI ; il enregistre son résultat dans `.verify-result.json`.
-- `make accept INC=n` (ou `INC=D`, incrément à lettre déclaré dans `[tool.qcm] lettered`) : exigences de l'incrément ; reprend le résultat du dernier `make verify` vert si aucun fichier n'a changé depuis (REX exclu), sinon relance les tests.
+- `make accept INC=n` (ou `INC=D`, incrément à lettre déclaré dans `[tool.qcm] lettered`) : exigences de l'incrément ; reprend le résultat du dernier `make verify` vert si aucun fichier n'a changé depuis (REX exclu), sinon relance les tests. Un incrément mis de côté par le commanditaire va dans `[tool.qcm] deferred` : listé « REPORTÉ », non exigé.
 - Un test : `uv run pytest tests/e2e/test_x.py -k nom` (`UV_ENV_FILE=.env.test`, sans secret, fourni par `.claude/settings.json`).
 - Consommation d'une période : `uv run --no-env-file python scripts/usage.py <début> <fin>` (tokens, appels, temps actif, par agent, compactions).
 - Enseignant : `install.sh` / `install.ps1`, commande `qcm-live` (`config/launcher.py`), guide `GUIDE.md` ; essai : `QCM_LIVE_ARCHIVE=<tar.gz> HOME=<dossier jetable> sh install.sh`.
