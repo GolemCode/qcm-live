@@ -136,11 +136,13 @@ def serve(
     address: str | None,
     port: int,
     *,
+    database: Path | None = None,
     before_migrate: Callable[[], object] | None = None,
     after_migrate: Callable[[], object] | None = None,
     on_ready: Callable[[str], None] | None = None,
 ) -> int:  # pragma: no cover — testé de bout en bout (CLA-01, INS-03, DEM-03)
     """Prépare l'environnement, applique les migrations et sert l'application jusqu'à Ctrl+C.
+    `database` : une autre base que celle des réglages (démonstration complète) ;
     `before_migrate` : sauvegarde du lanceur ; `after_migrate` : préparation de la
     démonstration complète ; `on_ready(adresse de l'espace enseignant)` : ouverture du
     navigateur, une fois le port ouvert."""
@@ -151,6 +153,8 @@ def serve(
     host = projected(address, addresses)
     environ = classroom_environ(host, port, addresses)
     os.environ.update(environ)
+    if database:
+        os.environ["DJANGO_DB_PATH"] = str(database.absolute())
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
     import django
@@ -205,14 +209,13 @@ def serve_demo(
         print(port_taken(port), file=sys.stderr)
         return 1
     reset_demo(database)
-    os.environ["DJANGO_DB_PATH"] = str(database.absolute())  # lue au chargement des réglages
 
     def prepare() -> None:
         from django.core.management import call_command
 
         call_command("demo_complete")
 
-    return serve(address, port, after_migrate=prepare, on_ready=on_ready)
+    return serve(address, port, database=database, after_migrate=prepare, on_ready=on_ready)
 
 
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — testé de bout en bout

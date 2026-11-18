@@ -177,12 +177,15 @@ def past_session(quiz: Quiz, group: StudentGroup, started: datetime) -> Session:
     session = form.save()
     rng = random.Random(SEED)  # noqa: S311 — réponses fictives reproductibles
     absent = set(rng.sample([s["list_number"] for s in session.students], ABSENT))
+    answers: list[Answer] = []
     for student in session.students:
         if student["list_number"] not in absent:
             participant = session.enrol(student)
             if participant is None:  # pragma: no cover — base vide, liste sans doublon
                 raise CommandError(f"N° {student['list_number']} déjà pris.")
-            answer_all(participant, session.questions, ability=rng.uniform(0.3, 0.95), rng=rng)
+            ability = rng.uniform(0.3, 0.95)
+            answers += answer_all(participant, session.questions, ability=ability, rng=rng)
+    Answer.objects.bulk_create(answers)
     session.start(started)
     # Les horodatages, dans le passé : le lancement, les arrivées, les réponses.
     Session.objects.filter(pk=session.pk).update(created_at=started - timedelta(minutes=4))
@@ -199,9 +202,11 @@ def answer_all(
     *,
     ability: float,
     rng: random.Random,
-) -> None:
-    """Une réponse par question, validée comme celle d'un téléphone (AnswerForm) ; l'étudiant
-    trouve chaque proposition avec la probabilité `ability`, et en laisse quelques-unes."""
+) -> list[Answer]:
+    """Une réponse par question, validée comme celle d'un téléphone (AnswerForm), à enregistrer
+    ensemble ; l'étudiant trouve chaque proposition avec la probabilité `ability`, et en laisse
+    quelques-unes."""
+    answers = []
     for index, question in enumerate(questions):
         if rng.random() < 0.04:
             continue  # sans réponse
@@ -210,9 +215,10 @@ def answer_all(
         if not form.is_valid():
             raise CommandError(f"Réponse de démonstration refusée : {form.errors.as_text()}")
         if form.cleaned_data["choice"]:
-            Answer.objects.create(
-                participant=participant, question=index, choices=form.cleaned_data["choice"]
+            answers.append(
+                Answer(participant=participant, question=index, choices=form.cleaned_data["choice"])
             )
+    return answers
 
 
 def pick(question: FrozenQuestion, ability: float, rng: random.Random) -> list[int]:
