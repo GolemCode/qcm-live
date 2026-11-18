@@ -11,7 +11,7 @@ Relu à chaque appel : règles et pièges seulement, une ligne chacun. L'origine
 
 ## Commandes (make ou uv, jamais pip)
 - `make setup` installe et crée `.env`, qui contient la vraie clé : **ne jamais le lire**.
-- `make run` (développement), `make superuser`, `make demo`, `make classe` (mode classe, `PORT=`, `ADRESSE=`).
+- `make run` (développement), `make superuser`, `make demo`, `make classe` (mode classe, `PORT=`, `ADRESSE=`), `make demo-complete` (sur `demo.sqlite3`, recréée à chaque lancement).
 - `make check` : lint, types, unitaires, intégration ; le hook Stop le lance.
 - `make verify` : tout, comme la CI ; il enregistre son résultat dans `.verify-result.json`.
 - `make accept INC=n` (ou `INC=D`, incrément à lettre déclaré dans `[tool.qcm] lettered`) : exigences de l'incrément ; reprend le résultat du dernier `make verify` vert si aucun fichier n'a changé depuis (REX exclu), sinon relance les tests.
