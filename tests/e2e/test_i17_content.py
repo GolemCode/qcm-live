@@ -185,7 +185,7 @@ CODE_QUESTION = f"Que renvoie f(2) ?\n\\begin{{verbatim}}\n{CODE}\n\\end{{verbat
 def test_code_keeps_spaces_and_line_breaks(teacher_page: Page, live_server, new_phone):
     page = teacher_page
     problems = watch(page, live_server.url)
-    create_question(page, CODE_QUESTION, choices=[(r"\texttt{2}", True), ("Rien", False)])
+    create_question(page, CODE_QUESTION, choices=[(r"\texttt{2  +  0}", True), ("Rien", False)])
     phone = live(page, live_server.url, new_phone, make_quiz("Code", [Question.objects.get()]))
 
     block = card(page, 1).get_by_role("heading").locator("code")
@@ -194,7 +194,8 @@ def test_code_keeps_spaces_and_line_breaks(teacher_page: Page, live_server, new_
     assert font(block).startswith('"Atkinson Hyperlegible Mono"'), font(block)
 
     inline = propositions(phone).locator("code")
-    expect(inline).to_have_text("2")
+    expect(inline).to_have_count(1)
+    assert inline.inner_text() == "2  +  0"  # espaces gardés, comme dans un bloc
     assert font(inline).startswith('"Atkinson Hyperlegible Mono"'), font(inline)
     expect(propositions(phone)).not_to_contain_text("texttt")
     assert problems == [], problems

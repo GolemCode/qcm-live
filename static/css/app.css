@@ -205,7 +205,8 @@ form.actions.inline { display: inline-flex; gap: 1rem; margin: 0 0 0 1rem; }
 /* --- Contenu : code, formules, images (CNT-01 à CNT-03) ------------------------------------- */
 code, kbd, samp, pre { font-family: var(--mono); font-size: 0.95em; }
 pre { background: var(--surface); border: 2px solid var(--soft-line); border-radius: var(--radius); padding: 0.5rem 1rem; overflow-x: auto; }
-:is(.text, .statement, .answer) code { padding: 0 0.2em; border-radius: 0.2em; background: var(--surface); color: var(--ink); }
+/* Code en ligne : ses espaces sont gardés (CNT-02), pas fusionnés comme le texte (pre-line). */
+:is(.text, .statement, .answer) code { padding: 0 0.2em; border-radius: 0.2em; background: var(--surface); color: var(--ink); white-space: pre-wrap; }
 /* Bloc de code (`verbatim`) : espaces et retours à la ligne gardés, coupé plutôt que débordant. */
 :is(.text, .statement, .answer) .code-block { display: block; margin: 0.2em 0; padding: 0.2em 0.5em; border: 2px solid currentColor; white-space: pre-wrap; overflow-wrap: anywhere; }
 .katex { font-size: 1.1em; }
