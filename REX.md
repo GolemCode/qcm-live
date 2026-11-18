@@ -26,5 +26,6 @@ Jusqu'à I14, tout tenait dans ce fichier (1 484 lignes) ; il a été découpé 
 | I15 | [Composition des QCM et réimport d'un fichier AMC](rex/I15.md) |
 | I16 | [Séance : terminer le créneau, k / n, année des groupes, déjà posée](rex/I16.md) |
 | I17 | [Formules, code et images (LaTeX léger, KaTeX, archive ZIP)](rex/I17.md) |
+| ID | [Démonstration complète](rex/D.md) |
 
 Origine des règles et pièges de CLAUDE.md, retirée du fichier en I15 : [rex/pieges.md](rex/pieges.md).
