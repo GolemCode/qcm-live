@@ -155,9 +155,9 @@ def keyboard_problems(screen: Page) -> list[str]:
           const groups = new Map(); // formulaire -> nom -> repère du premier bouton du groupe
           for (const e of document.querySelectorAll(selector)) {
             if (!e.checkVisibility()) continue;
-            // Retiré exprès du clavier et des aides techniques (bouton par défaut de la touche
-            // Entrée, I15) : ni Tab ni un lecteur d'écran ne doivent l'atteindre.
-            if (e.matches("[aria-hidden=true][tabindex='-1']")) continue;
+            // Bouton par défaut de la touche Entrée (I15), invisible et retiré exprès du clavier
+            // et des aides techniques : ni Tab ni un lecteur d'écran ne doivent l'atteindre.
+            if (e.matches(".visually-hidden[aria-hidden=true][tabindex='-1']")) continue;
             const names = e.matches("input[type=radio]") ? groups.get(e.form) ?? new Map() : null;
             if (names?.has(e.name)) {
               e.dataset.kbd = names.get(e.name);

@@ -38,7 +38,7 @@ def question_list(request: HttpRequest) -> HttpResponse:
     found = list(form.questions())
     if text := criteria.get("q"):
         prefetch_related_objects(found, "choices")
-        found = [q for q in found if matches(text, [q.text, *(c.text for c in q.choices.all())])]
+        found = [q for q in found if matches(text, _shown_texts(q))]
     posed: dict[Question, int] = {}
     n_students = 0
     if chosen := form.posed_group():
@@ -59,9 +59,15 @@ def question_list(request: HttpRequest) -> HttpResponse:
         "n_students": n_students,
         "total": Question.current().count(),
         "criteria": _criteria(request),
+        "searched": bool(criteria),  # la page seule n'est pas un critère
         "none_of_these": NONE_OF_THESE,
     }
     return render(request, "bank/question_list.html", context)
+
+
+def _shown_texts(question: Question) -> list[str]:
+    """Énoncé et propositions tels qu'affichés, sans balisage : la recherche porte sur eux."""
+    return [plain(question.text), *(plain(c.text) for c in question.choices.all())]
 
 
 def _criteria(request: HttpRequest) -> str:
@@ -123,8 +129,8 @@ def question_delete(request: HttpRequest, pk: int) -> HttpResponse:
     if request.method == "POST":
         question.remove()
         messages.success(request, "Question supprimée.")
-        return redirect("question-list")
-    context = {"question": question, "used": question.sessions.exists()}
+        return redirect(_bank(request))
+    context = {"question": question, "used": question.sessions.exists(), "back": _bank(request)}
     return render(request, "bank/question_confirm_delete.html", context)
 
 

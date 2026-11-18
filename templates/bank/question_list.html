@@ -15,7 +15,7 @@
     {% endif %}{% endfor %}
     <p class="actions">
       <button type="submit">Filtrer</button>
-      {% if criteria and page.paginator.count %}<a href="{% url 'question-list' %}">Effacer les critères</a>{% endif %}
+      {% if searched and page.paginator.count %}<a href="{% url 'question-list' %}">Effacer les critères</a>{% endif %}
     </p>
   </form>
   <p class="count">{{ page.paginator.count }} question{{ page.paginator.count|pluralize }} sur {{ total }}</p>
@@ -58,7 +58,7 @@
       {% endwith %}
       <p class="actions">
         <a href="{% url 'question-update' question.pk %}{% if criteria %}?{{ criteria }}{% endif %}">Modifier</a>
-        <a href="{% url 'question-delete' question.pk %}">Supprimer</a>
+        <a href="{% url 'question-delete' question.pk %}{% if criteria %}?{{ criteria }}{% endif %}">Supprimer</a>
       </p>
     </article>
   {% empty %}

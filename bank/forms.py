@@ -275,7 +275,7 @@ class BankSearchForm(PlainForm):
     USED, UNUSED = "oui", "non"
     ALREADY, NEVER = "deja", "jamais"
 
-    q = forms.CharField(label="Rechercher", required=False, max_length=200)
+    q = forms.CharField(label="Rechercher", required=False)  # un énoncé collé en entier
     kind = forms.ChoiceField(
         label="Type", required=False, choices=[("", "Tous les types"), *Question.Kind.choices]
     )
