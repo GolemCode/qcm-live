@@ -1,19 +1,20 @@
 """I17 : les énoncés et les propositions s'écrivent en LaTeX léger (CNT-01 à CNT-04). Un texte
-d'avant I17 y est réécrit pour s'afficher à l'identique : `\\` devient `\\textbackslash{}` et
-`$` devient `\\$`. Les copies figées des sessions (`live.snapshot`) le sont aussi.
+d'avant I17 y est réécrit pour s'afficher à l'identique, et comme l'écrirait l'import d'AMC-TXT
+(IMP-07 : la même question n'est pas dupliquée) : `\\` devient `\\textbackslash{}`, `$` devient
+`\\$`, `{` et `}` deviennent `\\{` et `\\}`. Les copies figées des sessions (`live.snapshot`) le sont aussi.
 
 Les réécritures sont écrites ici, sans appel à `bank.content` : une migration ne suit pas le
-code qui évolue. Le retour en arrière défait ces deux réécritures, y compris dans un texte écrit après I17.
+code qui évolue. Le retour en arrière défait ces réécritures, y compris dans un texte écrit après I17.
 """
 
 import re
 
 from django.db import migrations
 
-FORWARD = {"\\": "\\textbackslash{}", "$": "\\$"}
+FORWARD = {"\\": "\\textbackslash{}", "$": "\\$", "{": "\\{", "}": "\\}"}
 BACKWARD = {value: key for key, value in FORWARD.items()}
-FORWARD_RE = re.compile(r"[\\$]")
-BACKWARD_RE = re.compile(r"\\textbackslash\{\}|\\\$")
+FORWARD_RE = re.compile(r"[\\${}]")
+BACKWARD_RE = re.compile(r"\\textbackslash\{\}|\\[${}]")
 
 
 def _forward(text: str) -> str:
@@ -26,7 +27,7 @@ def _backward(text: str) -> str:
 
 def _rewrite(apps, convert) -> None:
     for model in ("Question", "Choice"):
-        for row in apps.get_model("bank", model).objects.filter(text__regex=r"[\\$]"):
+        for row in apps.get_model("bank", model).objects.filter(text__regex=r"[\\${}]"):
             row.text = convert(row.text)
             row.save(update_fields=["text"])
     for session in apps.get_model("live", "Session").objects.all():

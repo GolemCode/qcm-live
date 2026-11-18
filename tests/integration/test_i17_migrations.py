@@ -3,13 +3,14 @@ session, s'affiche à l'identique une fois lu en LaTeX léger (CNT-01 à CNT-04)
 
 import pytest
 
+from bank.amc_txt import parse as parse_amc
 from bank.content import Text, parse
 from bank.models import Choice, Question
 from live.models import Session
 from tests.migrations import leaves, migrate
 
 BEFORE = [("bank", "0006_image"), ("live", "0008_extension_seconds_session_group_year")]
-OLD = "Prix : 5 $ et C:\\temp\\$x$ ?"
+OLD = "Prix : 5 $ et C:\\temp\\$x$ f{x} ?"
 OLD_CHOICE = "a \\\\ b"
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -55,6 +56,13 @@ def test_old_texts_show_unchanged(old_apps):
     frozen = Session.objects.get().content["questions"][0]
     assert frozen["text"] == question.text
     assert frozen["choices"][0]["text"] == choices[0]
+
+
+def test_old_texts_match_a_new_import(old_apps):  # IMP-07 : la même question n'est pas dupliquée
+    old_data(old_apps)
+    migrate(leaves())
+    imported = parse_amc(f"* {OLD}\n+ Oui\n- Non\n".encode(), "x.txt").questions[0].text
+    assert Question.objects.get().text == imported
 
 
 def test_backward_restores_the_old_texts(old_apps):
