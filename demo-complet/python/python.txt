@@ -1,0 +1,167 @@
+# Démonstration complète de QCM Live (DEM-04) : informatique, les bases de Python.
+# Questions fictives, au format AMC-TXT. Le dossier demo-complet/python/ mis en archive ZIP s'importe
+# par « QCM », puis « Importer un fichier AMC » (IMP-08) ; `qcm-live demo` le fait de
+# lui-même. Il reprend la question de programme de demo/qcm-demo.txt.
+
+Title: Informatique : Python, les bases
+Lang: FR
+DefaultScoringM: b=1,m=-0.5,p=0
+
+** Lesquels de ces nombres ce programme Python affiche-t-il ?
+[verbatim]
+for i in range(3):
+    print(i * 2)
+[/verbatim]
++ [|0|]
++ [|4|]
+- [|3|]
+- [|6|]
+
+* Que vaut [|len("bonjour")|] ?
+- [|6|]
++ [|7|]
+- [|8|]
+- [|"bonjour"|]
+
+* Quel est le type de [|3.0|] ?
+- [|int|]
++ [|float|]
+- [|str|]
+- [|bool|]
+
+* Que vaut [|7 // 2|] ?
++ [|3|]
+- [|3.5|]
+- [|4|]
+- [|1|]
+
+* Que vaut [|2 ** 10|] ?
+- [|20|]
+- [|100|]
++ [|1024|]
+- [|210|]
+
+* La liste [|t|] est dessinée ci-dessous, ses indices en dessous des cases.
+
+!images/liste.svg!
+
+Que vaut [|t[2]|] ?
+- [|3|]
++ [|9|]
+- [|1|]
+- [|7|]
+
+* Avec la même liste [|t = [7, 3, 9, 1]|], que vaut [|t[-1]|] ?
++ [|1|]
+- [|7|]
+- Une erreur
+- [|9|]
+
+*{b=2,m=-1} Que vaut [|sorted([7, 3, 9, 1])|] ?
++ [|[1, 3, 7, 9]|]
+- [|[9, 7, 3, 1]|]
+- [|[7, 3, 9, 1]|]
+- [|None|]
+
+*([group=boucles]
+* Combien de fois ce programme affiche-t-il [|"QCM"|] ?
+[verbatim]
+for i in range(2, 8):
+    print("QCM")
+[/verbatim]
+- 8
++ 6
+- 7
+- 5
+
+* Que contient [|s|] à la fin de ce programme ?
+[verbatim]
+s = 0
+for k in range(1, 5):
+    s = s + k
+[/verbatim]
+- [|4|]
++ [|10|]
+- [|15|]
+- [|5|]
+
+*{b=2,m=-0.5} Combien de tours fait cette boucle ?
+[verbatim]
+n = 100
+while n > 1:
+    n = n // 2
+[/verbatim]
+- 50
++ 6
+- 7
+- 100
+*)
+
+** Lesquelles de ces valeurs sont considérées comme fausses par [|if|] ?
++ [|0|]
++ [|""|]
++ [|[]|]
+- [|"0"|]
+- [|-1|]
+
+** Lesquels de ces noms sont des noms de variable valides en Python ?
++ [|note_finale|]
++ [|_total|]
+- [|2eme|]
+- [|note-finale|]
+
+** Lesquels de ces types sont modifiables (mutables) ?
++ [|list|]
++ [|dict|]
+- [|tuple|]
+- [|str|]
+
+** Lesquelles de ces instructions affichent [|5|] ?
++ [|print(2 + 3)|]
++ [|print(10 // 2)|]
+- [|print("2 + 3")|]
+
+** Lesquelles de ces expressions valent [|True|] ?
+- [|3 > 5|]
+- [|"a" == "b"|]
+- [|not True|]
+
+* Que fait le mot-clé [|return|] dans une fonction ?
++ Il renvoie une valeur et termine la fonction
+- Il affiche une valeur
+- Il recommence la fonction
+- Il ne fait rien
+
+* Que vaut [|carre(4)|] avec cette fonction ?
+[verbatim]
+def carre(x):
+    return x * x
+[/verbatim]
+- [|8|]
++ [|16|]
+- [|4|]
+-{-1} [|None|]
+
+* Que vaut [|d["b"]|] pour [|d = {"a": 1, "b": 2}|] ?
+- [|1|]
++ [|2|]
+- [|"b"|]
+- Une erreur
+
+* Le nombre d'opérations d'une boucle simple sur une liste de [[$n$]] éléments est de l'ordre de :
++ [[$n$]]
+- [[$n^2$]]
+- [[$\log_2 n$]]
+- [[$2^n$]]
+
+* Une recherche dichotomique dans une liste triée de [[$n$]] éléments fait de l'ordre de :
+- [[$n$]] comparaisons
++ [[$\log_2 n$]] comparaisons
+- [[$n^2$]] comparaisons
+- [[$\sqrt{n}$]] comparaisons
+
+* Combien de valeurs différentes peut-on coder sur [[$8$]] bits ?
+- [[$8$]]
+- [[$16$]]
++ [[$2^8 = 256$]]
+- [[$8^2 = 64$]]

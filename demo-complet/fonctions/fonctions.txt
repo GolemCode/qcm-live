@@ -1,0 +1,163 @@
+# Démonstration complète de QCM Live (DEM-04) : mathématiques, fonctions et dérivées.
+# Questions fictives, au format AMC-TXT. Le dossier demo-complet/fonctions/ mis en archive ZIP
+# s'importe par « QCM », puis « Importer un fichier AMC » (IMP-08) ; `qcm-live demo` le
+# fait de lui-même. Il reprend les questions de calcul de demo/qcm-demo.txt.
+
+Title: Mathématiques : Fonctions et dérivées
+Lang: FR
+DefaultScoringM: b=1,m=-0.5,p=0
+
+*([group=rappels]
+*[ordered] Combien font 7 fois 8 ?
+- 54
++ 56
+- 58
+- 64
+
+** Parmi ces nombres, lesquels sont pairs ?
++ 4
+- 7
++ 10
+- 15
+
+** Lesquelles de ces fractions sont égales à [[$\frac{1}{2}$]] ?
++ [[$\frac{2}{4}$]]
++ [[$\frac{50}{100}$]]
+- [[$\frac{1}{3}$]]
+- [[$\frac{2}{1}$]]
+
+*{b=2,m=-0.5} Combien de côtés a un hexagone ?
+- 5
++ 6
+- 8
+
+* Quelle figure est dessinée ?
+
+!images/triangle.svg!
++ Un triangle
+- Un carré
+- Un cercle
+*)
+
+* Quelle est la dérivée de [[$f(x) = x^3$]] ?
++ [[$3x^2$]]
+- [[$x^2$]]
+- [[$3x^3$]]
+- [[$\frac{x^4}{4}$]]
+
+* Quelle est la dérivée de [[$f(x) = 5x + 2$]] ?
+- [[$5x$]]
++ [[$5$]]
+- [[$2$]]
+- [[$7$]]
+
+* Quelle est la dérivée de [[$f(x) = \sqrt{x}$]] sur [[$]0 ; +\infty[$]] ?
++ [[$\frac{1}{2\sqrt{x}}$]]
+- [[$\frac{1}{\sqrt{x}}$]]
+- [[$2\sqrt{x}$]]
+- [[$\frac{\sqrt{x}}{2}$]]
+
+* Quelle est la dérivée de [[$f(x) = e^{2x}$]] ?
+- [[$e^{2x}$]]
++ [[$2e^{2x}$]]
+- [[$2x\,e^{2x-1}$]]
+- [[$\frac{e^{2x}}{2}$]]
+
+* Quelle est la dérivée de [[$f(x) = \ln x$]] sur [[$]0 ; +\infty[$]] ?
++ [[$\frac{1}{x}$]]
+- [[$\ln x$]]
+- [[$x$]]
+- [[$-\frac{1}{x^2}$]]
+
+*{b=2,m=-1} Quelle est la dérivée du produit [[$f(x) = x\,e^x$]] ?
+- [[$e^x$]]
++ [[$(x+1)\,e^x$]]
+- [[$x\,e^x$]]
+- [[$x^2\,e^{x-1}$]]
+
+* Quelle est la dérivée de [[$f(x) = \frac{1}{x}$]] sur [[$]0 ; +\infty[$]] ?
+- [[$\frac{1}{x^2}$]]
++ [[$-\frac{1}{x^2}$]]
+- [[$\ln x$]]
+- [[$-\frac{1}{x}$]]
+
+* La courbe ci-dessous est celle d'une fonction [[$f$]] du second degré.
+
+!images/parabole.svg!
+
+Quel est le signe du coefficient de [[$x^2$]] ?
++ Positif
+- Négatif
+- Nul
+
+** Lesquelles de ces fonctions sont croissantes sur [[$\mathbb{R}$]] ?
++ [[$x \mapsto e^x$]]
++ [[$x \mapsto x^3$]]
+- [[$x \mapsto x^2$]]
+- [[$x \mapsto -2x + 1$]]
+
+** Lesquelles de ces fonctions sont paires ?
++ [[$x \mapsto x^2$]]
++ [[$x \mapsto \cos x$]]
+- [[$x \mapsto \sin x$]]
+- [[$x \mapsto x^3$]]
+
+** Pour [[$f(x) = x^2 - 4$]], lesquels de ces nombres sont des solutions de [[$f(x) = 0$]] ?
++ [[$2$]]
++ [[$-2$]]
+- [[$4$]]
+- [[$0$]]
+
+** Lesquels de ces nombres sont des valeurs où [[$f(x) = x^3 - 3x$]] a une dérivée nulle ?
++ [[$1$]]
++ [[$-1$]]
+- [[$0$]]
+- [[$3$]]
+
+** Lesquelles de ces fonctions ont une dérivée constante ?
+- [[$x \mapsto x^2 + 1$]]
+- [[$x \mapsto e^x$]]
+- [[$x \mapsto \frac{1}{x}$]]
+
+* Que vaut [[$\lim_{x \to +\infty} \frac{1}{x}$]] ?
++ [[$0$]]
+- [[$1$]]
+- [[$+\infty$]]
+- Elle n'existe pas
+
+* L'équation de la tangente à la courbe de [[$f$]] au point d'abscisse [[$a$]] est :
++ [[$y = f'(a)(x - a) + f(a)$]]
+- [[$y = f(a)(x - a) + f'(a)$]]
+- [[$y = f'(a)\,x + a$]]
+
+* Ce programme calcule une valeur approchée de la dérivée de [[$f(x) = x^2$]] en 3.
+Quelle valeur affiche-t-il, à peu près ?
+[verbatim]
+def f(x):
+    return x ** 2
+
+h = 0.001
+print((f(3 + h) - f(3)) / h)
+[/verbatim]
+- [|3.0|]
++ [|6.001|]
+- [|9.0|]
+- [|0.001|]
+
+* Que vaut [[$f'(2)$]] pour [[$f(x) = x^2 + 3x$]] ?
+- [[$4$]]
++ [[$7$]]
+- [[$10$]]
+-{-1} [[$2x + 3$]]
+
+* Une fonction dont la dérivée est strictement positive sur un intervalle y est :
++ strictement croissante
+- strictement décroissante
+- constante
+- positive
+
+** Lesquelles de ces écritures désignent la dérivée de [[$f$]] ?
++ [[$f'$]]
++ [[$\frac{\mathrm{d}f}{\mathrm{d}x}$]]
+- [[$\int f$]]
+- [[$f^{-1}$]]
