@@ -32,7 +32,7 @@ package = false
 # incréments à lettre, hors numérotation, dont les exigences (ID) sont exigibles.
 [tool.qcm]
 increment = 17
-lettered = []
+lettered = ["D"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
