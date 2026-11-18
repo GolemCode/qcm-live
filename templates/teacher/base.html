@@ -1,14 +1,16 @@
 {% extends "base.html" %}
+{% load static teacher %}
+{% block head %}
+  <link rel="stylesheet" href="{% static 'css/teacher.css' %}">{% endblock %}
+{% block body_class %}teacher{% endblock %}
 {% block header %}
-  <header class="bar teacher-bar">
+  <header class="band teacher-band">
+    <a class="brand" href="{% url 'teacher-home' %}">{% include "logo.html" %}QCM Live</a>
     <nav aria-label="Espace enseignant">
-      <a href="{% url 'teacher-home' %}">Accueil</a>
-      <a href="{% url 'question-list' %}">Banque de questions</a>
-      <a href="{% url 'quiz-list' %}">QCM</a>
-      <a href="{% url 'group-list' %}">Groupes</a>
-      <a href="{% url 'session-list' %}">Sessions</a>
+      {% teacher_sections request as sections %}
+      {% for label, href, current in sections %}<a href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
     </nav>
-    <form method="post" action="{% url 'logout' %}">
+    <form method="post" action="{% url 'logout' %}" class="logout">
       {% csrf_token %}
       <button type="submit" class="link">Se déconnecter ({{ user.get_username }})</button>
     </form>

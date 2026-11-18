@@ -8,7 +8,7 @@ import os
 from collections.abc import Callable, Iterator
 
 import pytest
-from playwright.sync_api import Browser, BrowserContext, Page, Playwright, expect
+from playwright.sync_api import Browser, BrowserContext, Locator, Page, Playwright, expect
 
 # Playwright (API synchrone) tourne dans une boucle asyncio : Django doit l'accepter
 # pour que les fixtures puissent toucher la base depuis le thread de test.
@@ -79,6 +79,11 @@ def assert_fits_width(page: Page, *, mobile: bool = False) -> None:
     assert scroll_width <= client_width, f"débordement : {scroll_width} > {client_width} px"
     if mobile:
         assert client_width < 500, f"mise en page mobile inactive ({client_width} px)"
+
+
+def teacher_nav(page: Page) -> Locator:
+    """Navigation du bandeau de l'espace enseignant (VIS-05)."""
+    return page.get_by_role("navigation", name="Espace enseignant")
 
 
 def login(page: Page, base_url: str) -> None:
