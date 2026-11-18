@@ -5,18 +5,21 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django import forms
-from django.db import transaction
+from django.db import models, transaction
 
 from bank import content
 from bank.composition import arrange
+from bank.images import MAX_IMAGE_BYTES, CheckedImage, ImageError, check
 from bank.models import (
     CHOICE_MAX_LENGTH,
     NONE_OF_THESE,
     Choice,
     Image,
     Question,
+    QuestionOrigin,
     Quiz,
     QuizItem,
+    by_title,
 )
 from bank.scoring import (
     LETTERS,
@@ -28,6 +31,7 @@ from bank.scoring import (
     parse_points,
     parse_scoring,
 )
+from bank.search import SORTS
 from config.forms import PlainForm, TeacherForm, table_field
 from roster.models import StudentGroup
 
@@ -38,8 +42,8 @@ INCLUDE = "Inclure la question : "  # libellé de la case de composition (CMP-04
 
 
 def check_content(text: str) -> None:
-    """Refuse un texte mal formé, ou qui cite une image inconnue : une image ne s'ajoute que par
-    l'import (CNT-03, I17)."""
+    """Refuse un texte mal formé, ou qui cite une image inconnue : une image s'ajoute par
+    l'import (CNT-03) ou par le champ « Image » du formulaire (CNT-06)."""
     try:
         names = content.images(text)
     except content.ContentError as error:
@@ -66,10 +70,21 @@ class ContentField(forms.CharField):
             check_content(value)
 
 
+IMAGE_NOT_KEPT = "L'image n'a pas été gardée : choisissez-la de nouveau."
+
+
 class QuestionForm(TeacherForm):
-    """Énoncé, type, barème, options, et 8 emplacements de proposition (les vides sont ignorés)."""
+    """Énoncé, type, barème, options, et 8 emplacements de proposition (les vides sont ignorés).
+    Une image envoyée (CNT-06) s'ajoute en dernier paragraphe de l'énoncé."""
 
     text = ContentField(label="Énoncé", rows=3)
+    image = forms.FileField(
+        label="Image",
+        required=False,
+        help_text="Facultative : PNG, JPEG ou SVG, 2 Mo au plus. Sa référence s'ajoute à la "
+        "fin de l'énoncé ; vous pourrez ensuite la déplacer.",
+        widget=forms.FileInput(attrs={"accept": ".png,.jpg,.jpeg,.svg"}),
+    )
 
     class Meta:
         model = Question
@@ -112,6 +127,32 @@ class QuestionForm(TeacherForm):
                     initial=format_points(points),
                 )
             )
+
+    def clean_image(self) -> CheckedImage | None:
+        """Image contrôlée comme à l'import (CNT-03) ; celle dont le contenu est déjà dans la
+        banque garde son nom, pour n'être enregistrée qu'une fois."""
+        upload = self.cleaned_data.get("image")
+        if not upload:
+            return None
+        try:  # un octet de plus que la limite suffit à la constater, sans tout lire
+            image = check(upload.name or "", upload.read(MAX_IMAGE_BYTES + 1))
+        except ImageError as error:
+            raise forms.ValidationError(f"{error}.") from None
+        same = Image.objects.filter(sha256=image.sha256, content_type=image.content_type)
+        if name := same.values_list("name", flat=True).first():
+            return CheckedImage(name, image.sha256, image.content_type, image.data)
+        if Image.objects.filter(name=image.name).exists():  # 8 chiffres en commun
+            raise forms.ValidationError(
+                f"une autre image porte déjà ce nom : {image.name} ; renommez le fichier."
+            )
+        return image
+
+    def full_clean(self) -> None:
+        """Une image n'est enregistrée qu'avec la question : si le formulaire a une autre
+        erreur, le navigateur ne la renverra pas, il faut la choisir de nouveau (CNT-06)."""
+        super().full_clean()
+        if self.errors and self.files.get("image") and "image" not in self.errors:
+            self.add_error(None, IMAGE_NOT_KEPT)
 
     def choice_rows(self):
         """(lettre, champ texte, case « juste », points) pour le gabarit."""
@@ -160,6 +201,9 @@ class QuestionForm(TeacherForm):
                 "Une question à choix multiple a au moins une bonne réponse."
             )
         data["choices"] = choices
+        image = data.get("image")
+        if image and data.get("text"):  # sans énoncé, le formulaire est déjà refusé
+            data["text"] = f"{data['text']}\n\n\\includegraphics{{{image.name}}}"
         return data
 
     def _points(self, letter: str, text: str, multiple: bool) -> Decimal | None:
@@ -203,6 +247,15 @@ class QuestionForm(TeacherForm):
 
     @transaction.atomic
     def save(self, commit: bool = True) -> Question:
+        if commit and (image := self.cleaned_data.get("image")):
+            Image.objects.defer("data").get_or_create(  # le contenu ne sert pas ici
+                name=image.name,
+                defaults={
+                    "sha256": image.sha256,
+                    "content_type": image.content_type,
+                    "data": image.data,
+                },
+            )
         question = super().save(commit=commit)
         if not commit:
             return question
@@ -212,6 +265,80 @@ class QuestionForm(TeacherForm):
             for position, (text, correct, points) in enumerate(self.cleaned_data["choices"])
         )
         return question
+
+
+class BankSearchForm(PlainForm):
+    """Critères de recherche de la banque (BAN-11 à BAN-13), passés dans l'adresse. Une
+    valeur inconnue (lien ancien, adresse retouchée) est ignorée, comme un critère vide."""
+
+    USED, UNUSED = "oui", "non"
+    ALREADY, NEVER = "deja", "jamais"
+
+    q = forms.CharField(label="Rechercher", required=False, max_length=200)
+    kind = forms.ChoiceField(
+        label="Type", required=False, choices=[("", "Tous les types"), *Question.Kind.choices]
+    )
+    use = forms.ChoiceField(
+        label="Utilisation",
+        required=False,
+        choices=[("", "Toutes"), (USED, "Dans au moins un QCM"), (UNUSED, "Dans aucun QCM")],
+    )
+    origin = forms.ChoiceField()  # choix selon la base, dans __init__
+    posed = forms.ChoiceField()
+    sort = forms.ChoiceField(label="Tri", required=False, choices=list(SORTS.items()))
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.imported = {str(q.pk): q for q in by_title(Quiz.objects.exclude(source_sha256=""))}
+        self.fields["origin"] = forms.ChoiceField(  # remplacé à sa place, avec ses choix
+            label="QCM d'origine",
+            required=False,
+            choices=[("", "Tous les QCM"), *((pk, q.title) for pk, q in self.imported.items())],
+        )
+        self.groups = {str(g.pk): g for g in StudentGroup.objects.all()}  # nom, puis année
+        self.fields["posed"] = forms.ChoiceField(
+            label="Posée à un groupe",
+            required=False,
+            choices=[
+                ("", "Sans filtre"),
+                *(
+                    (f"{mode}-{pk}", f"{label} à {group}")
+                    for pk, group in self.groups.items()
+                    for mode, label in ((self.ALREADY, "Déjà posée"), (self.NEVER, "Jamais posée"))
+                ),
+            ],
+        )
+
+    def criteria(self) -> dict[str, str]:
+        """Les critères valides et non vides."""
+        self.is_valid()
+        return {name: value for name, value in self.cleaned_data.items() if value}
+
+    def questions(self) -> models.QuerySet[Question]:
+        """Questions de la banque retenues par le type, l'utilisation et le QCM d'origine ;
+        le texte et le groupe se filtrent ensuite, sur la liste."""
+        criteria = self.criteria()
+        found = Question.current()
+        if kind := criteria.get("kind"):
+            found = found.filter(kind=kind)
+        in_a_quiz = models.Exists(QuizItem.objects.filter(question=models.OuterRef("pk")))
+        if criteria.get("use") == self.USED:
+            found = found.filter(in_a_quiz)
+        elif criteria.get("use") == self.UNUSED:
+            found = found.exclude(in_a_quiz)
+        if origin := criteria.get("origin"):  # IMP-10 : l'origine suit les versions
+            sha256 = self.imported[origin].source_sha256
+            found = found.filter(
+                models.Exists(
+                    QuestionOrigin.objects.filter(sha256=sha256, question=models.OuterRef("pk"))
+                )
+            )
+        return found
+
+    def posed_group(self) -> tuple[bool, StudentGroup] | None:
+        """(« déjà posée » ?, groupe), si ce filtre est choisi (BAN-13)."""
+        mode, _, pk = self.criteria().get("posed", "").partition("-")
+        return (mode == self.ALREADY, self.groups[pk]) if pk else None
 
 
 class VersionScopeForm(PlainForm):

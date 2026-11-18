@@ -9,7 +9,7 @@
       <ul aria-label="QCM touchés">{% for touched_quiz in touched %}<li>{{ touched_quiz.title }}</li>{% empty %}<li>aucun</li>{% endfor %}</ul>
     </div>
   {% endif %}
-  <form method="post" class="form wide" novalidate>
+  <form method="post" class="form wide" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
     {% include "form_errors.html" %}
     {% if scope %}
@@ -21,6 +21,9 @@
     {{ form.text.label_tag }}
     {{ form.text }}
     <p class="muted">Une ligne vide sépare deux paragraphes.</p>
+    {{ form.image.label_tag }}
+    {{ form.image }}
+    <p class="muted" id="{{ form.image.auto_id }}_helptext">{{ form.image.help_text }}</p>
     <fieldset>
       <legend>Type</legend>
       <p class="muted">Simple : une seule bonne réponse. Multiple : une ou plusieurs.</p>
@@ -49,7 +52,7 @@
     </fieldset>
     <p class="actions">
       <button type="submit">Enregistrer</button>
-      <a href="{% if quiz %}{% url 'quiz-detail' quiz.pk %}{% else %}{% url 'question-list' %}{% endif %}">Annuler</a>
+      <a href="{{ back }}">Annuler</a>
     </p>
   </form>
 {% endblock %}
