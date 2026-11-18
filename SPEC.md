@@ -353,7 +353,7 @@ Le lecteur suit les règles du lecteur AMC-TXT d'AMC (`AMC::Filter::plain`) : m�
   - Limites de la base (I12) : barème de plus de 200 caractères, une fois réécrit sous sa forme courte ; étiquette de groupe de plus de 100 caractères ; valeur d'une proposition de plus de 6 chiffres avant la virgule ou de 3 après.
   - Question multiple sans bonne réponse, sans « Aucune de ces réponses n'est correcte » (`CompleteMulti: 0`).
   - Contenu converti en LaTeX léger (I17), mais refusé par celui-ci (§2 quater) : commande inconnue, formule ou accolade non fermée. Mise en forme jamais fermée.
-  - Image PDF ou EPS, d'un autre format que PNG, JPEG ou SVG, ou illisible (CNT-03).
+  - Image PDF ou EPS, d'un autre format que PNG, JPEG ou SVG, ou illisible (CNT-03). Image écrite en LaTeX (`\includegraphics` avec `LaTeX: 1` ou dans `[latex]…[/latex]`) : seule `!…!` est cherchée dans l'archive. *(dérivé, I17)*
   - Doublon d'une question précédente du même fichier (IMP-07). L'étiquette de groupe n'entre pas dans la comparaison : une question répétée dans deux groupes reste un doublon.
 
 - **Conversion du contenu (I17).** Le texte est converti en LaTeX léger (§2 quater), module par module dans l'ordre d'AMC :
@@ -362,6 +362,7 @@ Le lecteur suit les règles du lecteur AMC-TXT d'AMC (`AMC::Filter::plain`) : m�
   - `!image.png!` devient `\includegraphics{…}` ; les options `{center}` et `[width=…]` sont acceptées sans effet ;
   - `[_…_]`, `[*…*]`, `[/…/]` et `[|…|]` deviennent italique, gras, souligné et code en ligne ; le titre `[==…==]`, du gras ;
   - le reste est du texte : `\`, `$` et les accolades y sont échappés. Avec `LaTeX: 1`, il est déjà du LaTeX et passe tel quel.
+  - Le code en ligne garde ses espaces, comme un bloc (CNT-02).
   - Un module désactivé par `Disable:` laisse ses marques en texte, comme dans AMC.
 
 ## 2 quater. LaTeX léger des énoncés et des propositions (I17, *décision du commanditaire* ; détail : *dérivé*)
@@ -373,8 +374,8 @@ Hors des formules et des commandes ci-dessous, le texte s'écrit tel quel (« 50
 - **Mise en forme** (CNT-04) : `\textbf{…}` (gras), `\textit{…}` et `\emph{…}` (italique), `\underline{…}` (souligné).
 - **Image** (CNT-03) : `\includegraphics{nom}` ; des options entre crochets sont acceptées sans effet. Le nom est celui donné à l'import.
 - **Caractères** : `\\` est un saut de ligne ; `\$`, `\%`, `\&`, `\_`, `\#`, `\{`, `\}` et `\textbackslash{}` s'affichent tels quels. Hors d'un argument, une accolade est du texte.
-- **Refusé** par le formulaire et à l'import, avec la raison : commande inconnue, formule non fermée, accolade ou crochet non fermé, argument manquant, nom d'image vide.
-- **Textes d'avant I17** : la migration double leurs `\` et `$` d'un échappement (`\textbackslash{}`, `\$`), banque et sessions comprises. Ils s'affichent à l'identique.
+- **Refusé** par le formulaire et à l'import, avec la raison : commande inconnue, formule non fermée, accolade ou crochet non fermé, argument manquant, nom d'image vide, mise en forme imbriquée sur plus de 20 niveaux.
+- **Textes d'avant I17** : la migration échappe leurs `\`, `$` et accolades (`\textbackslash{}`, `\$`, `\{`, `\}`), banque et sessions comprises, comme le fait l'import (IMP-07 : une question réimportée n'est pas dupliquée). Ils s'affichent à l'identique.
 
 ## 3. Barème (logique AMC)
 
