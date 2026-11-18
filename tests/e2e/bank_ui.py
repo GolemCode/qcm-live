@@ -9,16 +9,18 @@ import re
 
 from playwright.sync_api import Locator, Page, expect
 
+from tests.e2e.conftest import teacher_nav
+
 LETTERS = "ABCDEFGH"
 
 
 def open_bank(page: Page) -> None:
-    page.get_by_role("navigation").get_by_role("link", name="Banque de questions").click()
+    teacher_nav(page).get_by_role("link", name="Banque de questions").click()
     expect(page.get_by_role("heading", name="Banque de questions", level=1)).to_be_visible()
 
 
 def open_quizzes(page: Page) -> None:
-    page.get_by_role("navigation").get_by_role("link", name="QCM", exact=True).click()
+    teacher_nav(page).get_by_role("link", name="QCM", exact=True).click()
     expect(page.get_by_role("heading", name="QCM", exact=True, level=1)).to_be_visible()
 
 

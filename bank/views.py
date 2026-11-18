@@ -4,29 +4,86 @@ import secrets
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
-from django.http import HttpRequest, HttpResponse
+from django.core.paginator import Paginator
+from django.db.models import Count, prefetch_related_objects
+from django.http import HttpRequest, HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
+from django.urls import reverse
 from django.utils.csp import CSP
 from django.views.decorators.csp import csp_override
 
 from bank.amc_txt import AmcSyntaxError
 from bank.archive import MAX_ARCHIVE_BYTES
-from bank.forms import AmcUploadForm, QuestionForm, QuizCopyForm, QuizForm, VersionScopeForm
+from bank.content import plain
+from bank.forms import (
+    AmcUploadForm,
+    BankSearchForm,
+    QuestionForm,
+    QuizCopyForm,
+    QuizForm,
+    VersionScopeForm,
+)
 from bank.importer import Preview, preview, save_import
 from bank.models import NONE_OF_THESE, Image, PendingImport, Question, Quiz, by_title
+from bank.search import ALPHABETICAL, PER_PAGE, RECENT, matches, sort_key
 from live.history import posed_to
 
 
 @login_required
 def question_list(request: HttpRequest) -> HttpResponse:
-    questions = Question.current().prefetch_related("choices", "quizzes", "previous__choices")
-    return render(
-        request,
-        "bank/question_list.html",
-        {"questions": questions, "none_of_these": NONE_OF_THESE},
-    )
+    """La banque, filtrée et triée (BAN-11 à BAN-13), 20 questions par page."""
+    form = BankSearchForm(request.GET)
+    criteria = form.criteria()
+    found = list(form.questions())
+    if text := criteria.get("q"):
+        prefetch_related_objects(found, "choices")
+        found = [q for q in found if matches(text, _shown_texts(q))]
+    posed: dict[Question, int] = {}
+    n_students = 0
+    if chosen := form.posed_group():
+        already, group = chosen
+        posed = posed_to(group, found)
+        found = [q for q in found if (q in posed) == already]
+        n_students = group.students.count()
+    sort = criteria.get("sort", RECENT)
+    alphabetical = sort == ALPHABETICAL  # l'énoncé en texte brut ne sert qu'à ce tri
+    found.sort(key=lambda q: sort_key(sort, q.pk, plain(q.text) if alphabetical else ""))
+    page = Paginator(found, PER_PAGE).get_page(request.GET.get("page"))
+    shown = list(page)
+    prefetch_related_objects(shown, "choices", "quizzes", "previous__choices")
+    context = {
+        "form": form,
+        "page": page,
+        "rows": [(q, posed.get(q, 0)) for q in shown],
+        "n_students": n_students,
+        "total": Question.current().count(),
+        "criteria": _criteria(request),
+        "searched": bool(criteria),  # la page seule n'est pas un critère
+        "none_of_these": NONE_OF_THESE,
+    }
+    return render(request, "bank/question_list.html", context)
+
+
+def _shown_texts(question: Question) -> list[str]:
+    """Énoncé et propositions tels qu'affichés, sans balisage : la recherche porte sur eux."""
+    return [plain(question.text), *(plain(c.text) for c in question.choices.all())]
+
+
+def _criteria(request: HttpRequest) -> str:
+    """Les critères de la banque et sa page, tels que l'adresse les porte : pour y revenir
+    après « Modifier » (BAN-11)."""
+    kept = QueryDict(mutable=True)
+    for name in [*BankSearchForm.base_fields, "page"]:
+        if value := request.GET.get(name):
+            kept[name] = value
+    return kept.urlencode()
+
+
+def _bank(request: HttpRequest) -> str:
+    """Adresse de la banque, avec les critères qu'on y avait choisis."""
+    criteria = _criteria(request)
+    return reverse("question-list") + (f"?{criteria}" if criteria else "")
 
 
 def _from_quiz(request: HttpRequest, question: Question) -> Quiz | None:
@@ -44,7 +101,7 @@ def question_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     # Déjà servie dans une session lancée : la modifier crée une nouvelle version (VER-01).
     used = question.pk is not None and question.sessions.exists()
     before = question.content() if used else None
-    form = QuestionForm(request.POST or None, instance=question)
+    form = QuestionForm(request.POST or None, request.FILES or None, instance=question)
     scope = VersionScopeForm(request.POST or None, quiz=quiz) if used and quiz else None
     valid = form.is_valid() and (scope is None or scope.is_valid())
     if request.method == "POST" and valid:
@@ -59,10 +116,11 @@ def question_edit(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             messages.success(request, "Nouvelle version enregistrée.")
         if quiz is not None:
             return redirect("quiz-detail", pk=quiz.pk)
-        return redirect("question-list")
+        return redirect(_bank(request))
     touched = Quiz.objects.filter(questions=question) if used else None
+    back = reverse("quiz-detail", args=[quiz.pk]) if quiz else _bank(request)
     context = {"form": form, "question": question, "quiz": quiz, "used": used, "scope": scope}
-    return render(request, "bank/question_form.html", context | {"touched": touched})
+    return render(request, "bank/question_form.html", context | {"touched": touched, "back": back})
 
 
 @login_required
@@ -71,8 +129,8 @@ def question_delete(request: HttpRequest, pk: int) -> HttpResponse:
     if request.method == "POST":
         question.remove()
         messages.success(request, "Question supprimée.")
-        return redirect("question-list")
-    context = {"question": question, "used": question.sessions.exists()}
+        return redirect(_bank(request))
+    context = {"question": question, "used": question.sessions.exists(), "back": _bank(request)}
     return render(request, "bank/question_confirm_delete.html", context)
 
 

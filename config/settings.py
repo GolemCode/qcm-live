@@ -94,6 +94,8 @@ TEMPLATES = [
             ],
             # Filtres `content` et `plain` du LaTeX léger, dans toutes les pages (CNT-01).
             "builtins": ["bank.templatetags.content"],
+            # Bandeau de l'espace enseignant (VIS-05).
+            "libraries": {"teacher": "config.teacher_tags"},
         },
     },
 ]

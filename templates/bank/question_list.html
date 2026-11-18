@@ -1,25 +1,46 @@
 {% extends "teacher/base.html" %}
 {% block title %}Banque de questions — QCM Live{% endblock %}
 {% block content %}
-  <div class="bar">
+  <div class="bar title-bar">
     <h1>Banque de questions</h1>
     <a class="button" href="{% url 'question-create' %}">Nouvelle question</a>
   </div>
-  {% for question in questions %}
+  <form method="get" class="search" role="search" aria-label="Rechercher dans la banque">
+    <div class="search-text">
+      {{ form.q.label_tag }}
+      {{ form.q }}
+    </div>
+    {% for field in form %}{% if field.name != "q" %}
+      <div>{{ field.label_tag }}{{ field }}</div>
+    {% endif %}{% endfor %}
+    <p class="actions">
+      <button type="submit">Filtrer</button>
+      {% if searched and page.paginator.count %}<a href="{% url 'question-list' %}">Effacer les critères</a>{% endif %}
+    </p>
+  </form>
+  <p class="count">{{ page.paginator.count }} question{{ page.paginator.count|pluralize }} sur {{ total }}</p>
+  {% for question, n in rows %}
     <article class="card">
       <h2 class="text">{{ question.text|content }}</h2>
-      <p class="muted">{{ question.get_kind_display }}{% if question.scoring %} · Barème : {{ question.scoring }}{% endif %}{% if question.ordered %} · Ordre fixe{% endif %}{% if question.amc_group %} · Étiquette : {{ question.amc_group }}{% endif %}</p>
+      <p class="tags">
+        <span class="tag">{{ question.get_kind_display }}</span>
+        {% if question.ordered %}<span class="tag">Ordre fixe</span>{% endif %}
+        {% if n %}<span class="tag posed">posée à {{ n }} étudiant{{ n|pluralize }} sur {{ n_students }}</span>{% endif %}
+      </p>
       <ol class="choices" type="A">
         {% for choice in question.choices.all %}
           <li><span class="text">{{ choice.text|content }}</span>{% if choice.correct %} <strong>(juste)</strong>{% endif %}{% if choice.points is not None %} <span class="muted">({{ choice.points|floatformat:"-3" }} pt)</span>{% endif %}</li>
         {% endfor %}
         {% if question.none_of_these %}<li>{{ none_of_these }}{% if question.none_is_correct %} <strong>(juste)</strong>{% endif %}</li>{% endif %}
       </ol>
-      <p class="muted">
+      {# Des paragraphes, pas une liste : les propositions restent les seuls éléments de liste. #}
+      <div class="facts">
+        {% if question.scoring %}<p><span class="label">Barème :</span> {{ question.scoring }}</p>{% endif %}
+        {% if question.amc_group %}<p><span class="label">Étiquette :</span> {{ question.amc_group }}</p>{% endif %}
         {% with quizzes=question.quizzes.all %}
-          {% if quizzes %}Utilisée dans : {{ quizzes|join:", " }}{% else %}Utilisée dans aucun QCM{% endif %}
+          <p>{% if quizzes %}<span class="label">Utilisée dans :</span> {{ quizzes|join:", " }}{% else %}<span class="label">Utilisée dans aucun QCM</span>{% endif %}</p>
         {% endwith %}
-      </p>
+      </div>
       {% with versions=question.previous_versions %}
         {% if versions %}
           <details>
@@ -36,11 +57,22 @@
         {% endif %}
       {% endwith %}
       <p class="actions">
-        <a href="{% url 'question-update' question.pk %}">Modifier</a>
-        <a href="{% url 'question-delete' question.pk %}">Supprimer</a>
+        <a href="{% url 'question-update' question.pk %}{% if criteria %}?{{ criteria }}{% endif %}">Modifier</a>
+        <a href="{% url 'question-delete' question.pk %}{% if criteria %}?{{ criteria }}{% endif %}">Supprimer</a>
       </p>
     </article>
   {% empty %}
-    <p>La banque est vide : créez votre première question.</p>
+    {% if total %}
+      <p>Aucune question ne correspond. <a href="{% url 'question-list' %}">Effacer les critères</a></p>
+    {% else %}
+      <p>La banque est vide : créez votre première question.</p>
+    {% endif %}
   {% endfor %}
+  {% if page.has_other_pages %}
+    <nav class="pages" aria-label="Pages">
+      {% if page.has_previous %}<a href="{% querystring page=page.previous_page_number %}" rel="prev">Page précédente</a>{% endif %}
+      <span>Page {{ page.number }} sur {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a href="{% querystring page=page.next_page_number %}" rel="next">Page suivante</a>{% endif %}
+    </nav>
+  {% endif %}
 {% endblock %}

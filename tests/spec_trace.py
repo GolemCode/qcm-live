@@ -8,6 +8,10 @@ ne compte pas). Un marqueur qui vise un identifiant inconnu fait toujours échou
 Un incrément hors numérotation porte une lettre (`(ID)`, incrément D) : ses exigences sont
 exigibles dès que la lettre figure dans `[tool.qcm] lettered`.
 
+Un incrément mis de côté par décision du commanditaire figure dans `[tool.qcm] deferred` (I18,
+décidé en I19) : ses exigences ne sont plus exigibles, mais le rapport les liste « REPORTÉ », et
+`make accept INC=<n>` les vérifie toujours.
+
 `make verify` enregistre son résultat (`--spec-record`) avec l'empreinte des fichiers du dépôt ;
 `make accept` le reprend tant que cette empreinte n'a pas changé (`tests/accept.py`).
 """
@@ -41,16 +45,24 @@ class Requirement:
 
 @dataclass(frozen=True)
 class Declared:
-    """Incréments exigibles : les numéros jusqu'à `number`, et les lettres de `letters`."""
+    """Incréments exigibles : les numéros jusqu'à `number`, et les lettres de `letters`, sauf
+    ceux de `deferred`, mis de côté par le commanditaire."""
 
     number: int
     letters: frozenset[str] = frozenset()
+    deferred: frozenset[str] = frozenset()
 
     def includes(self, increment: str) -> bool:
+        if increment in self.deferred:
+            return False
         return increment in self.letters if increment.isalpha() else int(increment) <= self.number
 
     def __str__(self) -> str:
-        return ", ".join([f"I0..I{self.number}", *(f"I{x}" for x in sorted(self.letters))])
+        parts = [f"I0..I{self.number}", *(f"I{x}" for x in sorted(self.letters))]
+        if self.deferred:
+            later = ", ".join(f"I{x}" for x in sorted(self.deferred, key=increment_key))
+            parts[-1] += f", sauf {later} (reporté)"
+        return ", ".join(parts)
 
 
 def increment_key(increment: str) -> tuple[int, str]:
@@ -82,7 +94,8 @@ def parse_spec(text: str) -> dict[str, Requirement]:
 
 def current_increment(pyproject_text: str) -> Declared:
     qcm = tomllib.loads(pyproject_text)["tool"]["qcm"]
-    return Declared(int(qcm["increment"]), frozenset(qcm.get("lettered", [])))
+    deferred = frozenset(normalise(x) for x in qcm.get("deferred", []))
+    return Declared(int(qcm["increment"]), frozenset(qcm.get("lettered", [])), deferred)
 
 
 def normalise(increment: str | int) -> str:
@@ -140,6 +153,10 @@ def report_lines(
         status = "OK " if cov.passed_e2e else "MANQUE"
         tests = ", ".join(cov.passed_e2e) or "aucun test E2E passé"
         lines.append(f"  {status:6} {req.id} (I{req.increment})  {tests}")
+    if only is None:
+        deferred = [r for r in requirements.values() if r.increment in up_to.deferred]
+        for req in sorted(deferred, key=lambda r: (increment_key(r.increment), r.id)):
+            lines.append(f"  REPORTÉ {req.id} (I{req.increment})  mis de côté, non exigé")
     return lines
 
 

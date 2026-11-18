@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from playwright.sync_api import Locator, Page, expect
 
+from tests.e2e.conftest import teacher_nav
+
 
 def open_groups(page: Page) -> None:
-    page.get_by_role("navigation").get_by_role("link", name="Groupes").click()
+    teacher_nav(page).get_by_role("link", name="Groupes").click()
     expect(page.get_by_role("heading", name="Groupes", exact=True, level=1)).to_be_visible()
 
 

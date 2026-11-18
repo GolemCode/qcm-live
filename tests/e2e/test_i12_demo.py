@@ -21,6 +21,7 @@ from bank.models import Choice, Image, Question, Quiz
 from roster.models import StudentGroup
 from tests.e2e.amc_ui import NONE_OF_THESE, confirm_import, expect_recap, recap_items, upload_amc
 from tests.e2e.bank_ui import open_quizzes, quiz_question_items
+from tests.e2e.conftest import teacher_nav
 from tests.e2e.live_setup import expect_slot, started
 from tests.e2e.live_ui import (
     LIVE_MS,
@@ -159,7 +160,7 @@ def test_make_demo_prepares_account_group_and_quiz(page: Page, live_server, tran
     expect(page.get_by_role("heading", name="Espace enseignant")).to_be_visible()
     open_quizzes(page)
     expect(page.get_by_role("link", name=demo_title(), exact=True)).to_be_visible()
-    page.get_by_role("navigation").get_by_role("link", name="Groupes").click()
+    teacher_nav(page).get_by_role("link", name="Groupes").click()
     expect(page.get_by_role("main")).to_contain_text("Démo")
     assert (Quiz.objects.count(), StudentGroup.objects.count()) == (1, 1)
     assert StudentGroup.objects.get().students.count() >= 2

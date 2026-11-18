@@ -31,8 +31,9 @@ package = false
 # doivent avoir au moins un test E2E passé (voir tests/spec_trace.py). `lettered` : les
 # incréments à lettre, hors numérotation, dont les exigences (ID) sont exigibles.
 [tool.qcm]
-increment = 17
+increment = 19
 lettered = ["D"]
+deferred = [18]  # import LaTeX AMC, mis de côté par le commanditaire (décidé en I19)
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"

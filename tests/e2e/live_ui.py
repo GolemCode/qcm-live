@@ -12,12 +12,14 @@ import zxingcpp
 from PIL import Image, ImageColor
 from playwright.sync_api import Locator, Page, ViewportSize, expect
 
+from tests.e2e.conftest import teacher_nav
+
 CODE_RE = re.compile(r"\b(\d{6})\b")
 
 
 def open_sessions(page: Page) -> None:
     """Liste des sessions, par la navigation de l'espace enseignant."""
-    page.get_by_role("navigation").get_by_role("link", name="Sessions").click()
+    teacher_nav(page).get_by_role("link", name="Sessions").click()
     expect(page.get_by_role("heading", name="Sessions", exact=True, level=1)).to_be_visible()
 
 

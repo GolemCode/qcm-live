@@ -1,0 +1,51 @@
+/* Espace enseignant, direction « Signalétique » (VIS-05). Chargée par teacher/base.html seul,
+   après app.css (bloc head de base.html) : ses règles complètent ou surchargent celles d'app.css,
+   que le tableau et le téléphone gardent seule. */
+
+/* --- Bandeau ------------------------------------------------------------------------------ */
+.teacher-band { gap: 0.5rem 1.5rem; padding: 0.6rem 1rem; }
+.teacher-band nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+.teacher-band nav a { padding: 0.2rem 0; border-bottom: var(--rule) solid transparent; text-decoration: none; }
+.teacher-band nav a:hover { border-bottom-color: var(--on-ink); }
+.teacher-band nav a[aria-current="page"] { border-bottom-color: var(--signal); font-weight: 700; }
+.teacher-band .logout { margin-left: auto; }
+.teacher-band button.link { color: var(--on-ink); }
+
+/* --- Page --------------------------------------------------------------------------------- */
+.teacher .page { overflow-wrap: anywhere; }
+.teacher h1 { padding-bottom: 0.35rem; border-bottom: var(--rule) solid var(--ink); }
+.title-bar { align-items: flex-end; margin-bottom: 1rem; }
+.title-bar h1 { flex: 1 1 16rem; margin-bottom: 0; }
+
+/* Fiches : questions, QCM. */
+.teacher .card { border-width: var(--rule); padding: 0.25rem 1rem 0.5rem; }
+.tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.tag {
+  padding: 0.05rem 0.5rem; border: 2px solid var(--ink); border-radius: var(--radius);
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.tag.posed { background: var(--ink); color: var(--on-ink); }
+.facts { margin: 0.5rem 0; }
+.facts p { margin: 0.15rem 0; }
+.facts .label { display: inline; }
+
+/* --- Recherche de la banque (BAN-11 à BAN-13) ---------------------------------------------- */
+.search {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.75rem 1rem;
+  margin: 0 0 1rem; padding: 0.75rem 1rem 1rem; border: var(--rule) solid var(--ink);
+  border-radius: var(--radius); background: var(--surface);
+}
+.search label { display: block; margin-bottom: 0.2rem; font-size: 0.875rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.search .search-text { grid-column: 1 / -1; }
+.search .actions { grid-column: 1 / -1; margin: 0; }
+.count { margin: 0 0 0.5rem; font-weight: 700; }
+.pages { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: center; margin: 1.5rem 0; padding-top: 0.75rem; border-top: var(--rule) solid var(--ink); }
+
+/* --- Tableaux ----------------------------------------------------------------------------- */
+.teacher .grid th, .teacher .grid td { overflow-wrap: anywhere; }
+
+/* --- Débordements à 360 px, à toute largeur ------------------------------------------------ */
+/* La grille .form d'app.css a une colonne `auto` : elle prendrait la largeur de son plus long
+   contenu insécable (exemple AMC en <pre>). Corrigé ici, app.css n'étant pas touché en I19. */
+.teacher .form { grid-template-columns: minmax(0, 1fr); }
+.teacher pre { overflow-x: auto; }

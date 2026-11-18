@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import unicodedata
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -11,6 +10,7 @@ from django.db import models, transaction
 
 from bank.amc_txt import CHOICE_MAX_LENGTH, GROUP_LABEL_MAX_LENGTH, TITLE_MAX_LENGTH
 from bank.scoring import LETTERS, SCORING_MAX_LENGTH
+from bank.search import fold
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import ManyRelatedManager, RelatedManager
@@ -131,8 +131,7 @@ class Choice(models.Model):
 def title_key(title: str) -> tuple[str, str]:
     """Clé de l'ordre alphabétique des titres, sans tenir compte des majuscules ni des accents
     (« Écologie » entre « Biologie » et « Zoologie »), le titre exact départageant."""
-    bare = "".join(c for c in unicodedata.normalize("NFKD", title) if not unicodedata.combining(c))
-    return bare.casefold(), title
+    return fold(title), title
 
 
 def by_title(quizzes: Iterable[Quiz]) -> list[Quiz]:

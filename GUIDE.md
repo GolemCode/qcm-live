@@ -110,3 +110,26 @@ Dans un terminal, QCM Live arrêté :
 - **Autre compte enseignant** : `qcm-live compte`.
 - **Autre port** (si 8000 est pris) : `qcm-live --port 8080`.
 - **Désinstaller** (Linux) : supprimez `~/.local/share/qcm-live`, `~/.local/bin/qcm-live` et `~/.local/share/applications/qcm-live.desktop`. Sous Windows : le dossier `%LOCALAPPDATA%\qcm-live`, le fichier `%USERPROFILE%\.local\bin\qcm-live.cmd` et le raccourci « QCM Live » du menu Démarrer. Le dossier `QCM Live/sauvegardes` n'est jamais supprimé par QCM Live.
+
+## 8. Revenir à une version précise (dépannage)
+
+Si la dernière version pose problème le jour d'un cours, vous pouvez réinstaller une version antérieure : chaque version livrée porte une étiquette (`inc-19`, `inc-d`, `inc-17`…), visible dans la page [Tags](https://github.com/GolemCode/qcm-live/tags) du dépôt. Vos QCM, groupes, résultats et votre compte restent, comme pour une mise à jour. Remplacez `inc-d` par l'étiquette voulue dans les deux lignes.
+
+**Linux.** Dans un terminal :
+
+```sh
+curl -LsSf https://github.com/GolemCode/qcm-live/archive/refs/tags/inc-d.tar.gz -o "$HOME/qcm-live-inc-d.tar.gz"
+curl -LsSf https://raw.githubusercontent.com/GolemCode/qcm-live/inc-d/install.sh | QCM_LIVE_ARCHIVE="$HOME/qcm-live-inc-d.tar.gz" sh
+```
+
+**Windows.** Dans PowerShell :
+
+```powershell
+Invoke-WebRequest -UseBasicParsing https://github.com/GolemCode/qcm-live/archive/refs/tags/inc-d.zip -OutFile "$env:TEMP\qcm-live-inc-d.zip"
+$env:QCM_LIVE_ARCHIVE = "$env:TEMP\qcm-live-inc-d.zip"; powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/GolemCode/qcm-live/inc-d/install.ps1 | iex"; Remove-Item Env:QCM_LIVE_ARCHIVE
+```
+
+La première ligne télécharge le code de cette version ; la seconde lance l'installation de la même version, à partir du fichier téléchargé. Comme pour une mise à jour, rien ne vous est demandé : votre compte reste. Le fichier téléchargé peut ensuite être supprimé.
+
+- **Jusqu'où revenir** : depuis `inc-19`, `inc-d` et `inc-17` lisent vos données telles quelles. Une version plus ancienne (`inc-16` et avant) ne connaît pas les images ni les versions récentes des questions : restaurez alors, après l'installation, une sauvegarde faite avec cette version-là (section 6).
+- **Revenir à la dernière version** : relancez la ligne d'installation habituelle (section 1).
