@@ -288,7 +288,7 @@ def test_filter_posed_or_never_posed_to_a_group(teacher_page: Page):
     expect(article(page, SKY)).to_contain_text("posée à 1 étudiant sur 5")
     search(page, posed="Jamais posée à ITI4 — 2025-2026")
     assert titles(page) == [OCEAN, SUM]
-    expect(page.get_by_role("main")).not_to_contain_text("posée à")
+    expect(page.get_by_role("article").filter(has_text="posée à")).to_have_count(0)
     search(page, posed="Déjà posée à ITI4 — 2024-2025")  # même nom, autre année
     assert titles(page) == [OCEAN]
     expect(article(page, OCEAN)).to_contain_text("posée à 4 étudiants sur 4")
@@ -360,7 +360,12 @@ def test_refused_image_saves_nothing(teacher_page: Page):
         ("figure.pdf", PDF, "application/pdf", "image PDF ou EPS, à convertir en PNG, JPEG ou SVG"),
         ("photo.gif", b"GIF89a", "image/gif", "format d'image non pris en charge"),
         ("grand.png", PNG_SIGNATURE.ljust(2_000_001, b"\0"), "image/png", "image de plus de 2 Mo"),
-        ("piege.svg", b'<!DOCTYPE svg [<!ENTITY a "b">]><svg/>', "image/svg+xml", "illisible"),
+        (
+            "piege.svg",
+            b'<!DOCTYPE svg [<!ENTITY a "b">]><svg/>',
+            "image/svg+xml",
+            "image illisible",
+        ),
     ]
     page.get_by_role("link", name="Nouvelle question").click()
     for name, data, mime, reason in refused:
