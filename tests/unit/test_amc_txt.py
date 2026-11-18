@@ -447,6 +447,14 @@ def with_files(text: str, files: dict[str, bytes]):
     return parse(text.encode(), "x.txt", files)
 
 
+def test_image_written_in_latex_skips_its_question():
+    # Sans `!…!`, l'image n'est pas cherchée dans l'archive : le formulaire la refuserait.
+    text = "LaTeX: 1\n* Voir \\includegraphics{fig.png} ?\n" + YES_NO
+    assert skipped(text) == [(2, "énoncé : image à écrire !fig.png! dans le fichier AMC-TXT")]
+    latex_block = "* Voir [latex]\\includegraphics{g.png}[/latex] ?\n" + YES_NO
+    assert skipped(latex_block) == [(1, "énoncé : image à écrire !g.png! dans le fichier AMC-TXT")]
+
+
 def test_image_is_stored_under_its_content_name():
     text = "* Voir !{center}[width=2cm]img/../img/b.png! ?\n" + YES_NO
     parsed = with_files(text, {"img/b.png": PNG})

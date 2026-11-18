@@ -418,16 +418,24 @@ def _latex(text: str, settings: _Settings, image_name: Callable[[str], str]) -> 
             segments = _marks(segments, mark, opening)
     if _enabled("title", settings):
         segments = _marks(segments, *TITLE)
-    out = []
+    out: list[str] = []
+    names: set[str] = set()
     for kind, value in segments:
         if kind == "image":
-            out.append(f"\\includegraphics{{{image_name(value)}}}")
+            name = image_name(value)
+            names.add(name)
+            out.append(f"\\includegraphics{{{name}}}")
         elif kind == "text" and not settings.latex:  # `LaTeX: 1` : le texte est déjà du LaTeX
             out.append(re.sub(r"[\\${}]", lambda m: TEXT_ESCAPES[m.group()], value))
         else:
             out.append(value)
     latex = "".join(out)
-    content.parse(latex)  # ContentError : à la charge de l'appelant
+    nodes = content.parse(latex)  # ContentError : à la charge de l'appelant
+    # Un `\includegraphics` écrit en LaTeX n'est pas cherché dans l'archive (seul `!…!` l'est) :
+    # le formulaire le refuserait à la confirmation.
+    for node in content.walk(nodes):
+        if isinstance(node, content.Image) and node.name not in names:
+            raise content.ContentError(f"image à écrire !{node.name}! dans le fichier AMC-TXT")
     return latex
 
 
