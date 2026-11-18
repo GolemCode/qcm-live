@@ -46,7 +46,7 @@ from tests.e2e.live_ui import (
 from tests.e2e.roster_ui import open_groups
 from tests.factories import current_year, make_group
 
-COMPLETE_DIR = REPO / "demo" / "complet"
+COMPLETE_DIR = REPO / "demo-complet"
 FILES = ("fonctions", "probabilites", "python")
 PASSWORD_RE = re.compile(r"Mot de passe\s*:\s*(\S+)")
 GROUP = "L1 Sciences"
@@ -284,6 +284,13 @@ def test_two_groups_with_the_same_name_and_different_years(teacher_page: Page):
 # --- DEM-06 : une session passée ------------------------------------------------------------
 
 
+def plain_texts(questions) -> list[str]:
+    """Énoncés sans formule ni code : la case « Inclure » les nomme tels quels."""
+    texts = [q.text for q in questions if "$" not in q.text and "\\" not in q.text]
+    assert texts, "aucun énoncé sans formule ni code"
+    return texts
+
+
 def past_session() -> Session:
     return Session.objects.get(group_name=GROUP)
 
@@ -309,14 +316,14 @@ def test_past_session_has_results_csv_and_grades_from_the_start(teacher_page: Pa
     rows = results_rows(page)
     assert len(rows) == 70
     grades = [row[5] for row in rows]
-    present = [g for g in grades if re.fullmatch(r"\d+(,\d+)?", g)]
+    present = [g for g in grades if re.fullmatch(r"-?\d+(,\d+)?", g)]
     assert 55 <= len(present) < 70, grades  # quelques absents
     assert len(set(present)) >= 8, present  # des notes variées
 
     _, content = download_csv(page)
     lines = csv_rows(content)
     assert len(lines) == 71
-    assert "Note /20" in lines[0]
+    assert "note /20" in lines[0]
     assert Answer.objects.filter(participant__session=session).count() > 500
 
 
@@ -341,10 +348,15 @@ def test_past_questions_are_marked_already_posed(teacher_page: Page):
     page.get_by_role("link", name="Modifier le QCM").click()
     page.get_by_label("Marquer les questions déjà posées au groupe").select_option(label=label)
     page.get_by_role("button", name="Marquer").click()
+    # « Marquer » parcourt toute la banque : les questions du fichier posé, et elles seules.
+    posed_file = Quiz.objects.get(title=title_of("fonctions")).questions.all()
     rows = page.get_by_role("row")
-    expect(rows.filter(has_text="posée à").first).to_be_visible()
-    posed = rows.filter(has_text="posée à").count()
-    assert 0 < posed < Quiz.objects.get(title=COMPOSED).questions.count()
+    expect(rows.filter(has_text="posée à")).to_have_count(posed_file.count())
+    for text in plain_texts(posed_file)[:3]:
+        expect(rows.filter(has=include_box(page, text))).to_contain_text("posée à")
+    composed = Quiz.objects.get(title=COMPOSED).questions.all()
+    posed = composed.filter(pk__in=posed_file).count()
+    assert 0 < posed < composed.count()
 
     # Au lancement : la confirmation ; avec le groupe de l'an dernier, aucune.
     open_sessions(page)
@@ -377,8 +389,8 @@ def test_composed_quiz_takes_questions_from_two_files(teacher_page: Page):
 
     open_quiz(page, COMPOSED)
     page.get_by_role("link", name="Modifier le QCM").click()
-    for question in composed.questions.all()[:3]:
-        expect(include_box(page, Question.objects.get(pk=question.pk).text)).to_be_checked()
+    for text in plain_texts(composed.questions.all())[:3]:
+        expect(include_box(page, text)).to_be_checked()
 
 
 @pytest.mark.spec("DEM-07")
