@@ -13,7 +13,7 @@ from tests import spec_trace
 
 
 def main(argv: list[str]) -> int:
-    increment = int(argv[0])
+    increment = spec_trace.normalise(argv[0])
     record = spec_trace.RECORD_FILE
     loaded = None
     if record.exists():

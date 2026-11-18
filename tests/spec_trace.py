@@ -5,6 +5,9 @@ Chaque exigence de SPEC.md s'écrit `- **[XXX-nn]** (In) texte`. Un test s'y rat
 d'un incrément livré (≤ `[tool.qcm] increment`) n'a aucun test E2E *passé* (un test sauté
 ne compte pas). Un marqueur qui vise un identifiant inconnu fait toujours échouer la collecte.
 
+Un incrément hors numérotation porte une lettre (`(ID)`, incrément D) : ses exigences sont
+exigibles dès que la lettre figure dans `[tool.qcm] lettered`.
+
 `make verify` enregistre son résultat (`--spec-record`) avec l'empreinte des fichiers du dépôt ;
 `make accept` le reprend tant que cette empreinte n'a pas changé (`tests/accept.py`).
 """
@@ -27,13 +30,32 @@ RECORD_FILE = ROOT / ".verify-result.json"
 # Le REX ne change rien aux tests : l'écrire après `make verify` ne doit pas forcer à le relancer.
 STATE_IGNORED = ("REX.md", "rex/")
 
-REQUIREMENT_RE = re.compile(r"^\s*-\s+\*\*\[(?P<id>[A-Z]{3}-\d{2})\]\*\*\s+\(I(?P<inc>\d+)\)")
+REQUIREMENT_RE = re.compile(r"^\s*-\s+\*\*\[(?P<id>[A-Z]{3}-\d{2})\]\*\*\s+\(I(?P<inc>\d+|[A-Z])\)")
 
 
 @dataclass(frozen=True)
 class Requirement:
     id: str
-    increment: int
+    increment: str  # « 12 », ou une lettre (« D ») pour un incrément hors numérotation
+
+
+@dataclass(frozen=True)
+class Declared:
+    """Incréments exigibles : les numéros jusqu'à `number`, et les lettres de `letters`."""
+
+    number: int
+    letters: frozenset[str] = frozenset()
+
+    def includes(self, increment: str) -> bool:
+        return increment in self.letters if increment.isalpha() else int(increment) <= self.number
+
+    def __str__(self) -> str:
+        return ", ".join([f"I0..I{self.number}", *(f"I{x}" for x in sorted(self.letters))])
+
+
+def increment_key(increment: str) -> tuple[int, str]:
+    """Ordre du rapport : les numéros, puis les lettres."""
+    return (int(increment), "") if increment.isdigit() else (10**6, increment)
 
 
 @dataclass
@@ -54,12 +76,19 @@ def parse_spec(text: str) -> dict[str, Requirement]:
         req_id = match["id"]
         if req_id in requirements:
             raise ValueError(f"Identifiant en double dans SPEC.md : {req_id}")
-        requirements[req_id] = Requirement(req_id, int(match["inc"]))
+        requirements[req_id] = Requirement(req_id, match["inc"])
     return requirements
 
 
-def current_increment(pyproject_text: str) -> int:
-    return int(tomllib.loads(pyproject_text)["tool"]["qcm"]["increment"])
+def current_increment(pyproject_text: str) -> Declared:
+    qcm = tomllib.loads(pyproject_text)["tool"]["qcm"]
+    return Declared(int(qcm["increment"]), frozenset(qcm.get("lettered", [])))
+
+
+def normalise(increment: str | int) -> str:
+    """`make accept INC=d` vaut `INC=D` ; `INC=07` vaut `INC=7`."""
+    text = str(increment).strip()
+    return str(int(text)) if text.isdigit() else text.upper()
 
 
 def is_e2e(nodeid: str) -> bool:
@@ -67,23 +96,23 @@ def is_e2e(nodeid: str) -> bool:
 
 
 def due_requirements(
-    requirements: dict[str, Requirement], *, up_to: int, only: int | None = None
+    requirements: dict[str, Requirement], *, up_to: Declared, only: str | None = None
 ) -> list[Requirement]:
-    """Exigences exigibles : celles de l'incrément `only`, sinon toutes celles ≤ `up_to`."""
+    """Exigences exigibles : celles de l'incrément `only`, sinon toutes celles de `up_to`."""
     due = [
         req
         for req in requirements.values()
-        if (req.increment == only if only is not None else req.increment <= up_to)
+        if (req.increment == only if only is not None else up_to.includes(req.increment))
     ]
-    return sorted(due, key=lambda r: (r.increment, r.id))
+    return sorted(due, key=lambda r: (increment_key(r.increment), r.id))
 
 
 def missing_requirements(
     requirements: dict[str, Requirement],
     coverage: dict[str, Coverage],
     *,
-    up_to: int,
-    only: int | None = None,
+    up_to: Declared,
+    only: str | None = None,
 ) -> list[Requirement]:
     """Exigences exigibles sans aucun test E2E passé."""
     return [
@@ -97,8 +126,8 @@ def report_lines(
     requirements: dict[str, Requirement],
     coverage: dict[str, Coverage],
     *,
-    up_to: int,
-    only: int | None = None,
+    up_to: Declared,
+    only: str | None = None,
 ) -> list[str]:
     lines = []
     for req in due_requirements(requirements, up_to=up_to, only=only):

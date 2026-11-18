@@ -58,6 +58,6 @@ verify: lint verify-tests ## Vérification complète, identique à la CI
 verify-tests: ## Tous les tests + couverture de la spec + couverture du code
 	$(PYTEST) --spec-check --cov --cov-report=term-missing $(if $(PYTEST_ARGS),$(PYTEST_ARGS),--spec-record=.verify-result.json)
 
-accept: ## Exigences d'un incrément (reprend le dernier verify vert si rien n'a changé) : make accept INC=n
-	@test -n "$(INC)" || (echo "Usage : make accept INC=n" && exit 2)
+accept: ## Exigences d'un incrément (reprend le dernier verify vert si rien n'a changé) : make accept INC=n (ou INC=D)
+	@test -n "$(INC)" || (echo "Usage : make accept INC=n (ou INC=D, incrément à lettre)" && exit 2)
 	$(CHECK_RUN) python -m tests.accept $(INC)

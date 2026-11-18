@@ -36,7 +36,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     group.addoption(
         "--spec-inc",
-        type=int,
+        type=spec_trace.normalise,
         default=None,
         help="Restreint le contrôle et le rapport aux exigences de cet incrément.",
     )
@@ -70,7 +70,7 @@ def _requirements() -> dict[str, spec_trace.Requirement]:
 
 
 @functools.cache
-def _current_increment() -> int:
+def _current_increment() -> spec_trace.Declared:
     return spec_trace.current_increment(spec_trace.PYPROJECT.read_text(encoding="utf-8"))
 
 
@@ -139,7 +139,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus: int, config: pytest.Co
         return
     only = config.getoption("--spec-inc")
     up_to = _current_increment()
-    scope = f"incrément I{only}" if only is not None else f"incréments I0..I{up_to}"
+    scope = f"incrément I{only}" if only is not None else f"incréments {up_to}"
     terminalreporter.section(f"Couverture de SPEC.md ({scope})")
     for line in spec_trace.report_lines(_requirements(), _coverage, up_to=up_to, only=only):
         terminalreporter.write_line(line)
