@@ -29,7 +29,7 @@ make superuser    # crée un compte enseignant (identifiant + mot de passe)
 make run          # serveur de développement, http://localhost:8000
 ```
 
-`make setup` génère `.env` avec une clé secrète aléatoire propre à votre installation. Ce fichier n'est jamais versionné, et seuls `make setup`, `make run`, `make classe`, `make demo` et `make superuser` le lisent. Les vérifications (`make check`, `make verify`, CI) utilisent `.env.test`, versionné et sans valeur : un clone neuf peut tout vérifier sans clé.
+`make setup` génère `.env` avec une clé secrète aléatoire propre à votre installation. Ce fichier n'est jamais versionné, et seuls `make setup`, `make run`, `make classe`, `make demo`, `make demo-complete` et `make superuser` le lisent. Les vérifications (`make check`, `make verify`, CI) utilisent `.env.test`, versionné et sans valeur : un clone neuf peut tout vérifier sans clé.
 
 Windows sans make (PowerShell) :
 
@@ -68,6 +68,12 @@ La commande crée un compte enseignant `demo`, un groupe « Démo » de six étu
 
 Sous Windows sans make : `uv run --env-file .env python manage.py migrate`, puis `uv run --env-file .env python manage.py demo`.
 
+### Démonstration complète : `make demo-complete`
+
+Elle lance le mode classe sur sa propre base, `demo.sqlite3` (`DEMO_DB=` pour un autre dossier, nom imposé), effacée et recréée à chaque lancement : trois QCM importés de [demo-complet/](demo-complet/) (fichiers AMC-TXT fictifs de deux matières, avec formules, code et images), deux groupes « L1 Sciences » d'années différentes dont un de 70 étudiants, une session passée avec ses réponses, un QCM composé de deux fichiers et une question en deuxième version. Le terminal affiche le compte `demo` et son mot de passe. L'enseignant installé la lance par `qcm-live demo` ; le parcours de 10 minutes est dans [GUIDE.md](GUIDE.md). Sa base ne touche jamais `db.sqlite3`.
+
+Sous Windows sans make : `uv run --env-file .env python -m config.classroom --demo demo.sqlite3`.
+
 ## Premier cours
 
 Le parcours de l'enseignant (préparer, en classe, après) est dans [GUIDE.md](GUIDE.md). Avant le premier cours, deux risques restent à lever sur place (SPEC.md, §5) : importer un vrai fichier AMC et comparer quelques notes avec celles d'AMC ; tester un téléphone sur le Wi-Fi de la salle (page « Réseau », « Tester avec mon téléphone »).
@@ -93,14 +99,17 @@ config/     réglages (lus depuis l'environnement), routes, vues transverses, mo
             commande qcm-live (launcher.py), fin d'installation (install.py)
 bank/       banque de questions, QCM, barème AMC (scoring.py : calcul pur),
             import AMC-TXT (amc_txt.py : analyse pure ; importer.py), commande demo
+            (démonstration légère)
 roster/     groupes d'étudiants, import CSV
-live/       sessions en direct : QR code de jonction, déroulement, réponses, résultats
+live/       sessions en direct : QR code de jonction, déroulement, réponses, résultats,
+            commande demo_complete (démonstration complète)
 templates/  gabarits HTML          static/  CSS et JS, sans script ni style inline
 tests/      unit/ · integration/ · e2e/ (Playwright) · spec_trace.py (traçabilité SPEC.md)
             factories.py (données de test fictives, créées via les formulaires)
 scripts/    gen_env.py (création du .env local), usage.py (consommation de Claude Code)
 rex/        retour d'expérience, un fichier par incrément (index : REX.md)
 demo/       qcm-demo.txt (fichier AMC-TXT fictif de démonstration) et images/
+demo-complet/  fonctions/, probabilites/, python/ : fichiers AMC-TXT fictifs et leurs images
 install.sh  install.ps1   installation de l'enseignant (Linux, Windows) ; GUIDE.md, son guide
 .claude/    environnement de l'agent : réglages, hooks, procédure d'incrément, auditeur de spec
 ```

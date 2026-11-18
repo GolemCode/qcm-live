@@ -69,6 +69,25 @@ def test_parse_args():
         launcher.parse_args(["--adresse", "http://x/"])
 
 
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["demo"], (8000, None, False)),
+        (
+            ["demo", "--port", "8080", "--adresse", "10.0.0.2", "--sans-navigateur"],
+            (8080, "10.0.0.2", True),
+        ),
+        (["--port", "8080", "--sans-navigateur", "demo"], (8080, None, True)),
+    ],
+)
+def test_parse_args_demo_takes_the_options_before_or_after_it(argv, expected):
+    """`qcm-live demo` (DEM-03) : ses options, avant ou après la sous-commande, sans que
+    leurs valeurs par défaut n'écrasent celles données avant elle."""
+    args = launcher.parse_args(argv)
+    assert args.command == "demo"
+    assert (args.port, args.address, args.no_browser) == expected
+
+
 def answers(monkeypatch, *typed: str | type[BaseException]) -> None:
     replies = iter(typed)
 

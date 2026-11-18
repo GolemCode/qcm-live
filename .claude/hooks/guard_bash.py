@@ -38,7 +38,7 @@ COMMIT_VALUE_FLAGS = set("mFCct")
 COMMIT_LONG_VALUE_FLAGS = {"--message", "--file", "--reuse-message", "--reedit-message"}
 # Options globales de git qui consomment l'argument suivant (ex. git -C dir commit).
 GIT_GLOBAL_VALUE_FLAGS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
-TAG_REF = re.compile(r"^(refs/tags/)?inc-(\d+|r)$")
+TAG_REF = re.compile(r"^(refs/tags/)?inc-(\d+|[a-z])$")  # inc-17, inc-r, inc-d
 # Redirections qui contiennent « & » sans être un séparateur de commandes (2>&1, &>fichier).
 FD_REDIRECT = re.compile(r"\d*>&\d*-?|&>>?")
 HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(?:'([^']+)'|\"([^\"]+)\"|(\w+))")

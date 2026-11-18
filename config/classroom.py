@@ -2,6 +2,8 @@
 
 Lancé par la commande de l'enseignant (`qcm-live`, config/launcher.py) ou, en développement,
 par `make classe` (`--port` pour changer de port, `--adresse` pour imposer l'adresse annoncée).
+`--demo <base>` (`qcm-live demo`, `make demo-complete`) : la démonstration complète, sur cette
+base à part, recréée à chaque lancement (DEM-03).
 
 - Serveur de production (waitress), sans mode debug, quel que soit `DJANGO_DEBUG`.
 - Il écoute sur toutes les interfaces : les téléphones le joignent par le réseau local.
@@ -19,6 +21,7 @@ import re
 import socket
 import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 from config import firewall, network
 from config.network import LanAddress
@@ -30,6 +33,8 @@ GUIDE_URL = "https://github.com/GolemCode/qcm-live/blob/main/GUIDE.md"
 THREADS = 16
 # Adresse imposée à la main : une adresse IPv4 ou un nom de machine, sans schéma ni port.
 HOST_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?")
+# Base de la démonstration complète (DEM-03) : jamais celle de l'enseignant, `db.sqlite3`.
+DEMO_DATABASE = "demo.sqlite3"
 
 
 def projected(address: str | None, addresses: Sequence[LanAddress]) -> str:
@@ -104,14 +109,26 @@ def _host(value: str) -> str:
     return value
 
 
-def add_server_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port d'écoute")
-    parser.add_argument("--adresse", dest="address", type=_host, help="adresse du PC à annoncer")
+def add_server_arguments(parser: argparse.ArgumentParser, *, inherited: bool = False) -> None:
+    """`inherited` : sous-commande dont les options reprennent celles de la commande, sans
+    écraser par leur valeur par défaut celles déjà données avant elle."""
+    port = argparse.SUPPRESS if inherited else DEFAULT_PORT
+    address = argparse.SUPPRESS if inherited else None
+    parser.add_argument("--port", type=int, default=port, help="port d'écoute")
+    parser.add_argument(
+        "--adresse", dest="address", type=_host, default=address, help="adresse du PC à annoncer"
+    )
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="make classe", description="Mode classe de QCM Live.")
     add_server_arguments(parser)
+    parser.add_argument(
+        "--demo",
+        type=Path,
+        metavar="BASE",
+        help=f"démonstration complète sur BASE ({DEMO_DATABASE})",
+    )
     return parser.parse_args(argv)
 
 
@@ -119,12 +136,16 @@ def serve(
     address: str | None,
     port: int,
     *,
+    database: Path | None = None,
     before_migrate: Callable[[], object] | None = None,
+    after_migrate: Callable[[], object] | None = None,
     on_ready: Callable[[str], None] | None = None,
-) -> int:  # pragma: no cover — testé de bout en bout (CLA-01, INS-03)
+) -> int:  # pragma: no cover — testé de bout en bout (CLA-01, INS-03, DEM-03)
     """Prépare l'environnement, applique les migrations et sert l'application jusqu'à Ctrl+C.
-    `before_migrate` : sauvegarde du lanceur ; `on_ready(adresse de l'espace enseignant)` :
-    ouverture du navigateur, une fois le port ouvert."""
+    `database` : une autre base que celle des réglages (démonstration complète) ;
+    `before_migrate` : sauvegarde du lanceur ; `after_migrate` : préparation de la
+    démonstration complète ; `on_ready(adresse de l'espace enseignant)` : ouverture du
+    navigateur, une fois le port ouvert."""
     if not port_free(port):
         print(port_taken(port), file=sys.stderr)
         return 1
@@ -132,6 +153,8 @@ def serve(
     host = projected(address, addresses)
     environ = classroom_environ(host, port, addresses)
     os.environ.update(environ)
+    if database:
+        os.environ["DJANGO_DB_PATH"] = str(database.absolute())
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
     import django
@@ -142,6 +165,8 @@ def serve(
     if before_migrate:
         before_migrate()
     call_command("migrate", interactive=False, verbosity=0)
+    if after_migrate:
+        after_migrate()
     from config.wsgi import application
 
     try:
@@ -163,8 +188,51 @@ def serve(
     return 0
 
 
+def reset_demo(database: Path) -> None:
+    """Efface la base de démonstration et ses fichiers annexes de SQLite (DEM-03) ; refuse
+    tout autre fichier, pour ne jamais effacer la base de l'enseignant."""
+    if database.name != DEMO_DATABASE:
+        raise ValueError(f"La démonstration complète a sa propre base, {DEMO_DATABASE}.")
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        Path(f"{database}{suffix}").unlink(missing_ok=True)
+
+
+def serve_demo(
+    database: Path,
+    address: str | None,
+    port: int,
+    *,
+    on_ready: Callable[[str], None] | None = None,
+) -> int:  # pragma: no cover — testé de bout en bout (DEM-03)
+    """Démonstration complète (DEM-03) : sur `database`, recréée, jamais sauvegardée."""
+    if not port_free(port):  # avant d'effacer la démonstration en cours d'un autre lancement
+        print(port_taken(port), file=sys.stderr)
+        return 1
+    try:
+        reset_demo(database)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    except OSError as error:  # Windows : base encore ouverte par une autre démonstration
+        print(
+            f"Impossible d'effacer {database} ({error.strerror}) : une autre démonstration "
+            "est-elle lancée ? Arrêtez-la (Ctrl+C), puis relancez.",
+            file=sys.stderr,
+        )
+        return 1
+
+    def prepare() -> None:
+        from django.core.management import call_command
+
+        call_command("demo_complete")
+
+    return serve(address, port, database=database, after_migrate=prepare, on_ready=on_ready)
+
+
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — testé de bout en bout
     args = parse_args(argv)
+    if args.demo:
+        return serve_demo(args.demo, args.address, args.port)
     return serve(args.address, args.port)
 
 

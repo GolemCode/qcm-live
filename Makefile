@@ -9,10 +9,10 @@ CHECK_RUN := uv run --env-file .env.test
 PYTEST := $(CHECK_RUN) pytest
 
 .DEFAULT_GOAL := help
-.PHONY: help setup run classe demo superuser lint test e2e check verify verify-tests accept
+.PHONY: help setup run classe demo demo-complete superuser lint test e2e check verify verify-tests accept
 
 help: ## Liste des commandes
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
 
 .env:
 	uv run --no-project --no-env-file python scripts/gen_env.py
@@ -33,6 +33,10 @@ classe: $(ENV_FILE) ## Mode classe : serveur de production, ouvert aux télépho
 demo: $(ENV_FILE) ## Démonstration : compte « demo » (mot de passe affiché), groupe et QCM fictifs
 	$(RUN) python manage.py migrate
 	$(RUN) python manage.py demo
+
+DEMO_DB ?= demo.sqlite3
+demo-complete: $(ENV_FILE) ## Démonstration complète, sur sa propre base recréée (DEMO_DB=, PORT=, ADRESSE=)
+	$(RUN) python -m config.classroom --demo $(DEMO_DB) $(if $(filter command line,$(origin PORT)),--port $(PORT)) $(if $(ADRESSE),--adresse $(ADRESSE))
 
 superuser: .env ## Crée un compte enseignant
 	$(RUN) python manage.py createsuperuser
@@ -58,6 +62,6 @@ verify: lint verify-tests ## Vérification complète, identique à la CI
 verify-tests: ## Tous les tests + couverture de la spec + couverture du code
 	$(PYTEST) --spec-check --cov --cov-report=term-missing $(if $(PYTEST_ARGS),$(PYTEST_ARGS),--spec-record=.verify-result.json)
 
-accept: ## Exigences d'un incrément (reprend le dernier verify vert si rien n'a changé) : make accept INC=n
-	@test -n "$(INC)" || (echo "Usage : make accept INC=n" && exit 2)
+accept: ## Exigences d'un incrément (reprend le dernier verify vert si rien n'a changé) : make accept INC=n (ou INC=D)
+	@test -n "$(INC)" || (echo "Usage : make accept INC=n (ou INC=D, incrément à lettre)" && exit 2)
 	$(CHECK_RUN) python -m tests.accept $(INC)

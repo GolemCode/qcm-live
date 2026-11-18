@@ -9,6 +9,9 @@ l'environnement de l'application ; uv n'intervient plus.
 - `qcm-live restaurer [archive]` : remplace les données par une sauvegarde, après
   confirmation, en sauvegardant d'abord les données actuelles.
 - `qcm-live compte` : crée un compte enseignant.
+- `qcm-live demo` : la démonstration complète (DEM-03), en mode classe, sur sa propre base
+  (`demo.sqlite3` du dossier des données), recréée à chaque lancement et jamais sauvegardée ;
+  la base de l'enseignant n'est pas ouverte.
 
 Les données (base, réglages) sont dans `QCM_DATA_DIR`, que le script installé fixe ; à
 défaut, `~/.local/share/qcm-live` (Windows : `%LOCALAPPDATA%\\qcm-live`). Le fichier
@@ -92,6 +95,17 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     restore = commands.add_parser("restaurer", help="restaurer une sauvegarde")
     restore.add_argument("archive", nargs="?", type=Path, help="sauvegarde à restaurer")
     commands.add_parser("compte", help="créer un compte enseignant")
+    demo = commands.add_parser(
+        "demo", help="démonstration complète, sur une base à part recréée à chaque lancement"
+    )
+    classroom.add_server_arguments(demo, inherited=True)
+    demo.add_argument(
+        "--sans-navigateur",
+        dest="no_browser",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="ne pas ouvrir le navigateur",
+    )
     return parser.parse_args(argv)
 
 
@@ -239,12 +253,15 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — test
             file=sys.stderr,
         )
         return 1
-    if args.command is None:
+    if args.command in (None, "demo"):
 
         def open_browser(url: str) -> None:
             if not args.no_browser:
                 threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
 
+        if args.command == "demo":
+            demo = folder / classroom.DEMO_DATABASE
+            return classroom.serve_demo(demo, args.address, args.port, on_ready=open_browser)
         return classroom.serve(
             args.address, args.port, before_migrate=save_now, on_ready=open_browser
         )

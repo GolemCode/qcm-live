@@ -62,13 +62,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Groupe : {group.name} ({group.students.count()} étudiants)")
         if options["no_account"]:
             return
-        password = secrets.token_urlsafe(12)
-        user, _ = get_user_model().objects.get_or_create(username=USERNAME)
-        user.set_password(password)
-        user.is_active = True
-        user.save()
-        self.stdout.write(f"Identifiant : {USERNAME}")
-        self.stdout.write(f"Mot de passe : {password}")
+        write_account(self.stdout, demo_account())
         self.stdout.write("Nouveau mot de passe à chaque lancement de make demo.")
 
     def import_group(self) -> StudentGroup:
@@ -82,11 +76,31 @@ class Command(BaseCommand):
         return form.save()
 
 
-def demo_archive() -> bytes:
-    """Le dossier `demo/` en archive ZIP (IMP-08) : le fichier AMC-TXT et son image."""
+def demo_account() -> str:
+    """Le compte `demo`, créé ou réactivé, avec un nouveau mot de passe, rendu."""
+    password = secrets.token_urlsafe(12)
+    user, _ = get_user_model().objects.get_or_create(username=USERNAME)
+    user.set_password(password)
+    user.is_active = True
+    user.save()
+    return password
+
+
+def write_account(stdout, password: str) -> None:
+    stdout.write(f"Identifiant : {USERNAME}")
+    stdout.write(f"Mot de passe : {password}")
+
+
+def folder_archive(folder: Path) -> bytes:
+    """Un dossier en archive ZIP (IMP-08) : son fichier AMC-TXT et ses images."""
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as zf:
-        for path in sorted(DEMO_DIR.rglob("*")):
+        for path in sorted(folder.rglob("*")):
             if path.is_file():
-                zf.write(path, path.relative_to(DEMO_DIR).as_posix())
+                zf.write(path, path.relative_to(folder).as_posix())
     return buffer.getvalue()
+
+
+def demo_archive() -> bytes:
+    """Le dossier `demo/` en archive ZIP (IMP-08) : le fichier AMC-TXT et son image."""
+    return folder_archive(DEMO_DIR)

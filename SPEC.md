@@ -92,6 +92,26 @@ Les questions viennent de fichiers AMC d'anciens QCM. Aucun fichier réel n'est 
   - Relancée, la commande réutilise le groupe et le QCM au lieu d'en créer d'autres. *(dérivé)*
   - Le README décrit pas à pas, dans sa section « Premier cours », le parcours réel : importer, créer le QCM, lancer en mode classe sur eduroam, faire passer, exporter les résultats. *(demande du commanditaire)* *(I13 : ce parcours passe dans le guide de l'enseignant, `GUIDE.md`, et l'installation propose la démonstration, INS-01)*
 
+### Démonstration complète (incrément D)
+L'incrément D, hors numérotation, livre DEM-03 à DEM-08 et CNT-05. Données entièrement fictives : le dépôt est public.
+
+- **[DEM-03]** (ID) La **démonstration complète** se lance par une **commande à part**, `qcm-live demo` (en développement : `make demo-complete`). Elle ne met jamais de fausses sessions dans la base de l'enseignant. *(demande du commanditaire)*
+  - Elle lance QCM Live en mode classe (CLA-01, INS-03) sur une **base séparée**, `demo.sqlite3` du dossier de données, **recréée à chaque lancement** : rien de ce qu'on y fait ne reste. La base de l'enseignant n'est pas ouverte. *(décision du commanditaire, D)*
+  - Compte `demo`, avec un nouveau mot de passe aléatoire affiché dans le terminal à chaque lancement, comme `make demo` (DEM-02). *(décision du commanditaire, D)*
+  - Aucune sauvegarde au lancement : SAV-01 ne vaut que pour la base de l'enseignant. *(dérivé)*
+  - La préparation refuse une base qui contient déjà un QCM, un groupe ou une session. *(dérivé)*
+  - L'installation propose toujours la démonstration légère, sans session (INS-01, DEM-02). *(demande du commanditaire)*
+- **[DEM-04]** (ID) La démonstration complète importe **trois fichiers AMC-TXT** fictifs, de **deux matières** (Mathématiques : « Fonctions et dérivées », « Probabilités » ; Informatique : « Python, les bases »), de **20 à 30 questions** chacun. *(demande du commanditaire ; matières et titres : dérivé)*
+  - Chaque fichier contient des questions simples et multiples, au moins un barème particulier, « Aucune de ces réponses n'est correcte », un groupe AMC, plusieurs formules, du code et au moins une image ; il s'importe donc en **archive ZIP** (IMP-08), sans question écartée. *(demande du commanditaire)*
+  - Ils reprennent les questions de `demo/qcm-demo.txt` qui relèvent de leur matière. Chaque fichier est dans son dossier, `demo-complet/<nom>/`, à part de `demo/` qui se met en ZIP tel quel (DEM-01), avec ses images : ce dossier mis en ZIP s'importe aussi à la main. *(demande du commanditaire ; dossiers : dérivé)*
+- **[DEM-05]** (ID) Elle contient **deux groupes de même nom et d'années différentes** (GRP-04) : « L1 Sciences » de l'année en cours, **70 étudiants**, et « L1 Sciences » de l'année précédente, 24 étudiants. *(demande du commanditaire ; nom et effectif du second : dérivé)*
+- **[DEM-06]** (ID) Elle contient une **session passée, terminée, avec des réponses** : dès le lancement, ses résultats, son CSV et la Note /20 sont disponibles, et ses questions sont « **déjà posées** » au groupe de l'année en cours (CMP-03), à la composition comme au lancement. *(demande du commanditaire)*
+  - La page « Résultats » s'ouvre notes masquées, comme toujours (RES-04) : « d'emblée » veut dire sans avoir à faire passer une session. *(décision du commanditaire, D)*
+  - QCM « Fonctions et dérivées », groupe « L1 Sciences » de l'année en cours, lancée sept jours plus tôt ; quelques étudiants absents, et des réponses variées, tirées avec une graine fixe : mêmes résultats à chaque lancement. *(dérivé)*
+- **[DEM-07]** (ID) Elle contient un **QCM composé à partir de deux fichiers** (CMP-02), « Mathématiques : révisions », et **une question qui a une nouvelle version** (VER-01) : une question posée lors de la session passée, corrigée ensuite. *(demande du commanditaire ; titre et choix de la question : dérivé)*
+- **[DEM-08]** (ID) `GUIDE.md` décrit un **parcours de démonstration de 10 minutes**, à partir de `qcm-live demo`. *(demande du commanditaire)*
+  - Chaque libellé cité entre guillemets dans le parcours existe dans l'application. *(dérivé)*
+
 ### Composition des QCM et versions des questions (I15 et I16)
 I15 livre CMP-01, CMP-02, CMP-04, CMP-05, VER-01 à VER-03 et le réimport (IMP-10) ; I16 livre GRP-04 et CMP-03.
 
@@ -133,14 +153,15 @@ I15 livre CMP-01, CMP-02, CMP-04, CMP-05, VER-01 à VER-03 et le réimport (IMP-
   - Une image importée n'est jamais supprimée, car une session, une ancienne version ou une question masquée peut la citer. Elle est nommée d'après son contenu : deux imports de la même image la partagent. *(dérivé)*
   - Limites : 2 Mo par image ; SVG sans DTD ni entité. Une image ouverte seule dans le navigateur n'exécute aucun script. Au tableau, sa hauteur est bornée pour que N questions tiennent sans défilement (SES-06). *(dérivé)*
 - **[CNT-04]** (I17) Ils peuvent contenir de la **mise en forme** : gras, italique, souligné ; le titre AMC (`[==…==]`) s'affiche en gras. *(décision du commanditaire, I17)*
+- **[CNT-05]** (ID) Une formule que KaTeX ne sait pas afficher se voit **dès le récapitulatif de l'import**, en rouge, avant de confirmer ; le guide de l'enseignant, section « Formules qui s'affichent en rouge », explique pourquoi (commande inconnue de KaTeX, macro personnelle, paquet LaTeX) et quoi faire. *(demande du commanditaire)*
 - **[IMP-08]** (I17) L'import accepte une **archive ZIP** (le fichier AMC et ses images) ou le fichier seul. Les images s'importent avec le fichier qui les référence ; une image référencée mais absente refuse le fichier. *(décision du commanditaire ; image absente : dérivé)*
   - L'archive contient un seul fichier `.txt` ; les chemins des images partent de son dossier. Les fichiers cachés et `__MACOSX/` sont ignorés. *(dérivé)*
   - Limites : 20 Mo d'archive, 50 Mo une fois décompressée, 500 fichiers. Le fichier seul reste limité à 1 Mo. *(dérivé)*
   - Une image absente est signalée avec la ligne de la question, même si celle-ci serait écartée. *(dérivé)*
   - L'empreinte du réimport (IMP-10) porte sur le fichier et ses images ; sans image, elle est celle du fichier seul, comme avant I17. *(dérivé)*
 
-### Import LaTeX AMC (I18, prévu)
-- **[IMP-09]** (I18) L'enseignant importe un fichier **LaTeX AMC**, limité à un sous-ensemble documenté : questions simples et multiples, bonnes et mauvaises réponses, groupes, barème, formules, code, images. Comme pour AMC-TXT, une erreur de syntaxe refuse le fichier et une question non prise en charge est écartée. *(demande du commanditaire)*
+### Import LaTeX AMC (I18, mis de côté)
+- **[IMP-09]** (I18) L'enseignant importe un fichier **LaTeX AMC**, limité à un sous-ensemble documenté : questions simples et multiples, bonnes et mauvaises réponses, groupes, barème, formules, code, images. Comme pour AMC-TXT, une erreur de syntaxe refuse le fichier et une question non prise en charge est écartée. *(à confirmer : ce n'est pas une demande du commanditaire, le professeur utilise des fichiers texte AMC ; I18 est mis de côté, décision du commanditaire, D)*
 
 ### Session : lancement et accueil
 - **[SES-01]** (I3) L'enseignant lance une session. Il choisit :
@@ -506,7 +527,8 @@ Rien de ce qui suit n'est implémenté.
 | Questions déjà posées (après I11) | Signalées, l'enseignant décide ; historique lié au groupe et à son année, pas au seul nom (CMP-03, GRP-04 proposé) |
 | Modifier une question déjà utilisée (après I11) | Nouvelle version ; elle remplace l'ancienne dans les QCM, jamais dans les sessions ; liste des QCM touchés, avec la possibilité de limiter au QCM courant (VER-01, VER-02) |
 | Démonstration (après I11) | Fichier AMC-TXT fictif dans le dépôt, `make demo`, section « Premier cours » du README (DEM-01, DEM-02) |
-| Découpage après I12 | I13 lancement en classe, sauvegarde et Note /20 ; I14 identification par la liste du groupe ; I15 composition et réimport ; I16 séance (terminer le créneau, « déjà posée », année du groupe) ; I17 formules, code, images ; I18 LaTeX AMC ; I19 espace enseignant, le premier à sauter si le temps manque |
+| Découpage après I12 | I13 lancement en classe, sauvegarde et Note /20 ; I14 identification par la liste du groupe ; I15 composition et réimport ; I16 séance (terminer le créneau, « déjà posée », année du groupe) ; I17 formules, code, images ; I18 LaTeX AMC (mis de côté en D, à confirmer) ; I19 espace enseignant, le premier à sauter si le temps manque |
+| Démonstration complète (après I17) | Incrément D : commande à part, `qcm-live demo`, sur une base séparée recréée à chaque lancement ; l'installation garde la démonstration légère ; trois fichiers, deux groupes « L1 Sciences », une session passée, un QCM composé, une nouvelle version, parcours de 10 minutes dans GUIDE.md ; formules en rouge expliquées dans le guide (DEM-03 à DEM-08, CNT-05) |
 | PC de classe (après I12) | PC personnel de l'enseignant sous Linux, droits administrateur et Internet à l'installation ; Windows doit fonctionner, en second |
 | Installation et lancement (après I12) | Une ligne curl, sans make ni git ni sudo ; commande `qcm-live` et icône au menu ; le lancement est toujours le mode classe et ouvre le navigateur ; démonstration proposée à l'installation ; relancer la ligne met à jour sans toucher aux données ; guide de l'enseignant à part (INS-01 à INS-03) |
 | Adresse du PC (après I12) | Partage de connexion dans les deux sens ; adresses candidates au terminal et au tableau, choix sans redémarrer (CLA-02) |

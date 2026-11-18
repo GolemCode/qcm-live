@@ -3,13 +3,14 @@
 import pytest
 
 from tests import spec_trace
-from tests.spec_trace import Coverage, Requirement
+from tests.spec_trace import Coverage, Declared, Requirement
 
 SPEC = """
 # Titre
 - **[AAA-01]** (I0) Première exigence.
 - **[AAA-02]** (I1) Deuxième exigence.
   - **[BBB-01]** (I2) Exigence imbriquée.
+- **[DDD-01]** (ID) Exigence d'un incrément à lettre.
 - Puce sans identifiant.
 Texte **[CCC-01]** (I0) hors puce : ignoré.
 """
@@ -18,9 +19,10 @@ Texte **[CCC-01]** (I0) hors puce : ignoré.
 def test_parse_spec_extracts_ids_and_increments():
     reqs = spec_trace.parse_spec(SPEC)
     assert reqs == {
-        "AAA-01": Requirement("AAA-01", 0),
-        "AAA-02": Requirement("AAA-02", 1),
-        "BBB-01": Requirement("BBB-01", 2),
+        "AAA-01": Requirement("AAA-01", "0"),
+        "AAA-02": Requirement("AAA-02", "1"),
+        "BBB-01": Requirement("BBB-01", "2"),
+        "DDD-01": Requirement("DDD-01", "D"),
     }
 
 
@@ -35,23 +37,52 @@ def test_missing_requirements_only_counts_passed_e2e_up_to_increment():
         "AAA-01": Coverage(passed_e2e=["test_a"]),
         "AAA-02": Coverage(passed_other=["test_unit_only"]),
     }
-    missing = spec_trace.missing_requirements(reqs, coverage, up_to=1)
-    assert [r.id for r in missing] == ["AAA-02"]  # BBB-01 (I2) pas encore exigible
-    assert [r.id for r in spec_trace.missing_requirements(reqs, coverage, up_to=2)] == [
+    missing = spec_trace.missing_requirements(reqs, coverage, up_to=Declared(1))
+    assert [r.id for r in missing] == ["AAA-02"]  # BBB-01 (I2), DDD-01 (ID) pas exigibles
+    assert [r.id for r in spec_trace.missing_requirements(reqs, coverage, up_to=Declared(2))] == [
         "AAA-02",
         "BBB-01",
     ]
 
 
+def test_lettered_increment_is_due_once_declared():
+    reqs = spec_trace.parse_spec(SPEC)
+    declared = Declared(1, frozenset({"D"}))
+    missing = spec_trace.missing_requirements(reqs, {}, up_to=declared)
+    assert [r.id for r in missing] == ["AAA-01", "AAA-02", "DDD-01"]  # les lettres après
+    only = spec_trace.missing_requirements(reqs, {}, up_to=Declared(0), only="D")
+    assert [r.id for r in only] == ["DDD-01"]
+    assert str(declared) == "I0..I1, ID"
+
+
+def test_declared_increments_read_from_pyproject():
+    text = '[tool.qcm]\nincrement = 17\nlettered = ["D"]\n'
+    assert spec_trace.current_increment(text) == Declared(17, frozenset({"D"}))
+    assert spec_trace.current_increment("[tool.qcm]\nincrement = 3\n") == Declared(3)
+
+
+@pytest.mark.parametrize(("typed", "expected"), [("d", "D"), ("D", "D"), ("07", "7"), (12, "12")])
+def test_increment_typed_for_accept_is_normalised(typed, expected):
+    assert spec_trace.normalise(typed) == expected
+
+
+@pytest.mark.parametrize("typed", ["ID", "I17", "", "d1"])
+def test_increment_typed_for_accept_refuses_what_names_no_increment(typed):
+    with pytest.raises(ValueError, match="Incrément invalide"):
+        spec_trace.normalise(typed)
+
+
 def test_missing_requirements_single_increment():
     reqs = spec_trace.parse_spec(SPEC)
-    missing = spec_trace.missing_requirements(reqs, {}, up_to=0, only=2)
+    missing = spec_trace.missing_requirements(reqs, {}, up_to=Declared(0), only="2")
     assert [r.id for r in missing] == ["BBB-01"]
 
 
 def test_report_lines_show_status():
     reqs = spec_trace.parse_spec(SPEC)
-    lines = spec_trace.report_lines(reqs, {"AAA-01": Coverage(passed_e2e=["t1"])}, up_to=1)
+    lines = spec_trace.report_lines(
+        reqs, {"AAA-01": Coverage(passed_e2e=["t1"])}, up_to=Declared(1)
+    )
     assert "OK" in lines[0] and "AAA-01" in lines[0] and "t1" in lines[0]
     assert "MANQUE" in lines[1] and "AAA-02" in lines[1]
     assert len(lines) == 2
@@ -66,7 +97,9 @@ def test_real_spec_and_pyproject_are_consistent():
     reqs = spec_trace.parse_spec(spec_trace.SPEC_FILE.read_text(encoding="utf-8"))
     assert len(reqs) >= 20
     inc = spec_trace.current_increment(spec_trace.PYPROJECT.read_text(encoding="utf-8"))
-    assert inc >= 0
+    assert inc.number >= 0
+    known = {req.increment for req in reqs.values()}
+    assert inc.letters <= known, inc.letters  # une lettre déclarée a ses exigences
 
 
 # --- I15 : `make accept` reprend le résultat du dernier `make verify` vert sur le même état.

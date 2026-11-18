@@ -21,9 +21,8 @@ def run(project: Path, *cmd: str) -> str:
 
 def main() -> int:
     project = Path(os.environ.get("CLAUDE_PROJECT_DIR", "."))
-    increment = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))["tool"][
-        "qcm"
-    ]["increment"]
+    qcm = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["qcm"]
+    increment = "".join([str(qcm["increment"]), *(f", I{x}" for x in qcm.get("lettered", []))])
     lines = [
         "## État du projet QCM Live (hook SessionStart)",
         f"- Branche : {run(project, 'git', 'rev-parse', '--abbrev-ref', 'HEAD')}",
