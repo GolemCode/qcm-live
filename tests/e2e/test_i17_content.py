@@ -8,6 +8,7 @@ Chaque écran est surveillé : aucune requête ne part vers un autre serveur que
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 
 import pytest
@@ -23,7 +24,7 @@ from tests.e2e.amc_ui import (
 )
 from tests.e2e.bank_ui import create_question, fill_question, open_bank, question_card
 from tests.e2e.live_setup import expect_slot, started
-from tests.e2e.live_ui import card
+from tests.e2e.live_ui import assert_fits, card
 from tests.factories import make_group, make_quiz, make_session
 
 STUDENTS = [("00123", "DURAND Élise")]
@@ -118,6 +119,30 @@ def test_formulas_on_board_and_phone_without_internet(teacher_page: Page, live_s
 
     assert problems == [], problems
     assert phone_problems == [], phone_problems
+
+
+@pytest.mark.spec("CNT-01")
+def test_formula_katex_refuses_shows_its_code_in_red(teacher_page: Page, live_server, new_phone):
+    # Le serveur ne vérifie pas les commandes d'une formule : KaTeX la refuse à l'affichage.
+    page = teacher_page
+    problems = watch(page, live_server.url)
+    create_question(page, r"Que vaut $\foo{x}$ ?", choices=[(r"$\nope$", True), ("Rien", False)])
+    phone = live(page, live_server.url, new_phone, make_quiz("Refusée", [Question.objects.get()]))
+    for where, code in [
+        (card(page, 1).get_by_role("heading"), r"\foo{x}"),
+        (propositions(phone), r"\nope"),
+    ]:
+        error = where.locator(".math-error")
+        expect(error).to_have_count(1)
+        expect(error).to_have_text(code)  # son code, tel qu'écrit
+        expect(error).to_have_attribute("title", re.compile(r"\S"))  # la raison, au survol
+        style = error.evaluate("e => getComputedStyle(e).textDecorationStyle")
+        assert style == "wavy", style  # soulignée
+        color = error.evaluate("e => getComputedStyle(e).textDecorationColor")
+        red, green, blue = map(int, re.findall(r"\d+", color)[:3])
+        assert red > green + 80 and red > blue + 80, color  # en rouge
+        expect(where.locator(".katex")).to_have_count(0)
+    assert problems == [], problems
 
 
 @pytest.mark.spec("CNT-01")
@@ -310,6 +335,30 @@ def test_images_on_board_and_phone(teacher_page: Page, live_server, new_phone):
     phone.wait_for_load_state("load")
     assert loaded(phone_images) == [True]
     assert problems == [], problems
+
+
+TALL = """Title: Grandes images
+
+""" + "".join(f"* Figure {k} ? !grand.png!\n+ Oui\n- Non\n\n" for k in range(1, 5))
+
+
+@pytest.mark.spec("CNT-03")
+def test_tall_images_keep_the_board_without_scrolling(teacher_page: Page, live_server, new_phone):
+    # SES-06 : quatre énoncés à grande image tiennent au tableau, sans défilement.
+    page = teacher_page
+    tall = io.BytesIO()
+    PILImage.new("RGB", (400, 1600), "red").save(tall, "PNG")
+    import_amc(page, archive({"grandes.txt": TALL, "grand.png": tall.getvalue()}), name="g.zip")
+    quiz = Quiz.objects.get(title="Grandes images")
+    session = make_session(quiz, make_group("TD1", STUDENTS), shown=4, seconds=60)
+    started(page, live_server.url, new_phone, session, ["00123"])
+    images = page.locator("article img")
+    expect(images).to_have_count(4)
+    page.wait_for_load_state("load")
+    assert loaded(images) == [True] * 4
+    assert_fits(page)
+    heights = images.evaluate_all("els => els.map(e => e.getBoundingClientRect().height)")
+    assert all(0 < h < 200 for h in heights), heights  # bornée, loin de ses 1600 px
 
 
 @pytest.mark.spec("CNT-03")
