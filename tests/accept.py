@@ -13,7 +13,16 @@ from tests import spec_trace
 
 
 def main(argv: list[str]) -> int:
-    increment = spec_trace.normalise(argv[0])
+    try:
+        increment = spec_trace.normalise(argv[0])
+    except ValueError as error:
+        print(error)
+        return 2
+    requirements = spec_trace.parse_spec(spec_trace.SPEC_FILE.read_text(encoding="utf-8"))
+    if not any(r.increment == increment for r in requirements.values()):
+        # Sans exigence, tout serait « vérifié » : un incrément mal tapé passerait au vert.
+        print(f"Aucune exigence de l'incrément I{increment} dans SPEC.md.")
+        return 2
     record = spec_trace.RECORD_FILE
     loaded = None
     if record.exists():
@@ -26,7 +35,6 @@ def main(argv: list[str]) -> int:
         command = [sys.executable, "-m", "pytest", "--spec-check", f"--spec-inc={increment}", "-q"]
         os.execv(sys.executable, command)  # noqa: S606 : remplace ce processus, code de retour compris
     coverage, finished_at = loaded
-    requirements = spec_trace.parse_spec(spec_trace.SPEC_FILE.read_text(encoding="utf-8"))
     up_to = spec_trace.current_increment(spec_trace.PYPROJECT.read_text(encoding="utf-8"))
     print(
         f"Résultat repris du `make verify` vert du {finished_at} "

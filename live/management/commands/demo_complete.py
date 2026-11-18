@@ -187,12 +187,14 @@ def past_session(quiz: Quiz, group: StudentGroup, started: datetime) -> Session:
             answers += answer_all(participant, session.questions, ability=ability, rng=rng)
     Answer.objects.bulk_create(answers)
     session.start(started)
-    # Les horodatages, dans le passé : le lancement, les arrivées, les réponses.
+    # Les horodatages, dans le passé : le lancement, les arrivées, et chaque réponse pendant le
+    # créneau de sa question (une question par créneau de SECONDS).
     Session.objects.filter(pk=session.pk).update(created_at=started - timedelta(minutes=4))
     session.participants.update(joined_at=started - timedelta(minutes=2))
-    Answer.objects.filter(participant__session=session).update(
-        updated_at=started + timedelta(minutes=5)
-    )
+    for index in range(len(session.questions)):
+        Answer.objects.filter(participant__session=session, question=index).update(
+            updated_at=started + timedelta(seconds=index * SECONDS + SECONDS // 2)
+        )
     return session
 
 
@@ -229,8 +231,8 @@ def pick(question: FrozenQuestion, ability: float, rng: random.Random) -> list[i
         right = next(i for i in real if choices[i]["correct"])
         return [right if rng.random() < ability else rng.choice(real)]
     chosen = [i for i in real if (rng.random() < ability) == choices[i]["correct"]]
-    if not chosen and none is not None and rng.random() < ability:
-        return [none]
+    if not chosen and none is not None and (rng.random() < ability) == choices[none]["correct"]:
+        return [none]  # « Aucune de ces réponses », juste ou fausse selon `ability`
     return chosen
 
 
@@ -258,7 +260,7 @@ def revise(text: str, new_text: str) -> Question:
         value = current[name].value()
         if value is True:
             data[name] = "on"
-        elif value not in (None, False, ""):
+        elif value is not None and value is not False and value != "":  # 0 est une valeur
             data[name] = str(value)
     data["text"] = new_text
     form = QuestionForm(data, instance=question)

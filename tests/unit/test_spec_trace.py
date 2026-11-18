@@ -66,6 +66,12 @@ def test_increment_typed_for_accept_is_normalised(typed, expected):
     assert spec_trace.normalise(typed) == expected
 
 
+@pytest.mark.parametrize("typed", ["ID", "I17", "", "d1"])
+def test_increment_typed_for_accept_refuses_what_names_no_increment(typed):
+    with pytest.raises(ValueError, match="Incrément invalide"):
+        spec_trace.normalise(typed)
+
+
 def test_missing_requirements_single_increment():
     reqs = spec_trace.parse_spec(SPEC)
     missing = spec_trace.missing_requirements(reqs, {}, up_to=Declared(0), only="2")

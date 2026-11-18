@@ -86,9 +86,14 @@ def current_increment(pyproject_text: str) -> Declared:
 
 
 def normalise(increment: str | int) -> str:
-    """`make accept INC=d` vaut `INC=D` ; `INC=07` vaut `INC=7`."""
+    """`make accept INC=d` vaut `INC=D` ; `INC=07` vaut `INC=7`. Autre chose qu'un numéro ou
+    une lettre (`INC=ID`, `INC=I17`) est refusé : il ne désignerait aucune exigence."""
     text = str(increment).strip()
-    return str(int(text)) if text.isdigit() else text.upper()
+    if text.isdigit():
+        return str(int(text))
+    if len(text) == 1 and text.isalpha():
+        return text.upper()
+    raise ValueError(f"Incrément invalide : {text!r} (un numéro, ou une lettre comme D).")
 
 
 def is_e2e(nodeid: str) -> bool:

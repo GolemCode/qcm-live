@@ -575,9 +575,14 @@ def test_guard_allows_honest_exit_codes(command):
     assert guard.decide(command, branch="inc/1-x") is None
 
 
-def test_guard_allows_pushing_the_correction_tag_from_main():
-    assert guard.decide("git push origin inc-r", branch="main") is None
-    assert guard.decide("git push origin inc-x", branch="main") is not None
+@pytest.mark.parametrize("tag", ["inc-17", "inc-r", "inc-d"])
+def test_guard_allows_pushing_an_increment_tag_from_main(tag):
+    assert guard.decide(f"git push origin {tag}", branch="main") is None
+
+
+@pytest.mark.parametrize("tag", ["inc-dd", "inc-d1", "v1"])
+def test_guard_refuses_pushing_another_tag_from_main(tag):
+    assert guard.decide(f"git push origin {tag}", branch="main") is not None
 
 
 # --- Audit externe (R), constat 6 : ce que l'agent spec-auditor peut réellement faire.

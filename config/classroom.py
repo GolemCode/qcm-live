@@ -208,7 +208,18 @@ def serve_demo(
     if not port_free(port):  # avant d'effacer la démonstration en cours d'un autre lancement
         print(port_taken(port), file=sys.stderr)
         return 1
-    reset_demo(database)
+    try:
+        reset_demo(database)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    except OSError as error:  # Windows : base encore ouverte par une autre démonstration
+        print(
+            f"Impossible d'effacer {database} ({error.strerror}) : une autre démonstration "
+            "est-elle lancée ? Arrêtez-la (Ctrl+C), puis relancez.",
+            file=sys.stderr,
+        )
+        return 1
 
     def prepare() -> None:
         from django.core.management import call_command
