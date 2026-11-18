@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import cast
 
 from django import forms
 from django.db import models, transaction
@@ -283,31 +284,25 @@ class BankSearchForm(PlainForm):
         required=False,
         choices=[("", "Toutes"), (USED, "Dans au moins un QCM"), (UNUSED, "Dans aucun QCM")],
     )
-    origin = forms.ChoiceField()  # choix selon la base, dans __init__
-    posed = forms.ChoiceField()
+    origin = forms.ChoiceField(label="QCM d'origine", required=False)  # choix : __init__
+    posed = forms.ChoiceField(label="Posée à un groupe", required=False)
     sort = forms.ChoiceField(label="Tri", required=False, choices=list(SORTS.items()))
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.imported = {str(q.pk): q for q in by_title(Quiz.objects.exclude(source_sha256=""))}
-        self.fields["origin"] = forms.ChoiceField(  # remplacé à sa place, avec ses choix
-            label="QCM d'origine",
-            required=False,
-            choices=[("", "Tous les QCM"), *((pk, q.title) for pk, q in self.imported.items())],
-        )
+        origin = cast(forms.ChoiceField, self.fields["origin"])
+        origin.choices = [("", "Tous les QCM"), *((pk, q.title) for pk, q in self.imported.items())]
         self.groups = {str(g.pk): g for g in StudentGroup.objects.all()}  # nom, puis année
-        self.fields["posed"] = forms.ChoiceField(
-            label="Posée à un groupe",
-            required=False,
-            choices=[
-                ("", "Sans filtre"),
-                *(
-                    (f"{mode}-{pk}", f"{label} à {group}")
-                    for pk, group in self.groups.items()
-                    for mode, label in ((self.ALREADY, "Déjà posée"), (self.NEVER, "Jamais posée"))
-                ),
-            ],
-        )
+        posed = cast(forms.ChoiceField, self.fields["posed"])
+        posed.choices = [
+            ("", "Sans filtre"),
+            *(
+                (f"{mode}-{pk}", f"{label} à {group}")
+                for pk, group in self.groups.items()
+                for mode, label in ((self.ALREADY, "Déjà posée"), (self.NEVER, "Jamais posée"))
+            ),
+        ]
 
     def criteria(self) -> dict[str, str]:
         """Les critères valides et non vides."""

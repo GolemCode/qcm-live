@@ -1,5 +1,6 @@
-/* Espace enseignant, direction « Signalétique » (VIS-05). Chargée par teacher/base.html seul :
-   le tableau et le téléphone n'en dépendent pas, et app.css reste leur feuille. */
+/* Espace enseignant, direction « Signalétique » (VIS-05). Chargée par teacher/base.html seul,
+   après app.css (bloc head de base.html) : ses règles complètent ou surchargent celles d'app.css,
+   que le tableau et le téléphone gardent seule. */
 
 /* --- Bandeau ------------------------------------------------------------------------------ */
 .teacher-band { gap: 0.5rem 1.5rem; padding: 0.6rem 1rem; }
@@ -43,7 +44,8 @@
 /* --- Tableaux ----------------------------------------------------------------------------- */
 .teacher .grid th, .teacher .grid td { overflow-wrap: anywhere; }
 
-/* --- Petits écrans (360 px) -------------------------------------------------------------- */
-/* Une grille prend sinon la largeur de son plus long contenu insécable (exemple AMC en <pre>). */
+/* --- Débordements à 360 px, à toute largeur ------------------------------------------------ */
+/* La grille .form d'app.css a une colonne `auto` : elle prendrait la largeur de son plus long
+   contenu insécable (exemple AMC en <pre>). Corrigé ici, app.css n'étant pas touché en I19. */
 .teacher .form { grid-template-columns: minmax(0, 1fr); }
 .teacher pre { overflow-x: auto; }
