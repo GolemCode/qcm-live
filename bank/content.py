@@ -24,6 +24,9 @@ COMMAND_RE = re.compile(r"[A-Za-z]+|.", re.DOTALL)
 VERBATIM_BEGIN, VERBATIM_END = r"\begin{verbatim}", r"\end{verbatim}"
 
 
+MAX_NESTING = 20
+
+
 class ContentError(ValueError):
     """Texte refusé ; le message dit pourquoi (« formule non fermée »)."""
 
@@ -68,6 +71,7 @@ class _Parser:
     def __init__(self, source: str) -> None:
         self.source = source
         self.pos = 0
+        self.level = 0  # arguments ouverts : l'analyse est récursive
 
     def nodes(self, in_argument: bool) -> list[Node]:
         """Contenu jusqu'à la fin, ou jusqu'à l'accolade qui ferme l'argument (non consommée)."""
@@ -168,7 +172,11 @@ class _Parser:
         if not self.source.startswith("{", self.pos):
             raise ContentError(f"argument manquant après \\{name}")
         self.pos += 1
+        if self.level == MAX_NESTING:  # sinon RecursionError, donc une erreur 500
+            raise ContentError(f"mise en forme imbriquée sur plus de {MAX_NESTING} niveaux")
+        self.level += 1
         nodes = self.nodes(in_argument=True)
+        self.level -= 1
         if self.pos >= len(self.source):
             raise ContentError(f"accolade non fermée après \\{name}")
         self.pos += 1  # l'accolade fermante

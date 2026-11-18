@@ -100,6 +100,14 @@ def test_emphasis_nests_and_balances_braces():
     ]
 
 
+def test_nesting_is_bounded():  # sinon RecursionError, donc une erreur 500
+    deep = "\\textbf{" * 1000 + "x" + "}" * 1000
+    with pytest.raises(ContentError) as raised:
+        parse(deep)
+    assert str(raised.value) == "mise en forme imbriquée sur plus de 20 niveaux"
+    assert parse("\\textbf{" * 20 + "x" + "}" * 20)  # tout juste accepté
+
+
 def test_escaped_brace_in_an_argument():
     assert parse(r"\textbf{\}}") == [Style("strong", (Text("}"),))]
 
