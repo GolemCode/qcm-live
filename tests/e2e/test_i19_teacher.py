@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import re
+from urllib.parse import urlencode
 
 import pytest
 from django.utils import timezone
@@ -223,6 +224,53 @@ def test_criteria_live_in_the_address(teacher_page: Page):
     article(page, "Villes de France, au choix ?").get_by_role("link", name="Modifier").click()
     page.get_by_role("link", name="Annuler").click()
     assert titles(page) == ["Villes de France, au choix ?"]
+
+
+@pytest.mark.spec("BAN-11")
+def test_search_reads_the_statement_as_shown(teacher_page: Page):
+    """La recherche porte sur le texte affiché, pas sur son balisage, et un long texte collé
+    reste un critère."""
+    page = teacher_page
+    make_question("Prix du billet : 50 \\$ ?")  # « $ » s'écrit échappé dans l'énoncé
+    long = "Énoncé collé en entier, " + "très long, " * 25 + "fin ?"
+    make_question(long)
+    make_question("Autre question ?")
+    open_bank(page)
+    search(page, text="50 $")
+    assert titles(page) == ["Prix du billet : 50 $ ?"]
+    page.goto(page.url.split("?")[0] + "?" + urlencode({"q": long}))
+    assert titles(page) == [long]
+    expect(count(page)).to_have_text("1 question sur 3")
+
+
+@pytest.mark.spec("BAN-11")
+def test_page_alone_is_not_a_criterion(teacher_page: Page):
+    page = teacher_page
+    for k in range(21):
+        make_question(f"Question {k} ?")
+    open_bank(page)
+    clear = page.get_by_role("link", name="Effacer les critères")
+    expect(clear).to_have_count(0)
+    page.get_by_role("link", name="Page suivante").click()
+    expect(page.get_by_role("article")).to_have_count(1)
+    expect(clear).to_have_count(0)
+
+
+@pytest.mark.spec("BAN-11")
+def test_delete_comes_back_to_the_criteria(teacher_page: Page):
+    page = teacher_page
+    four_questions()
+    open_bank(page)
+    search(page, text="lyon")
+    assert titles(page) == [VILLES, RHONE]
+    article(page, RHONE).get_by_role("link", name="Supprimer").click()
+    page.get_by_role("link", name="Annuler").click()
+    assert titles(page) == [VILLES, RHONE]
+    article(page, RHONE).get_by_role("link", name="Supprimer").click()
+    page.get_by_role("button", name="Supprimer").click()
+    expect(page.get_by_role("status")).to_contain_text("Question supprimée")
+    assert titles(page) == [VILLES]
+    expect(search_form(page).get_by_label("Rechercher", exact=True)).to_have_value("lyon")
 
 
 # --- BAN-12 : QCM d'origine -----------------------------------------------------------------
